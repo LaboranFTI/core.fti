@@ -17,7 +17,7 @@ import fti from "../src/assets/Gedung.jpg";
 import nocLogo from "../src/assets/NOC.svg";
 import { api } from "../services/api";
 import { CLIENT_ID } from "../src/config/google";
-import { APP_VERSION, APP_NAME, APP_FULL_NAME } from "../config";
+import { APP_VERSION, APP_NAME, APP_FULL_NAME, INSTITUTION_NAME} from "../config";
 
 declare global {
   interface Window {
@@ -26,7 +26,7 @@ declare global {
 }
 
 interface LoginProps {
-  onLogin: (role: Role, userName?: string, rememberMe?: boolean) => void;
+  onLogin: (role: Role, userName?: string, rememberMe?: boolean, userEmail?: string) => void;
   showToast: (
     message: string | React.ReactNode,
     type: "success" | "error" | "info" | "warning",
@@ -60,6 +60,7 @@ const Login: React.FC<LoginProps> = ({
     confirmPassword: "",
     fullName: "",
     nim: "",
+    resetToken: "",
   });
 
   // CAPTCHA State
@@ -168,10 +169,10 @@ const Login: React.FC<LoginProps> = ({
 
       if (data.resetRequired) {
         showToast(
-          `Halo ${data.name}, Admin telah mereset akun Anda. Silakan buat password baru.`,
+          `Halo ${data.name}, masukkan token reset dari admin untuk membuat password baru.`,
           "info",
         );
-        setFormData((prev) => ({ ...prev, email: data.email }));
+        setFormData((prev) => ({ ...prev, email: data.email, password: "", confirmPassword: "", resetToken: "" }));
         setView("set-password");
         return;
       }
@@ -181,6 +182,7 @@ const Login: React.FC<LoginProps> = ({
         activeStorage.setItem("authToken", data.token);
         activeStorage.setItem("userId", data.id);
         activeStorage.setItem("userName", data.name);
+        activeStorage.setItem("userEmail", data.email);
 
         if (data.deviceId) {
           localStorage.setItem("deviceId", data.deviceId);
@@ -202,7 +204,7 @@ const Login: React.FC<LoginProps> = ({
           );
         }
 
-        onLogin(data.role as Role, data.name, rememberMe);
+        onLogin(data.role as Role, data.name, rememberMe, data.email);
       } else {
         showToast(data.error || "Login gagal.", "error");
       }
@@ -254,7 +256,7 @@ const Login: React.FC<LoginProps> = ({
           "success",
         );
         setView("login");
-        setFormData({ ...formData, password: "", confirmPassword: "" });
+        setFormData({ ...formData, password: "", confirmPassword: "", resetToken: "" });
       } else {
         showToast(data.error || "Registrasi gagal.", "error");
       }
@@ -340,13 +342,14 @@ const Login: React.FC<LoginProps> = ({
         data: {
           email: formData.email,
           newPassword: formData.password,
+          resetToken: formData.resetToken,
         },
       });
       const data = await response.json();
       if (response.ok) {
         showToast(data.message, "success");
         setView("login");
-        setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }));
+        setFormData((prev) => ({ ...prev, password: "", confirmPassword: "", resetToken: "" }));
       } else {
         showToast(data.error || "Gagal mengatur password.", "error");
       }
@@ -390,11 +393,12 @@ const Login: React.FC<LoginProps> = ({
                activeStorage.setItem("authToken", data.token);
                activeStorage.setItem("userId", data.id);
                activeStorage.setItem("userName", data.name);
+               activeStorage.setItem("userEmail", data.email);
                
                if (!localStorage.getItem("deviceId")) localStorage.setItem("deviceId", deviceId);
                
                showToast(`Login berhasil sebagai ${data.name}`, "success");
-               onLogin(data.role as Role, data.name, rememberMe);
+               onLogin(data.role as Role, data.name, rememberMe, data.email);
             } else {
                const errorMessage = data.details ? `${data.error} - ${data.details}` : data.error;
                showToast(errorMessage || "Gagal login dengan Google.", "error");
@@ -448,13 +452,12 @@ const Login: React.FC<LoginProps> = ({
               </div>
             </div>
             <h1 className="max-w-lg text-4xl font-bold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
-              Platform manajemen fasilitas dan layanan administrasi FTI UKSW yang terintegrasi.
+              Platform manajemen sarpras dan layanan administrasi yang terintegrasi.
             </h1>
             <p className="mt-5 max-w-md text-base leading-7 text-blue-100 sm:text-lg">
-              Kelola ruangan, inventaris, jadwal, dan layanan administrasi FTI UKSW dari satu web app yang rapi dan mudah dibaca di semua perangkat.
+              Kelola ruangan, inventaris, jadwal, dan layanan administrasi FTI UKSW dari satu web app.
             </p>
           </div>
-
           <div className="grid max-w-xl gap-4 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-[0.16em] text-blue-100/80">Ruangan</p>
@@ -471,7 +474,7 @@ const Login: React.FC<LoginProps> = ({
           </div>
 
           <div className="text-sm text-blue-100/80">
-            &copy; {new Date().getFullYear()} Sarana dan Prasarana FTI UKSW. All rights reserved.
+            &copy; {new Date().getFullYear()} Sarana dan Prasarana {INSTITUTION_NAME}. All rights reserved.
           </div>
         </div>
       </div>
@@ -903,9 +906,26 @@ const Login: React.FC<LoginProps> = ({
                     {formData.email}
                   </span>
                 </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Gunakan token reset yang dibagikan admin. Token berlaku terbatas.
+                </p>
               </div>
 
               <form onSubmit={handleSetNewPassword} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Token Reset
+                  </label>
+                  <input
+                    name="resetToken"
+                    type="text"
+                    required
+                    value={formData.resetToken}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm font-mono uppercase tracking-[0.2em] placeholder-gray-400 dark:placeholder-gray-400"
+                    placeholder="AB12CD34EF56GH78"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Password Baru

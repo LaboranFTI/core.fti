@@ -57,6 +57,7 @@ export const mainNavigationItems: NavigationItem[] = [
     label: "Daftar Ruangan",
     icon: DoorOpen,
     roles: [
+      Role.MAHASISWA,
       Role.ADMIN,
       Role.LABORAN,
       Role.LEMBAGA_KEMAHASISWAAN,
@@ -75,7 +76,7 @@ export const mainNavigationItems: NavigationItem[] = [
     id: "inventaris",
     label: "Inventaris",
     icon: Archive,
-    roles: [Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, Role.SUPERVISOR],
+    roles: [Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, Role.SUPERVISOR],
   },
   {
     id: "pemesanan-saya",
@@ -90,7 +91,6 @@ export const mainNavigationItems: NavigationItem[] = [
     roles: [
       Role.ADMIN,
       Role.LABORAN,
-      Role.LEMBAGA_KEMAHASISWAAN,
       Role.DOSEN,
       Role.SUPERVISOR,
       Role.USER_TU,
@@ -110,6 +110,7 @@ export const navigationGroups: NavigationGroup[] = [
         label: "Jadwal Ruang",
         icon: CalendarRange,
         roles: [
+          Role.MAHASISWA,
           Role.ADMIN,
           Role.LABORAN,
           Role.LEMBAGA_KEMAHASISWAAN,
@@ -198,6 +199,7 @@ export const navigationGroups: NavigationGroup[] = [
         label: "Profile",
         icon: Users,
         roles: [
+          Role.MAHASISWA,
           Role.ADMIN,
           Role.LABORAN,
           Role.LEMBAGA_KEMAHASISWAAN,
@@ -212,6 +214,7 @@ export const navigationGroups: NavigationGroup[] = [
         label: "Tentang",
         icon: Info,
         roles: [
+          Role.MAHASISWA,
           Role.ADMIN,
           Role.LABORAN,
           Role.LEMBAGA_KEMAHASISWAAN,

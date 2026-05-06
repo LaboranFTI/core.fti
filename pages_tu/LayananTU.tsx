@@ -30,6 +30,13 @@ type ObservationFeedback = {
   message: string;
 } | null;
 
+const waitForNextPaint = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+
 const sanitizeObservationData = (data: ObservationData): ObservationData => ({
   ...data,
   recipientName: data.recipientName.trim(),
@@ -76,12 +83,14 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const isTUAdmin =
     role.toString().toUpperCase() === Role.ADMIN.toString().toUpperCase() ||
     role.toString().toUpperCase() === Role.ADMIN_TU.toString().toUpperCase();
-  const [activeTab, setActiveTab] = useState(isTUAdmin ? "panel-admin" : "aktif");
+  const isMahasiswa = role.toString().toUpperCase() === Role.MAHASISWA.toString().toUpperCase();
+  const [activeTab, setActiveTab] = useState(isMahasiswa ? "observasi" : isTUAdmin ? "panel-admin" : "aktif");
   const [observationView, setObservationView] = useState<"form" | "preview">("form");
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const capturePreviewRef = useRef<HTMLDivElement>(null);
   const [isDownloadingObservationPdf, setIsDownloadingObservationPdf] = useState(false);
+  const [isPreparingObservationOutput, setIsPreparingObservationOutput] = useState(false);
   const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
 
   // State untuk Preview Surat Observasi
@@ -95,7 +104,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     students: []
   });
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const sanitizedData = sanitizeObservationData(obsData);
     const validationMessage = validateObservationData(sanitizedData);
 
@@ -106,7 +115,10 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     }
 
     setObsData(sanitizedData);
+    setObservationView('preview');
+    setIsPreparingObservationOutput(true);
     setObservationFeedback({ type: 'info', message: 'Preview siap dicetak. Pastikan pengaturan printer memakai ukuran A4.' });
+    await waitForNextPaint();
     window.print();
   };
 
@@ -132,13 +144,17 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     }
 
     setObsData(sanitizedData);
+    setObservationView('preview');
     setIsDownloadingObservationPdf(true);
+    setIsPreparingObservationOutput(true);
     setObservationFeedback({ type: 'info', message: 'Sedang menyiapkan PDF surat observasi...' });
 
     try {
       if ('fonts' in document) {
         await document.fonts.ready;
       }
+
+      await waitForNextPaint();
 
       const dataUrl = await htmlToImage.toPng(previewElement, {
         pixelRatio: 2,
@@ -162,6 +178,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       setObservationFeedback({ type: 'error', message: 'Gagal membuat PDF surat observasi. Silakan coba lagi.' });
     } finally {
       setIsDownloadingObservationPdf(false);
+      setIsPreparingObservationOutput(false);
     }
   }, [obsData]);
 
@@ -182,6 +199,21 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     fetchLetterBackgrounds();
   }, [fetchLetterBackgrounds]);
 
+  useEffect(() => {
+    if (isMahasiswa && activeTab !== 'observasi') {
+      setActiveTab('observasi');
+    }
+  }, [activeTab, isMahasiswa]);
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setIsPreparingObservationOutput(false);
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => window.removeEventListener('afterprint', handleAfterPrint);
+  }, []);
+
   const tabDescriptions: Record<string, { title: string; description: string }> = {
     aktif: {
       title: 'Surat Aktif Kuliah',
@@ -189,7 +221,9 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     },
     observasi: {
       title: 'Surat Ijin Observasi',
-      description: 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.'
+      description: isMahasiswa
+        ? 'Role Mahasiswa hanya dapat melihat template dan preview surat observasi pada halaman ini.'
+        : 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.'
     },
     "panel-admin": {
       title: 'Panel Admin TU',
@@ -220,9 +254,11 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
           <TabsList
             className="mb-4 flex flex-wrap gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit print:hidden"
           >
-            <TabsTrigger value="aktif" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
-              Surat Aktif Kuliah
-            </TabsTrigger>
+            {!isMahasiswa && (
+              <TabsTrigger value="aktif" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
+                Surat Aktif Kuliah
+              </TabsTrigger>
+            )}
             <TabsTrigger value="observasi" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
               Surat Ijin Observasi
             </TabsTrigger>
@@ -278,6 +314,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                   onDownloadPdf={handleDownloadObservationPdf}
                   isDownloadingPdf={isDownloadingObservationPdf}
                   feedback={observationFeedback}
+                  readOnly={isMahasiswa}
                 />
               </div>
               <div className={`${observationView === "form" ? 'hidden xl:block' : 'block'} xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0`}>
@@ -285,6 +322,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                   data={obsData}
                   backgroundImageBase64={letterBackgrounds.observation.imageBase64}
                   layout={letterLayouts.observation}
+                  showLayoutGuide={!isPreparingObservationOutput}
                 />
               </div>
             </div>
@@ -294,6 +332,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                 data={sanitizeObservationData(obsData)}
                 backgroundImageBase64={letterBackgrounds.observation.imageBase64}
                 layout={letterLayouts.observation}
+                showLayoutGuide={false}
               />
             </div>
           </TabsContent>

@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import multer from 'multer';
 import { allowedOrigins } from './backend/config/cors.js';
-import { pool, testConnection, createIndexes } from './backend/config/database.js';
+import { pool, testConnection, createIndexes, ensureAuthSchema } from './backend/config/database.js';
 import { verifyToken } from './backend/middleware/auth.js';
 import authRoutes from './backend/routes/auth.routes.js';
 import userRoutes from './backend/routes/user.routes.js';
@@ -47,12 +47,6 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' })); // Tambahkan jug
 
 // Konfigurasi Upload (Simpan sementara di folder uploads/)
 const upload = multer({ dest: 'uploads/' });
-
-// Test koneksi database saat startup
-testConnection();
-
-// Create indexes on server start
-createIndexes();
 
 // --- Rute Publik (Akses Guest Tanpa Token) ---
 // Harus diletakkan SEBELUM middleware verifyToken agar bisa diakses oleh guest di App.tsx & Login.tsx
@@ -141,6 +135,19 @@ app.get('/', (req, res) => {
 });
 
 // Jalankan Server
-app.listen(port, () => {
-  console.log(`Backend server berjalan di http://localhost:${port}`);
-});
+const startServer = async () => {
+  try {
+    await testConnection();
+    await ensureAuthSchema();
+    await createIndexes();
+
+    app.listen(port, () => {
+      console.log(`Backend server berjalan di http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error('Gagal menyiapkan server:', err);
+    process.exit(1);
+  }
+};
+
+startServer();

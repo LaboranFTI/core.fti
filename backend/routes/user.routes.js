@@ -1,11 +1,39 @@
 import express from 'express';
+import crypto from 'crypto';
 import { pool } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
 const router = express.Router();
 
-const ALLOWED_ROLES = ['Admin', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU'];
-const ALLOWED_STATUSES = ['Aktif', 'Non-Aktif', 'Suspended', 'Reset'];
-const normalizeStatus = (status) => status === 'Suspended' ? 'Non-Aktif' : status;
+const ASSIGNABLE_ROLES = ['Mahasiswa', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU'];
+const CREATEABLE_STATUSES = ['Aktif', 'Non-Aktif'];
+const EDITABLE_STATUSES = ['Aktif', 'Non-Aktif', 'Reset'];
+const TOGGLEABLE_STATUSES = ['Aktif', 'Non-Aktif'];
+const RESET_TOKEN_TTL_HOURS = 24;
+const PROFILE_ACCESS_ROLES = ['Admin', 'Laboran', 'Mahasiswa', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU'];
+
+const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const generateResetToken = () => crypto.randomBytes(8).toString('hex').toUpperCase();
+const buildResetTokenPayload = () => {
+  const resetToken = generateResetToken();
+  const resetTokenExpiresAt = new Date(Date.now() + RESET_TOKEN_TTL_HOURS * 60 * 60 * 1000);
+
+  return {
+    resetToken,
+    resetTokenHash: hashResetToken(resetToken),
+    resetTokenExpiresAt,
+  };
+};
+
+const canViewAnyProfile = (role) => ['Admin', 'Laboran', 'Supervisor'].includes(role);
+const canEditOwnProfile = (role) => PROFILE_ACCESS_ROLES.includes(role);
+const parseAvatarImageBuffer = (avatar) => {
+  if (typeof avatar !== 'string' || !avatar.startsWith('data:image') || !avatar.includes(',')) {
+    return undefined;
+  }
+
+  const base64Data = avatar.split(',')[1];
+  return Buffer.from(base64Data, 'base64');
+};
 
 // Endpoint untuk mengambil data users
 router.get('/users', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
@@ -61,11 +89,11 @@ router.post('/users', verifyRole(['Admin']), async (req, res) => {
     return res.status(400).json({ error: 'Nama, email, username, dan role wajib diisi.' });
   }
 
-  if (!ALLOWED_ROLES.includes(role)) {
+  if (!ASSIGNABLE_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Role user tidak valid.' });
   }
 
-  if (status && !ALLOWED_STATUSES.includes(status)) {
+  if (status && !CREATEABLE_STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Status user tidak valid.' });
   }
 
@@ -80,38 +108,128 @@ router.post('/users', verifyRole(['Admin']), async (req, res) => {
     }
 
     const id = `USER-${Date.now()}`;
+    const resolvedStatus = status || 'Aktif';
+    const shouldIssueResetToken = resolvedStatus === 'Aktif';
+    const resetTokenPayload = shouldIssueResetToken ? buildResetTokenPayload() : null;
 
     await pool.query(
-      `INSERT INTO users (id, nama, email, username, password, role, identifier, telepon, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, NOW(), NOW())`,
-      [id, name, email, username, role, identifier || null, phone || null, normalizeStatus(status || 'Aktif')]
+      `INSERT INTO users (
+         id, nama, email, username, password, role, identifier, telepon, status,
+         password_reset_token_hash, password_reset_expires_at, created_at, updated_at
+       )
+       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+      [
+        id,
+        name,
+        email,
+        username,
+        role,
+        identifier || null,
+        phone || null,
+        resolvedStatus,
+        resetTokenPayload?.resetTokenHash || null,
+        resetTokenPayload?.resetTokenExpiresAt || null,
+      ]
     );
 
-    res.status(201).json({ success: true, id });
+    res.status(201).json({
+      success: true,
+      id,
+      resetToken: resetTokenPayload?.resetToken || null,
+      resetTokenExpiresAt: resetTokenPayload?.resetTokenExpiresAt?.toISOString() || null,
+    });
   } catch (err) {
     console.error('Error creating user:', err);
     res.status(500).json({ error: 'Gagal membuat user baru.' });
   }
 });
 
-// Endpoint update user dari Manajemen User
-router.put('/users/:id', verifyRole(['Admin']), async (req, res) => {
-  const { name, email, username, role, identifier, phone, status } = req.body;
+// Endpoint update user dari Manajemen User / Profile
+router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
+  const { name, email, username, role, identifier, phone, status, avatar } = req.body;
   const { id } = req.params;
 
-  if (!name || !email || !username || !role) {
-    return res.status(400).json({ error: 'Nama, email, username, dan role wajib diisi.' });
-  }
-
-  if (!ALLOWED_ROLES.includes(role)) {
-    return res.status(400).json({ error: 'Role user tidak valid.' });
-  }
-
-  if (status && !ALLOWED_STATUSES.includes(status)) {
-    return res.status(400).json({ error: 'Status user tidak valid.' });
-  }
-
   try {
+    const targetUser = await pool.query(
+      'SELECT id, role, status, password FROM users WHERE id = $1',
+      [id]
+    );
+
+    if (targetUser.rows.length === 0) {
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
+    }
+
+    const currentUser = targetUser.rows[0];
+
+    if (req.user.id === id) {
+      if (!canEditOwnProfile(req.user.role)) {
+        return res.status(403).json({ error: 'Role Anda tidak diizinkan mengubah profil sendiri.' });
+      }
+
+      if (!name || !email || !username) {
+        return res.status(400).json({ error: 'Nama, email, dan username wajib diisi.' });
+      }
+
+      const existing = await pool.query(
+        'SELECT id FROM users WHERE (email = $1 OR username = $2) AND id <> $3',
+        [email, username, id]
+      );
+
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ error: 'Email atau username sudah dipakai user lain.' });
+      }
+
+      const avatarImageBuffer = parseAvatarImageBuffer(avatar);
+      const params = [name, email, username, identifier || null, phone || null, id];
+      let query = `
+        UPDATE users
+        SET nama = $1,
+            email = $2,
+            username = $3,
+            identifier = $4,
+            telepon = $5,
+            updated_at = NOW()
+      `;
+
+      if (avatarImageBuffer !== undefined) {
+        query += ', avatar_image = $6';
+        params.splice(5, 0, avatarImageBuffer);
+      }
+
+      query += avatarImageBuffer !== undefined ? ' WHERE id = $7 RETURNING id' : ' WHERE id = $6 RETURNING id';
+
+      await pool.query(query, params);
+      return res.json({ success: true });
+    }
+
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Anda hanya dapat mengubah profil akun Anda sendiri.' });
+    }
+
+    if (currentUser.role === 'Admin') {
+      return res.status(403).json({ error: 'Akun admin hanya dapat dikelola langsung dari database.' });
+    }
+
+    if (!name || !email || !username || !role) {
+      return res.status(400).json({ error: 'Nama, email, username, dan role wajib diisi.' });
+    }
+
+    if (!ASSIGNABLE_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Role user tidak valid.' });
+    }
+
+    if (status && !EDITABLE_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Status user tidak valid.' });
+    }
+
+    if (status === 'Reset' && currentUser.status !== 'Reset') {
+      return res.status(400).json({ error: 'Gunakan fitur reset password untuk memindahkan akun ke status Reset.' });
+    }
+
+    if (currentUser.status === 'Reset' && status === 'Aktif' && currentUser.password === null) {
+      return res.status(400).json({ error: 'Akun reset tidak dapat diaktifkan manual sebelum password baru dibuat.' });
+    }
+
     const existing = await pool.query(
       'SELECT id FROM users WHERE (email = $1 OR username = $2) AND id <> $3',
       [email, username, id]
@@ -133,12 +251,8 @@ router.put('/users/:id', verifyRole(['Admin']), async (req, res) => {
            updated_at = NOW()
        WHERE id = $8
        RETURNING id`,
-      [name, email, username, role, identifier || null, phone || null, normalizeStatus(status || 'Aktif'), id]
+      [name, email, username, role, identifier || null, phone || null, status || currentUser.status, id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User tidak ditemukan.' });
-    }
 
     res.json({ success: true });
   } catch (err) {
@@ -150,11 +264,21 @@ router.put('/users/:id', verifyRole(['Admin']), async (req, res) => {
 // Endpoint hapus user dari Manajemen User
 router.delete('/users/:id', verifyRole(['Admin']), async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id, role', [req.params.id]);
+    if (req.user.id === req.params.id) {
+      return res.status(400).json({ error: 'Anda tidak dapat menghapus akun Anda sendiri.' });
+    }
 
-    if (result.rows.length === 0) {
+    const targetUser = await pool.query('SELECT id, role FROM users WHERE id = $1', [req.params.id]);
+
+    if (targetUser.rows.length === 0) {
       return res.status(404).json({ error: 'User tidak ditemukan.' });
     }
+
+    if (targetUser.rows[0].role === 'Admin') {
+      return res.status(403).json({ error: 'Akun admin hanya dapat dikelola langsung dari database.' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
 
     res.json({ success: true });
   } catch (err) {
@@ -167,19 +291,38 @@ router.delete('/users/:id', verifyRole(['Admin']), async (req, res) => {
 router.put('/users/:id/status', verifyRole(['Admin']), async (req, res) => {
   const { status } = req.body;
 
-  if (!status || !ALLOWED_STATUSES.includes(status)) {
+  if (!status || !TOGGLEABLE_STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Status user tidak valid.' });
   }
 
   try {
-    const result = await pool.query(
-      'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id',
-      [normalizeStatus(status), req.params.id]
+    if (req.user.id === req.params.id) {
+      return res.status(400).json({ error: 'Anda tidak dapat mengubah status akun Anda sendiri.' });
+    }
+
+    const targetUser = await pool.query(
+      'SELECT id, role, status, password FROM users WHERE id = $1',
+      [req.params.id]
     );
 
-    if (result.rows.length === 0) {
+    if (targetUser.rows.length === 0) {
       return res.status(404).json({ error: 'User tidak ditemukan.' });
     }
+
+    const user = targetUser.rows[0];
+
+    if (user.role === 'Admin') {
+      return res.status(403).json({ error: 'Akun admin hanya dapat dikelola langsung dari database.' });
+    }
+
+    if (user.status === 'Reset' && status === 'Aktif' && user.password === null) {
+      return res.status(400).json({ error: 'Akun reset tidak dapat diaktifkan manual sebelum password baru dibuat.' });
+    }
+
+    await pool.query(
+      'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2',
+      [status, req.params.id]
+    );
 
     res.json({ success: true });
   } catch (err) {
@@ -191,21 +334,49 @@ router.put('/users/:id/status', verifyRole(['Admin']), async (req, res) => {
 // Endpoint reset password user
 router.put('/users/:id/reset-password', verifyRole(['Admin']), async (req, res) => {
   try {
-    const result = await pool.query(
-      `UPDATE users
-       SET password = NULL,
-           password_changed_at = NULL,
-           updated_at = NOW()
-       WHERE id = $1
-       RETURNING id`,
+    if (req.user.id === req.params.id) {
+      return res.status(400).json({ error: 'Gunakan halaman profil untuk mengubah password akun Anda sendiri.' });
+    }
+
+    const targetUser = await pool.query(
+      'SELECT id, role, status FROM users WHERE id = $1',
       [req.params.id]
     );
 
-    if (result.rows.length === 0) {
+    if (targetUser.rows.length === 0) {
       return res.status(404).json({ error: 'User tidak ditemukan.' });
     }
 
-    res.json({ success: true });
+    const user = targetUser.rows[0];
+
+    if (user.role === 'Admin') {
+      return res.status(403).json({ error: 'Akun admin hanya dapat dikelola langsung dari database.' });
+    }
+
+    if (user.status === 'Non-Aktif') {
+      return res.status(400).json({ error: 'Aktifkan akun terlebih dahulu sebelum menerbitkan token reset.' });
+    }
+
+    const { resetToken, resetTokenHash, resetTokenExpiresAt } = buildResetTokenPayload();
+
+    await pool.query(
+      `UPDATE users
+       SET password = NULL,
+           status = 'Reset',
+           password_changed_at = NULL,
+           password_reset_token_hash = $2,
+           password_reset_expires_at = $3,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id`,
+      [req.params.id, resetTokenHash, resetTokenExpiresAt]
+    );
+
+    res.json({
+      success: true,
+      resetToken,
+      resetTokenExpiresAt: resetTokenExpiresAt.toISOString(),
+    });
   } catch (err) {
     console.error('Error resetting password:', err);
     res.status(500).json({ error: 'Gagal mereset password user.' });
@@ -213,8 +384,12 @@ router.put('/users/:id/reset-password', verifyRole(['Admin']), async (req, res) 
 });
 
 // Endpoint Get Single User (Profile)
-router.get('/users/:id', verifyRole(['Admin', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU']), async (req, res) => {
+router.get('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
   try {
+    if (!canViewAnyProfile(req.user.role) && req.user.id !== req.params.id) {
+      return res.status(403).json({ error: 'Tidak diizinkan melihat profil user lain.' });
+    }
+
     const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User tidak ditemukan' });
     
@@ -247,9 +422,13 @@ router.get('/users/:id', verifyRole(['Admin', 'Laboran', 'Lembaga Kemahasiswaan'
 });
 
 // Endpoint Get User Account Info (for Profile page)
-router.get('/users/:id/account-info', verifyRole(['Admin', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU']), async (req, res) => {
+router.get('/users/:id/account-info', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
   try {
     const userId = req.params.id;
+
+    if (!canViewAnyProfile(req.user.role) && req.user.id !== userId) {
+      return res.status(403).json({ error: 'Tidak diizinkan melihat informasi akun user lain.' });
+    }
     
     // Get user data
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);

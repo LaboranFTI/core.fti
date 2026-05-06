@@ -864,11 +864,6 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
       </div>
 
 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 print:hidden">
-         {!canManageInventory && (
-           <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-             Anda memiliki akses baca saja pada halaman inventaris. Penambahan, perubahan, penghapusan, export, print, dan scan QR dinonaktifkan.
-           </div>
-         )}
 
          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-center mb-6">
 

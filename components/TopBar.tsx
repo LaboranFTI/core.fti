@@ -13,6 +13,7 @@ interface TopBarProps {
   currentRole: Role;
   pageLabel: string;
   userName: string;
+  userEmail: string;
   onOpenAi: () => void;
   onLogout: () => void;
   notifications: Notification[];
@@ -42,7 +43,7 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 const TopBar: React.FC<TopBarProps> = ({ 
-  onToggleSidebar, showSidebarToggle, isVisible = true, isDarkMode, toggleDarkMode, currentRole, pageLabel, userName, onOpenAi, onLogout, notifications, onMarkAsRead, onMarkAllAsRead, onClearAllNotifications, onNavigate, isMaintenanceMode
+  onToggleSidebar, showSidebarToggle, isVisible = true, isDarkMode, toggleDarkMode, currentRole, pageLabel, userName, userEmail, onOpenAi, onLogout, notifications, onMarkAsRead, onMarkAllAsRead, onClearAllNotifications, onNavigate, isMaintenanceMode
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -313,7 +314,7 @@ const TopBar: React.FC<TopBarProps> = ({
               <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                   <p className="text-sm text-gray-900 dark:text-white font-medium">Signed in as</p>
-                  <p className="text-xs text-gray-500 truncate">{currentRole === Role.LEMBAGA_KEMAHASISWAAN || currentRole === Role.DOSEN ? 'student@uksw.edu' : 'admin@uksw.edu'}</p>
+                  <p className="text-xs text-gray-500 truncate">{userEmail}</p>
                 </div>
                 <button 
                    onClick={() => {

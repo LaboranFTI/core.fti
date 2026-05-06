@@ -1,6 +1,7 @@
 export enum Role {
   ADMIN = 'Admin',
   LABORAN = 'Laboran',
+  MAHASISWA = 'Mahasiswa',
   LEMBAGA_KEMAHASISWAAN = 'Lembaga Kemahasiswaan',
   DOSEN = 'Dosen',
   SUPERVISOR = 'Supervisor',
@@ -115,7 +116,7 @@ export interface AppUser {
   role: string;
   identifier: string; // NIM or NIDN
   department: string; // Prodi / Unit
-  status: 'Aktif' | 'Non-Aktif' | 'Suspended';
+  status: 'Aktif' | 'Non-Aktif' | 'Reset';
   lastLogin?: string;
 }
 

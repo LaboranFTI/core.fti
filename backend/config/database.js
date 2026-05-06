@@ -127,6 +127,25 @@ export const testConnection = () => {
     });
 };
 
+export const ensureAuthSchema = async () => {
+  const schemaQueries = [
+    "ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'Reset'",
+    'ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(50)',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_hash VARCHAR(255)',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ',
+  ];
+
+  try {
+    for (const query of schemaQueries) {
+      await pool.query(query);
+    }
+    console.log('Auth schema ensured successfully');
+  } catch (err) {
+    console.error('Error ensuring auth schema:', err);
+    throw err;
+  }
+};
+
 // --- DATABASE INDEXES (Optimizations) ---
 export const createIndexes = async () => {
   const indexes = [

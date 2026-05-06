@@ -56,7 +56,27 @@ interface UserStats {
   unreadNotifications: number;
 }
 
+const SELF_SERVICE_PROFILE_ROLES: Role[] = [
+  Role.MAHASISWA,
+  Role.ADMIN,
+  Role.LABORAN,
+  Role.LEMBAGA_KEMAHASISWAAN,
+  Role.DOSEN,
+  Role.SUPERVISOR,
+  Role.USER_TU,
+  Role.ADMIN_TU,
+];
+
 const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
+  const isMahasiswa = role.toString().toUpperCase() === Role.MAHASISWA.toString().toUpperCase();
+  const hasRoleAccess = SELF_SERVICE_PROFILE_ROLES.some(
+    (allowedRole) => allowedRole.toString().toUpperCase() === role.toString().toUpperCase()
+  );
+  const canEditProfile = hasRoleAccess;
+  const canChangePassword = hasRoleAccess;
+  const canViewBookingHistory =
+    role.toString().toUpperCase() === Role.LEMBAGA_KEMAHASISWAAN.toString().toUpperCase() ||
+    role.toString().toUpperCase() === Role.ADMIN_TU.toString().toUpperCase();
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState({
     id: '',
@@ -211,6 +231,12 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
         }
       });
       if (res.ok) {
+        if (sessionStorage.getItem('userName')) {
+          sessionStorage.setItem('userName', userData.name);
+        }
+        if (localStorage.getItem('userName')) {
+          localStorage.setItem('userName', userData.name);
+        }
         setIsEditing(false);
         showToast("Profil berhasil diperbarui!", "success");
       } else {
@@ -293,12 +319,14 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
             </div>
             <div className="mt-4 sm:mt-0 ml-auto mb-2 w-full sm:w-auto">
               {!isEditing ? (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
-                >
-                  Edit Profil
-                </button>
+                canEditProfile ? (
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                  >
+                    Edit Profil
+                  </button>
+                ) : null
               ) : (
                 <button 
                   onClick={() => setIsEditing(false)}
@@ -357,7 +385,7 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{role === Role.LEMBAGA_KEMAHASISWAAN ? 'NIM' : 'NIDN/NIP'}</label>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{role === Role.LEMBAGA_KEMAHASISWAAN || role === Role.MAHASISWA ? 'NIM' : 'NIDN/NIP'}</label>
                   <div className="relative">
                     <CreditCard className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input 
@@ -502,12 +530,16 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                     <p className="text-xs text-gray-500">Ubah password Anda</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setIsChangePasswordOpen(true)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Ubah
-                </button>
+                {canChangePassword ? (
+                  <button 
+                    onClick={() => setIsChangePasswordOpen(true)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Ubah
+                  </button>
+                ) : (
+                  <span className="text-xs font-medium text-gray-400">Read only</span>
+                )}
               </div>
             </div>
           </div>
@@ -516,25 +548,29 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Aksi Cepat</h2>
             <div className="space-y-3">
+              {!isMahasiswa && (
+                <button 
+                  onClick={() => onNavigate?.('dashboard')}
+                  className="w-full flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-all hover:scale-[1.02] group"
+                >
+                  <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3" />
+                  <span className="text-sm font-medium text-blue-900 dark:text-blue-300 group-hover:text-blue-700 dark:group-hover:text-blue-200">Notifikasi</span>
+                  {stats.unreadNotifications > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{stats.unreadNotifications}</span>
+                  )}
+                </button>
+              )}
+              {canViewBookingHistory && (
+                <button 
+                  onClick={() => onNavigate?.('pemesanan-saya')}
+                  className="w-full flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-xl transition-all hover:scale-[1.02] group"
+                >
+                  <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-3" />
+                  <span className="text-sm font-medium text-purple-900 dark:text-purple-300 group-hover:text-purple-700 dark:group-hover:text-purple-200">Riwayat Peminjaman</span>
+                </button>
+              )}
               <button 
-                onClick={() => onNavigate?.('dashboard')}
-                className="w-full flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-all hover:scale-[1.02] group"
-              >
-                <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3" />
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-300 group-hover:text-blue-700 dark:group-hover:text-blue-200">Notifikasi</span>
-                {stats.unreadNotifications > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{stats.unreadNotifications}</span>
-                )}
-              </button>
-            <button 
-              onClick={() => onNavigate?.('pemesanan-saya')}
-                className="w-full flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-xl transition-all hover:scale-[1.02] group"
-              >
-                <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-3" />
-                <span className="text-sm font-medium text-purple-900 dark:text-purple-300 group-hover:text-purple-700 dark:group-hover:text-purple-200">Riwayat Peminjaman</span>
-              </button>
-              <button 
-              onClick={() => onNavigate?.('ruangan')}
+                onClick={() => onNavigate?.('ruangan')}
                 className="w-full flex items-center p-4 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 rounded-xl transition-all hover:scale-[1.02] group"
               >
                 <Building className="w-5 h-5 text-green-600 dark:text-green-400 mr-3" />
@@ -546,7 +582,7 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
       </div>
 
       {/* Change Password Modal */}
-      {isChangePasswordOpen && (
+      {canChangePassword && isChangePasswordOpen && (
         <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">

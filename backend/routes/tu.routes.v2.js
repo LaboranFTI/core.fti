@@ -14,8 +14,9 @@ const __dirname = path.dirname(__filename);
 
 const uploadSessions = new Map();
 
-const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
+const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
 const TU_ADMIN_ROLES = ['Admin', 'Admin TU'];
+const TU_SUBMIT_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
 const TU_SETTINGS_KEYS = ['tu_dean_signature_base64', 'tu_faculty_stamp_base64', 'tu_current_semester_code'];
 const LETTER_TYPE_TO_CLIENT_KEY = {
   'active-student': 'activeStudent',
@@ -617,7 +618,7 @@ router.get('/upload-session/:id', async (req, res) => {
   }
 });
 
-router.post('/active-student', async (req, res) => {
+router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
   const { name, nim, email, transcriptBase64, transcriptName } = req.body;
 
   try {
@@ -687,7 +688,7 @@ router.put('/active-student/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req,
   }
 });
 
-router.post('/observation-requests', async (req, res) => {
+router.post('/observation-requests', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
   const {
     name,
     nim,

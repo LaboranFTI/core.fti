@@ -1,6 +1,8 @@
 import express from 'express';
 import { pool } from '../config/database.js';
+import { verifyRole } from '../middleware/auth.js';
 const router = express.Router();
+const ROOM_MANAGEMENT_ROLES = ['Admin', 'Laboran', 'Supervisor'];
 
 // --- ROOMS (Tabel: rooms) ---
 
@@ -91,7 +93,7 @@ router.get('/room/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'DB Error' }); }
 });
 
-router.post('/rooms', async (req, res) => {
+router.post('/rooms', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   const { id, name, category, description, capacity, pic, image, facilities, googleCalendarUrl, floor } = req.body;
   try {
     // Cari ID Staff berdasarkan nama (karena frontend mengirim nama)
@@ -117,7 +119,7 @@ router.post('/rooms', async (req, res) => {
   }
 });
 
-router.put('/rooms/:id', async (req, res) => {
+router.put('/rooms/:id', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
     const { name, category, description, capacity, pic, image, facilities, googleCalendarUrl, floor } = req.body;
     try {
       let picId = null;
@@ -149,7 +151,7 @@ router.put('/rooms/:id', async (req, res) => {
     }
 });
 
-router.delete('/rooms/:id', async (req, res) => {
+router.delete('/rooms/:id', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
     try {
       await pool.query('DELETE FROM rooms WHERE id=$1', [req.params.id]);
       res.json({ success: true });
@@ -221,7 +223,7 @@ router.get('/rooms/:id/specs-summary', async (req, res) => {
 });
 
 // Add/Update Computer
-router.post('/computers', async (req, res) => {
+router.post('/computers', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   const { id, roomId, pcNumber, cpu, gpuType, gpuModel, vram, ram, storage, os, keyboard, mouse, monitor, condition } = req.body;
   try {
     // Upsert (Insert or Update)
@@ -240,7 +242,7 @@ router.post('/computers', async (req, res) => {
 });
 
 // Delete All Computers in a Room (Reset)
-router.delete('/rooms/:id/computers', async (req, res) => {
+router.delete('/rooms/:id/computers', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   try {
     await pool.query('DELETE FROM room_computers WHERE room_id=$1', [req.params.id]);
     res.json({ success: true });
@@ -250,7 +252,7 @@ router.delete('/rooms/:id/computers', async (req, res) => {
   }
 });
 
-router.delete('/computers/:id', async (req, res) => {
+router.delete('/computers/:id', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   try {
     await pool.query('DELETE FROM room_computers WHERE id=$1', [req.params.id]);
     res.json({ success: true });
@@ -311,7 +313,7 @@ router.get('/software', async (req, res) => {
 });
 
 // Add New Software
-router.post('/software', async (req, res) => {
+router.post('/software', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   const { name, version, licenseType, licenseKey, vendor, installDate, roomId, notes, category } = req.body;
   try {
     const id = `SOFT-${Date.now()}`;
@@ -328,7 +330,7 @@ router.post('/software', async (req, res) => {
 });
 
 // Update Software
-router.put('/software/:id', async (req, res) => {
+router.put('/software/:id', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   const { id } = req.params;
   const { name, version, licenseType, licenseKey, vendor, installDate, roomId, notes, category } = req.body;
   try {
@@ -344,7 +346,7 @@ router.put('/software/:id', async (req, res) => {
 });
 
 // Delete Software
-router.delete('/software/:id', async (req, res) => {
+router.delete('/software/:id', verifyRole(ROOM_MANAGEMENT_ROLES), async (req, res) => {
   try {
     await pool.query('DELETE FROM software WHERE id=$1', [req.params.id]);
     res.json({ success: true });

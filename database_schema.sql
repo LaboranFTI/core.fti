@@ -32,13 +32,15 @@ CREATE TABLE users (
     email VARCHAR(100) UNIQUE NOT NULL,
     username VARCHAR(50) UNIQUE,
     password VARCHAR(255),
-    role VARCHAR(20) NOT NULL,
+    role VARCHAR(50) NOT NULL,
     identifier VARCHAR(50),
     telepon VARCHAR(20),
     avatar_image BYTEA,
     status user_status_enum DEFAULT 'Aktif',
     last_login TIMESTAMP,
     password_changed_at TIMESTAMP,
+    password_reset_token_hash VARCHAR(255),
+    password_reset_expires_at TIMESTAMPTZ,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

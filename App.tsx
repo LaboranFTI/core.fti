@@ -78,11 +78,18 @@ const AppContent: React.FC = () => {
   // Helper fungsi untuk membaca storage (Prioritaskan Session, fallback ke Local)
   const getStorageItem = (key: string) => sessionStorage.getItem(key) || localStorage.getItem(key);
   const isRoleMatch = (role: Role | string, target: Role) => role.toString().toUpperCase() === target.toString().toUpperCase();
+  const isTuRole = (role: Role | string) => isRoleMatch(role, Role.USER_TU) || isRoleMatch(role, Role.ADMIN_TU);
+  const getDefaultRouteForRole = (role: Role | string) => {
+    if (isTuRole(role)) return '/layanan-tu';
+    if (isRoleMatch(role, Role.MAHASISWA)) return '/ruangan';
+    return '/dashboard';
+  };
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => getStorageItem('isAuthenticated') === 'true');
-  const [currentRole, setCurrentRole] = useState<Role>(() => (getStorageItem('currentRole') as Role) || Role.LEMBAGA_KEMAHASISWAAN);
-  const currentPage = location.pathname.substring(1) || (isRoleMatch(currentRole, Role.USER_TU) || isRoleMatch(currentRole, Role.ADMIN_TU) ? 'layanan-tu' : 'dashboard');
+  const [currentRole, setCurrentRole] = useState<Role>(() => (getStorageItem('currentRole') as Role) || Role.MAHASISWA);
+  const currentPage = location.pathname.substring(1) || getDefaultRouteForRole(currentRole).replace('/', '');
   const [userName, setUserName] = useState<string>(() => getStorageItem('userName') || 'User');
+  const [userEmail, setUserEmail] = useState<string>(() => getStorageItem('userEmail') || '');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('isSidebarCollapsed');
@@ -243,17 +250,19 @@ const AppContent: React.FC = () => {
     localStorage.setItem('isSidebarCollapsed', String(newState));
   };
 
-  const handleLogin = (role: Role, userNameFromLogin?: string, rememberMe: boolean = false) => {
+  const handleLogin = (role: Role, userNameFromLogin?: string, rememberMe: boolean = false, emailFromLogin?: string) => {
     setIsLoading(true);
     setCurrentRole(role);
     
     // Use userName from parameter if provided, otherwise get from localStorage
     // This fixes the race condition where localStorage wasn't set yet
     const userName = userNameFromLogin || getStorageItem('userName') || 'User';
+    const email = emailFromLogin || getStorageItem('userEmail') || '';
     setUserName(userName);
+    setUserEmail(email);
     
     setIsAuthenticated(true);
-    const targetPage = isRoleMatch(role, Role.USER_TU) || isRoleMatch(role, Role.ADMIN_TU) ? '/layanan-tu' : '/dashboard';
+    const targetPage = getDefaultRouteForRole(role);
     navigate(targetPage);
     showToast('Selamat datang kembali!', 'success');
     
@@ -262,11 +271,12 @@ const AppContent: React.FC = () => {
     storage.setItem('isAuthenticated', 'true');
     storage.setItem('currentRole', role);
     storage.setItem('userName', userName);
+    storage.setItem('userEmail', email);
     setIsLoading(false);
   };
 
   const clearAllStorage = () => {
-    const keys = ['isAuthenticated', 'currentRole', 'userName', 'authToken', 'userId', 'refreshToken'];
+    const keys = ['isAuthenticated', 'currentRole', 'userName', 'userEmail', 'authToken', 'userId', 'refreshToken'];
     keys.forEach(key => {
       localStorage.removeItem(key);
     });
@@ -283,8 +293,9 @@ const AppContent: React.FC = () => {
       // Continue client-side logout
     } finally {
       setIsAuthenticated(false);
-      setCurrentRole(Role.LEMBAGA_KEMAHASISWAAN);
+      setCurrentRole(Role.MAHASISWA);
       setUserName('User');
+      setUserEmail('');
       clearAllStorage();
       navigate('/login');
       setIsLoading(false);
@@ -374,6 +385,10 @@ const AppContent: React.FC = () => {
             if (data.user.name !== userName) {
               setUserName(data.user.name);
               storage.setItem('userName', data.user.name);
+            }
+            if (data.user.email && data.user.email !== userEmail) {
+              setUserEmail(data.user.email);
+              storage.setItem('userEmail', data.user.email);
             }
           }
         }
@@ -482,8 +497,9 @@ const AppContent: React.FC = () => {
       // Jika auth status dihapus dari localStorage (karena tab lain menekan tombol logout)
       if (e.key === 'isAuthenticated' && e.newValue !== 'true') {
         setIsAuthenticated(false);
-        setCurrentRole(Role.LEMBAGA_KEMAHASISWAAN);
+        setCurrentRole(Role.MAHASISWA);
         setUserName('User');
+        setUserEmail('');
         sessionStorage.clear(); // Bersihkan juga memori sessionStorage pada tab ini
         navigate('/login');
         showToast('Anda telah logout dari tab lain.', 'info');
@@ -537,7 +553,7 @@ const AppContent: React.FC = () => {
               />
             </Suspense>
           ) : (
-            <Navigate to={isRoleMatch(currentRole, Role.USER_TU) || isRoleMatch(currentRole, Role.ADMIN_TU) ? "/layanan-tu" : "/dashboard"} replace />
+            <Navigate to={getDefaultRouteForRole(currentRole)} replace />
           )
         } />
 
@@ -547,6 +563,7 @@ const AppContent: React.FC = () => {
               currentRole={currentRole}
               currentPage={currentPage}
               userName={userName}
+              userEmail={userEmail}
               isDarkMode={isDarkMode}
               isSidebarOpen={isSidebarOpen}
               isSidebarCollapsed={isSidebarCollapsed}
@@ -576,14 +593,22 @@ const AppContent: React.FC = () => {
             <Navigate to="/login" replace />
           )
         }>
-          <Route path="/" element={<Navigate to={isRoleMatch(currentRole, Role.USER_TU) ? "/layanan-tu" : "/dashboard"} replace />} />
+          <Route path="/" element={<Navigate to={getDefaultRouteForRole(currentRole)} replace />} />
           <Route path="/dashboard" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <Dashboard role={currentRole} onNavigate={(p: string) => navigate(`/${p}`)} />
             </ProtectedRoute>
           } />
-          <Route path="/jadwal-ruang" element={<JadwalRuang role={currentRole} showToast={showToast} isDarkMode={isDarkMode} />} />
-          <Route path="/ruangan" element={<Ruangan role={currentRole} isDarkMode={isDarkMode} onNavigate={(p: string) => navigate(`/${p}`)} showToast={showToast} />} />
+          <Route path="/jadwal-ruang" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <JadwalRuang role={currentRole} showToast={showToast} isDarkMode={isDarkMode} />
+            </ProtectedRoute>
+          } />
+          <Route path="/ruangan" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <Ruangan role={currentRole} isDarkMode={isDarkMode} onNavigate={(p: string) => navigate(`/${p}`)} showToast={showToast} />
+            </ProtectedRoute>
+          } />
           <Route path="/acara" element={<Acara showToast={showToast} isDarkMode={isDarkMode} />} />
           <Route path="/peminjaman-barang" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
@@ -601,7 +626,7 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } />
           <Route path="/inventaris" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <Inventaris role={currentRole} showToast={showToast} />
             </ProtectedRoute>
           } />
@@ -625,7 +650,11 @@ const AppContent: React.FC = () => {
               <PesananRuang addNotification={addNotification} showToast={showToast} />
             </ProtectedRoute>
           } />
-          <Route path="/profil" element={<Profile role={currentRole} showToast={showToast} onNavigate={(p: string) => navigate(`/${p}`)} />} />
+          <Route path="/profil" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <Profile role={currentRole} showToast={showToast} onNavigate={(p: string) => navigate(`/${p}`)} />
+            </ProtectedRoute>
+          } />
           <Route path="/pengaturan" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <Settings showToast={showToast} onNavigate={(p: string) => navigate(`/${p}`)} />
@@ -641,9 +670,13 @@ const AppContent: React.FC = () => {
               <ManajemenSpesifikasi role={currentRole} isDarkMode={isDarkMode} showToast={showToast} />
             </ProtectedRoute>
           } />
-          <Route path="/tentang" element={<Tentang />} />
+          <Route path="/tentang" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <Tentang />
+            </ProtectedRoute>
+          } />
           <Route path="/layanan-tu" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <LayananTU role={currentRole} />
             </ProtectedRoute>
           } />

@@ -11,6 +11,7 @@ interface AppShellProps {
   currentRole: Role;
   currentPage: string;
   userName: string;
+  userEmail: string;
   isDarkMode: boolean;
   isSidebarOpen: boolean;
   isSidebarCollapsed: boolean;
@@ -50,6 +51,7 @@ const AppShell: React.FC<AppShellProps> = ({
   currentRole,
   currentPage,
   userName,
+  userEmail,
   isDarkMode,
   isSidebarOpen,
   isSidebarCollapsed,
@@ -107,6 +109,7 @@ const AppShell: React.FC<AppShellProps> = ({
             currentRole={currentRole}
             pageLabel={pageLabel}
             userName={userName}
+            userEmail={userEmail}
             onOpenAi={onOpenAi}
             onLogout={onLogout}
             notifications={notifications}

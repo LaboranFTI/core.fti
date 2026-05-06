@@ -1,6 +1,8 @@
 import express from 'express';
 import { pool } from '../config/database.js';
+import { verifyRole } from '../middleware/auth.js';
 const router = express.Router();
+const INVENTORY_MANAGEMENT_ROLES = ['Admin', 'Laboran', 'Supervisor'];
 
 // --- INVENTORY
 
@@ -25,7 +27,7 @@ router.get('/inventory', async (req, res) => {
   }
 });
 
-router.post('/inventory', async (req, res) => {
+router.post('/inventory', verifyRole(INVENTORY_MANAGEMENT_ROLES), async (req, res) => {
   const { id, ukswCode, name, category, condition, isAvailable, serialNumber, location, vendor } = req.body;
   try {
     await pool.query(
@@ -39,7 +41,7 @@ router.post('/inventory', async (req, res) => {
   }
 });
 
-router.put('/inventory/:id', async (req, res) => {
+router.put('/inventory/:id', verifyRole(INVENTORY_MANAGEMENT_ROLES), async (req, res) => {
   const { ukswCode, name, category, condition, isAvailable, serialNumber, location, vendor } = req.body;
   const client = await pool.connect();
   
@@ -95,7 +97,7 @@ router.put('/inventory/:id', async (req, res) => {
   }
 });
 
-router.delete('/inventory/:id', async (req, res) => {
+router.delete('/inventory/:id', verifyRole(INVENTORY_MANAGEMENT_ROLES), async (req, res) => {
   try {
     await pool.query('DELETE FROM inventory WHERE id=$1', [req.params.id]);
     res.json({ success: true });
@@ -147,7 +149,7 @@ router.get('/item-movements', async (req, res) => {
   }
 });
 
-router.post('/item-movements', async (req, res) => {
+router.post('/item-movements', verifyRole(INVENTORY_MANAGEMENT_ROLES), async (req, res) => {
   const { inventoryId, movementDate, movementType, fromPerson, toPerson, movedBy, quantity, fromLocation, toLocation, notes, loanId } = req.body;
   const client = await pool.connect();
   try {
@@ -178,7 +180,7 @@ router.post('/item-movements', async (req, res) => {
   }
 });
 
-router.put('/item-movements/:id', async (req, res) => {
+router.put('/item-movements/:id', verifyRole(INVENTORY_MANAGEMENT_ROLES), async (req, res) => {
   const { id } = req.params;
   const { movementDate, fromPerson, toPerson, movedBy, quantity, fromLocation, toLocation, notes } = req.body;
   const client = await pool.connect();
@@ -222,7 +224,7 @@ router.put('/item-movements/:id', async (req, res) => {
 });
 
 // Undo Movement (Batalkan Perpindahan Terakhir)
-router.post('/item-movements/:id/undo', async (req, res) => {
+router.post('/item-movements/:id/undo', verifyRole(INVENTORY_MANAGEMENT_ROLES), async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
   try {

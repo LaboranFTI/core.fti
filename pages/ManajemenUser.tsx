@@ -17,8 +17,8 @@ interface UserManagementProps {
 const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<'All' | 'Lembaga Kemahasiswaan' | 'Dosen' | 'Laboran' | 'Supervisor' | 'Admin TU' | 'User TU'>('All');
-  const [filterStatus, setFilterStatus] = useState<'All' | 'Aktif' | 'Non-Aktif' | 'Suspended'>('All');
+  const [filterRole, setFilterRole] = useState<'All' | 'Mahasiswa' | 'Lembaga Kemahasiswaan' | 'Dosen' | 'Laboran' | 'Supervisor' | 'Admin TU' | 'User TU'>('All');
+  const [filterStatus, setFilterStatus] = useState<'All' | 'Aktif' | 'Non-Aktif' | 'Reset'>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'internal' | 'sso'>('internal');
   
@@ -29,7 +29,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [formData, setFormData] = useState<Partial<AppUser>>({
-    name: '', email: '', username: '', role: 'Lembaga Kemahasiswaan', identifier: '', phone: '', status: 'Aktif'
+    name: '', email: '', username: '', role: 'Mahasiswa', identifier: '', phone: '', status: 'Aktif'
   });
 
   const [confirmModal, setConfirmModal] = useState({
@@ -90,7 +90,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
       setFormData(user);
     } else {
       setEditingUser(null);
-      setFormData({ name: '', email: '', username: '', role: 'Lembaga Kemahasiswaan', identifier: '', phone: '', status: 'Aktif' });
+      setFormData({ name: '', email: '', username: '', role: 'Mahasiswa', identifier: '', phone: '', status: 'Aktif' });
     }
     setIsModalOpen(true);
   };
@@ -105,8 +105,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           data: formData
         });
         if (res.ok) {
+          await res.json();
           fetchUsers();
           showToast("Data user berhasil diperbarui.", "success");
+        } else {
+          const data = await res.json();
+          showToast(data.error || "Gagal menyimpan data user.", "error");
+          return;
         }
       } else {
         // Create
@@ -115,8 +120,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           data: formData
         });
         if (res.ok) {
+          const data = await res.json();
           fetchUsers();
           showToast("User baru berhasil ditambahkan.", "success");
+          if (data.resetToken) {
+            showToast(`Token setup password: ${data.resetToken} (berlaku sampai ${new Date(data.resetTokenExpiresAt).toLocaleString('id-ID')}).`, "info");
+          }
+        } else {
+          const data = await res.json();
+          showToast(data.error || "Gagal menyimpan data user.", "error");
+          return;
         }
       }
       setIsModalOpen(false);
@@ -137,7 +150,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
   };
 
   const toggleStatus = async (user: AppUser) => {
-      const newStatus = user.status === 'Aktif' ? 'Non-Aktif' : 'Aktif';
+      const newStatus = user.status === 'Non-Aktif' ? 'Aktif' : 'Non-Aktif';
       
       try {
         const response = await api(`/api/users/${user.id}/status`, {
@@ -149,7 +162,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
           showToast(`Status user berhasil diubah menjadi ${newStatus}.`, "success");
         } else {
-          showToast("Gagal mengubah status user.", "error");
+          const data = await response.json();
+          showToast(data.error || "Gagal mengubah status user.", "error");
         }
       } catch (error) {
         console.error("Error updating status:", error);
@@ -172,15 +186,24 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
     setIsConfirming(true);
     try {
       if (confirmModal.actionType === 'delete') {
-        await api(`/api/users/${confirmModal.targetId}`, { method: 'DELETE' });
+        const response = await api(`/api/users/${confirmModal.targetId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Gagal menghapus user.");
+        }
         showToast("User berhasil dihapus.", "success");
       } else if (confirmModal.actionType === 'reset') {
-        await api(`/api/users/${confirmModal.targetId}/reset-password`, { method: 'PUT' });
-        showToast("Password berhasil direset.", "success");
+        const response = await api(`/api/users/${confirmModal.targetId}/reset-password`, { method: 'PUT' });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Gagal mereset password.");
+        }
+        showToast("Token reset password berhasil diterbitkan.", "success");
+        showToast(`Token reset: ${data.resetToken} (berlaku sampai ${new Date(data.resetTokenExpiresAt).toLocaleString('id-ID')}).`, "info");
       }
       fetchUsers();
     } catch (error) {
-      showToast("Terjadi kesalahan saat memproses permintaan.", "error");
+      showToast(error instanceof Error ? error.message : "Terjadi kesalahan saat memproses permintaan.", "error");
     } finally {
       setIsConfirming(false);
       setConfirmModal(prev => ({ ...prev, isOpen: false }));
@@ -251,6 +274,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                     className="px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                     <option value="All">Semua</option>
+                    <option value="Mahasiswa">Mahasiswa</option>
                     <option value="Lembaga Kemahasiswaan">Lembaga Kemahasiswaan</option>
                     <option value="Dosen">Dosen</option>
                     <option value="Laboran">Laboran</option>
@@ -269,7 +293,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                     <option value="All">Semua</option>
                     <option value="Aktif">Aktif</option>
                     <option value="Non-Aktif">Non-Aktif</option>
-                    <option value="Suspended">Suspended</option>
+                    <option value="Reset">Reset</option>
                 </select>
              </div>
          </div>
@@ -310,7 +334,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                         <td className="px-6 py-4">
                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                               ${user.status === 'Aktif' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
-                                user.status === 'Suspended' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                                user.status === 'Reset' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
                                 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
                               {user.status}
                            </span>
@@ -322,10 +346,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                            <div className="flex items-center justify-end space-x-2">
                               <button 
                                 onClick={() => toggleStatus(user)}
-                                className={`p-1.5 rounded transition-colors ${user.status === 'Aktif' ? 'text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20' : 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'}`} 
-                                title={user.status === 'Aktif' ? 'Non-aktifkan' : 'Aktifkan'}
+                                className={`p-1.5 rounded transition-colors ${user.status === 'Non-Aktif' ? 'text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20'}`} 
+                                title={user.status === 'Non-Aktif' ? 'Aktifkan' : 'Non-aktifkan'}
                               >
-                                 {user.status === 'Aktif' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                                 {user.status === 'Non-Aktif' ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
                               </button>
                               <button onClick={() => handleResetPasswordClick(user)} className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded dark:hover:bg-yellow-900/30 transition-colors" title="Reset Password">
                                  <KeyRound className="w-4 h-4" />
@@ -407,6 +431,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                             onChange={e => setFormData({...formData, role: e.target.value as any})}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         >
+                            <option value="Mahasiswa">Mahasiswa</option>
                             <option value="Lembaga Kemahasiswaan">Lembaga Kemahasiswaan</option>
                             <option value="Dosen">Dosen</option>
                             <option value="Laboran">Laboran</option>
@@ -460,7 +485,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                     >
                         <option value="Aktif">Aktif</option>
                         <option value="Non-Aktif">Non-Aktif</option>
-                        <option value="Suspended">Suspended</option>
+                        <option value="Reset">Reset</option>
                     </select>
                  </div>
 

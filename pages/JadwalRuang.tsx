@@ -87,7 +87,7 @@ const JadwalRuang: React.FC<ScheduleProps> = ({ role, showToast, isDarkMode }) =
                     ))}
                 </select>
             </div>
-            {selectedRoom?.googleCalendarUrl && role !== Role.LEMBAGA_KEMAHASISWAAN && role !== Role.DOSEN && (
+            {selectedRoom?.googleCalendarUrl && role !== Role.MAHASISWA && role !== Role.LEMBAGA_KEMAHASISWAAN && role !== Role.DOSEN && (
                 <a 
                     href={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(getCalendarId(selectedRoom.googleCalendarUrl) || '')}`}
                     target="_blank" 

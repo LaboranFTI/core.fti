@@ -59,7 +59,7 @@ router.get('/upload-session/:id', async (req, res) => {
   }
 });
 
-const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
+const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
 const TU_ADMIN_ROLES = ['Admin', 'Admin TU'];
 const TU_SETTINGS_KEYS = ['tu_dean_signature_base64', 'tu_faculty_stamp_base64', 'tu_current_semester_code'];
 const LETTER_TYPE_TO_CLIENT_KEY = {

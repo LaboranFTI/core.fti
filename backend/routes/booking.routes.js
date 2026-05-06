@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import { pool } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
 const router = express.Router();
+const BOOKING_READONLY_ROLES = ['Mahasiswa'];
 
 // Konfigurasi Upload (Simpan sementara di folder uploads/)
 const upload = multer({ dest: 'uploads/' });
@@ -171,6 +172,10 @@ router.get('/bookings/:id/file', async (req, res) => {
 });
 
 router.post('/bookings', async (req, res) => {
+  if (BOOKING_READONLY_ROLES.includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Role Mahasiswa hanya memiliki akses baca pada halaman ruangan.' });
+  }
+
   const { roomId, userId, responsiblePerson, contactPerson, purpose, schedules, autoApprove, techSupportPic, techSupportNeeds, proposalFile, file, file_proposal, fileProposal } = req.body;
   
   // 1. Validasi & Konversi File Proposal (Sebelum Transaksi DB)
@@ -289,6 +294,10 @@ router.put('/bookings/:id', async (req, res) => {
     const loggedInUserId = req.user?.id;
     const loggedInUserRole = req.user?.role;
 
+    if (BOOKING_READONLY_ROLES.includes(loggedInUserRole)) {
+        return res.status(403).json({ error: 'Role Mahasiswa hanya memiliki akses baca pada halaman ruangan.' });
+    }
+
     try {
         // Cek data pesanan sebelum diubah
         const checkRes = await pool.query('SELECT user_id, status FROM bookings WHERE id = $1', [id]);
@@ -364,6 +373,10 @@ router.delete('/bookings/:id', async (req, res) => {
     const { id } = req.params;
     const loggedInUserId = req.user?.id;
     const loggedInUserRole = req.user?.role;
+
+    if (BOOKING_READONLY_ROLES.includes(loggedInUserRole)) {
+        return res.status(403).json({ error: 'Role Mahasiswa hanya memiliki akses baca pada halaman ruangan.' });
+    }
 
     try {
         const checkRes = await pool.query('SELECT user_id, status FROM bookings WHERE id = $1', [id]);

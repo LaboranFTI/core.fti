@@ -224,15 +224,15 @@ const Dashboard: React.FC<DashboardProps> = ({ role, onNavigate }) => {
     <div className="flex flex-col gap-4 rounded-[1.75rem] border border-gray-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-2xl">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
-          {isSelfServiceRole ? 'Workspace Pengguna' : 'Dashboard'}
+          {isSelfServiceRole ? 'Dashboard' : 'Dashboard Admin'}
         </p>
         <h1 className="mt-3 text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
-          {isSelfServiceRole ? 'Dashboard Saya' : `Halo, ${userName}!`}
+          {isSelfServiceRole ? `Halo, ${userName}!` : `Halo, ${userName}!`}
         </h1>
         <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400 sm:text-base">
           {isSelfServiceRole
             ? 'Semua aktivitas penting Anda ditampilkan lebih ringkas, sehingga status pengajuan dan akses layanan lebih mudah dipantau.'
-            : `Ringkasan aktivitas laboratorium untuk ${role}, mulai dari pengajuan ruangan hingga kesehatan inventaris.`}
+            : `Ringkasan aktivitas layanan untuk ${role}, mulai dari pengajuan ruangan hingga kesehatan inventaris.`}
         </p>
       </div>
       <div className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300">

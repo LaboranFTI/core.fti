@@ -7,6 +7,9 @@ import { pool } from '../config/database.js';
 import { verifyRole, apiLimiter } from '../middleware/auth.js';
 const router = express.Router();
 
+const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const isResetTokenExpired = (expiresAt) => expiresAt && new Date(expiresAt) < new Date();
+
 // Helper function to generate device name from user agent
 const getDeviceInfo = (userAgent) => {
   if (!userAgent) return { deviceName: 'Unknown Device', deviceType: 'desktop' };
@@ -52,9 +55,23 @@ router.post('/login', apiLimiter, async (req, res) => {
     // 2. Bandingkan password (looping jika ada nama yang sama)
     let user = null;
     for (const candidate of result.rows) {
-      // 2a. Cek jika password NULL (Reset Mode dari Admin)
+      // 2a. Akun tanpa password hanya boleh lanjut lewat flow reset yang valid
       if (candidate.password === null) {
-        return res.json({ success: false, resetRequired: true, email: candidate.email, name: candidate.nama });
+        if (candidate.password_reset_token_hash && !isResetTokenExpired(candidate.password_reset_expires_at)) {
+          return res.status(403).json({
+            success: false,
+            resetRequired: true,
+            email: candidate.email,
+            name: candidate.nama,
+            message: 'Akun ini menunggu pembuatan password dengan token reset dari admin.'
+          });
+        }
+
+        return res.status(403).json({
+          error: candidate.status === 'Non-Aktif'
+            ? 'Akun belum diaktifkan. Hubungi Admin Laboran (Ruang 227 atau 456).'
+            : 'Akun belum memiliki password aktif. Minta admin menerbitkan token reset baru.'
+        });
       }
 
       // 2b. Normal Login Check
@@ -97,6 +114,7 @@ router.post('/login', apiLimiter, async (req, res) => {
         id: user.id, 
         role: user.role, 
         name: user.nama, 
+        email: user.email,
         profileIncomplete: isProfileIncomplete,
         isRememberMe: isRememberMe,
         expiresAt: expiresAt.toISOString()
@@ -155,17 +173,6 @@ router.post('/auth/google', async (req, res) => {
     const googleUser = await googleRes.json();
     const { email, name, sub: googleId, picture } = googleUser;
 
-    // **[BARU]** Sinkronisasi ke tabel sso_users (agar muncul di Manajemen User > Tab SSO)
-    // Menggunakan ON CONFLICT (email) agar data terupdate jika user sudah ada
-    const ssoId = `SSO-${Date.now()}`;
-    await pool.query(
-      `INSERT INTO sso_users (id, email, name, status, updated_at)
-       VALUES ($1, $2, $3, 'Aktif', NOW())
-       ON CONFLICT (email) DO UPDATE SET
-       name = EXCLUDED.name, updated_at = NOW()`,
-      [ssoId, email, name]
-    );
-
     // 4. Validasi Domain (Support multiple domains, separated by comma)
     // Jika domain dikosongkan di config, skip validasi (untuk development/testing)
     if (config.domain && config.domain.trim() !== '') {
@@ -182,6 +189,16 @@ router.post('/auth/google', async (req, res) => {
         }
       }
     }
+
+    // Sinkronisasi ke tabel sso_users hanya setelah token dan domain lolos validasi
+    const ssoId = `SSO-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO sso_users (id, email, name, status, updated_at)
+       VALUES ($1, $2, $3, 'Aktif', NOW())
+       ON CONFLICT (email) DO UPDATE SET
+       name = EXCLUDED.name, updated_at = NOW()`,
+      [ssoId, email, name]
+    );
 
     // 5. Cek apakah user sudah ada di database
     const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -226,7 +243,7 @@ router.post('/auth/google', async (req, res) => {
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
     const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
 
-    res.json({ success: true, token, id: user.id, role: user.role, name: user.nama, expiresAt: expiresAt.toISOString() });
+    res.json({ success: true, token, id: user.id, role: user.role, name: user.nama, email: user.email, expiresAt: expiresAt.toISOString() });
   } catch (err) {
     console.error('SSO Login Error:', err);
     console.error('Error details:', {
@@ -297,15 +314,68 @@ router.post('/register', apiLimiter,
 });
 
 // Endpoint Set Password Baru (Setelah Reset Admin)
-router.post('/set-password', async (req, res) => {
-  const { email, newPassword } = req.body;
+router.post('/set-password', apiLimiter, async (req, res) => {
+  const { email, newPassword, resetToken } = req.body;
+
+  if (!email || !newPassword || !resetToken) {
+    return res.status(400).json({ error: 'Email, password baru, dan token reset wajib diisi.' });
+  }
+
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ error: 'Password minimal 8 karakter.' });
+  }
 
   try {
+    const userResult = await pool.query(
+      `SELECT id, status, password_reset_token_hash, password_reset_expires_at
+       FROM users
+       WHERE email = $1`,
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
+    }
+
+    const user = userResult.rows[0];
+
+    if (!user.password_reset_token_hash || !user.password_reset_expires_at) {
+      return res.status(400).json({ error: 'Akun ini tidak memiliki token reset yang aktif.' });
+    }
+
+    if (isResetTokenExpired(user.password_reset_expires_at)) {
+      return res.status(400).json({ error: 'Token reset sudah kadaluarsa. Minta admin menerbitkan token baru.' });
+    }
+
+    if (!['Reset', 'Aktif'].includes(user.status)) {
+      return res.status(403).json({ error: 'Akun ini belum bisa membuat password baru.' });
+    }
+
+    const providedTokenHash = hashResetToken(String(resetToken).trim().toUpperCase());
+    const savedTokenBuffer = Buffer.from(user.password_reset_token_hash, 'utf8');
+    const providedTokenBuffer = Buffer.from(providedTokenHash, 'utf8');
+
+    if (
+      savedTokenBuffer.length !== providedTokenBuffer.length ||
+      !crypto.timingSafeEqual(savedTokenBuffer, providedTokenBuffer)
+    ) {
+      return res.status(400).json({ error: 'Token reset tidak valid.' });
+    }
+
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update password, status aktif, dan password_changed_at
-    await pool.query('UPDATE users SET password = $1, status = $2, password_changed_at = NOW() WHERE email = $3', [hashedPassword, 'Aktif', email]);
+    await pool.query(
+      `UPDATE users
+       SET password = $1,
+           status = CASE WHEN status = 'Reset' THEN 'Aktif' ELSE status END,
+           password_changed_at = NOW(),
+           password_reset_token_hash = NULL,
+           password_reset_expires_at = NULL,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [hashedPassword, user.id]
+    );
 
     res.json({ success: true, message: 'Password berhasil diperbarui. Silakan login.' });
   } catch (err) {
@@ -342,7 +412,7 @@ router.get('/auth/verify', async (req, res) => {
   try {
     // Token sudah divalidasi oleh middleware verifyToken
     // Cek kembali status user di database untuk memastikan akun belum dinonaktifkan
-    const userCheck = await pool.query('SELECT id, nama, role, status FROM users WHERE id = $1', [req.user.id]);
+    const userCheck = await pool.query('SELECT id, nama, role, status, email FROM users WHERE id = $1', [req.user.id]);
     
     if (userCheck.rows.length === 0 || userCheck.rows[0].status !== 'Aktif') {
       return res.status(401).json({ error: 'Akun tidak aktif atau tidak ditemukan.' });
@@ -353,7 +423,8 @@ router.get('/auth/verify', async (req, res) => {
       user: {
         id: userCheck.rows[0].id,
         name: userCheck.rows[0].nama,
-        role: userCheck.rows[0].role
+        role: userCheck.rows[0].role,
+        email: userCheck.rows[0].email
       }
     });
   } catch (err) {

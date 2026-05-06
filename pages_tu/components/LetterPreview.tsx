@@ -7,6 +7,7 @@ interface LetterPreviewProps {
   data: ObservationData;
   backgroundImageBase64?: string;
   layout?: LetterLayout;
+  showLayoutGuide?: boolean;
 }
 
 const getObservationNumberPlaceholder = () => {
@@ -17,7 +18,8 @@ const getObservationNumberPlaceholder = () => {
 export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps>(({
   data,
   backgroundImageBase64,
-  layout
+  layout,
+  showLayoutGuide = true
 }, ref) => {
   const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
   const observationNumber = getObservationNumberPlaceholder();
@@ -36,15 +38,17 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
         />
       ) : null}
 
-      <div
-        className="pointer-events-none absolute border border-dashed border-sky-400/40 print:hidden"
-        style={{
-          top: `${pageLayout.marginTopMm}mm`,
-          right: `${pageLayout.marginRightMm}mm`,
-          bottom: `${pageLayout.marginBottomMm}mm`,
-          left: `${pageLayout.marginLeftMm}mm`
-        }}
-      />
+      {showLayoutGuide ? (
+        <div
+          className="pointer-events-none absolute border border-dashed border-sky-400/40 print:hidden"
+          style={{
+            top: `${pageLayout.marginTopMm}mm`,
+            right: `${pageLayout.marginRightMm}mm`,
+            bottom: `${pageLayout.marginBottomMm}mm`,
+            left: `${pageLayout.marginLeftMm}mm`
+          }}
+        />
+      ) : null}
 
       <div
         className="relative z-10"

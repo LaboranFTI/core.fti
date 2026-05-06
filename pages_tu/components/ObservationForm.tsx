@@ -4,6 +4,7 @@ import { ObservationData } from '../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Plus, Trash2, Printer, Download, Building2, GraduationCap, Users, Loader2 } from 'lucide-react';
 
@@ -12,13 +13,14 @@ interface ObservationFormProps {
   onPrint: () => void;
   onDownloadPdf: () => void;
   isDownloadingPdf?: boolean;
+  readOnly?: boolean;
   feedback?: {
     type: 'success' | 'error' | 'info';
     message: string;
   } | null;
 }
 
-export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownloadingPdf = false, feedback = null }: ObservationFormProps) {
+export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownloadingPdf = false, readOnly = false, feedback = null }: ObservationFormProps) {
   const { register, control, watch, getValues } = useForm<ObservationData>({
     defaultValues: {
       recipientName: '',
@@ -55,7 +57,9 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
       <CardContent className="p-0">
         <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
           <div className="px-6 py-4 bg-blue-50/80 text-sm text-blue-700 dark:bg-blue-950/20 dark:text-blue-300">
-            Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF saat preview sudah sesuai.
+            {readOnly
+              ? 'Role Mahasiswa hanya memiliki akses baca pada tab surat ijin observasi. Form, download PDF, dan cetak dinonaktifkan.'
+              : 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF saat preview sudah sesuai.'}
           </div>
 
           {feedback && (
@@ -80,17 +84,24 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
             <div className="space-y-4">
               <div className="space-y-1.5">
             <Label htmlFor="recipientName" className="text-slate-700 dark:text-slate-300 font-medium">Nama Penerima / Jabatan</Label>
-            <Input id="recipientName" placeholder="Contoh: HRD Manager" className="bg-white dark:bg-gray-800" {...register("recipientName")} />
+            <Input id="recipientName" placeholder="Contoh: HRD Manager" className="bg-white dark:bg-gray-800" disabled={readOnly} {...register("recipientName")} />
               </div>
               
               <div className="space-y-1.5">
             <Label htmlFor="companyName" className="text-slate-700 dark:text-slate-300 font-medium">Nama Perusahaan / Instansi</Label>
-            <Input id="companyName" placeholder="Contoh: PT. Teknologi Nusantara" className="bg-white dark:bg-gray-800" {...register("companyName")} />
+            <Input id="companyName" placeholder="Contoh: PT. Teknologi Nusantara" className="bg-white dark:bg-gray-800" disabled={readOnly} {...register("companyName")} />
               </div>
               
               <div className="space-y-1.5">
             <Label htmlFor="companyAddress" className="text-slate-700 dark:text-slate-300 font-medium">Alamat Perusahaan</Label>
-            <Input id="companyAddress" placeholder="Contoh: Jl. Sudirman No. 123, Jakarta" className="bg-white dark:bg-gray-800" {...register("companyAddress")} />
+            <Textarea
+              id="companyAddress"
+              placeholder="Contoh: Jl. Sudirman No. 123, Jakarta"
+              className="resize-y bg-white dark:bg-gray-800"
+              size="sm"
+              disabled={readOnly}
+              {...register("companyAddress")}
+            />
               </div>
             </div>
           </div>
@@ -105,17 +116,17 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
             <div className="space-y-4">
               <div className="space-y-1.5">
             <Label htmlFor="courseName" className="text-slate-700 dark:text-slate-300 font-medium">Nama Mata Kuliah</Label>
-                <Input id="courseName" placeholder="Contoh: Rekayasa Perangkat Lunak" {...register("courseName")} />
+                <Input id="courseName" placeholder="Contoh: Rekayasa Perangkat Lunak" disabled={readOnly} {...register("courseName")} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
               <Label htmlFor="lecturerName" className="text-slate-700 dark:text-slate-300 font-medium">Nama Dosen Pengampu</Label>
-                  <Input id="lecturerName" placeholder="Nama lengkap beserta gelar" {...register("lecturerName")} />
+                  <Input id="lecturerName" placeholder="Nama lengkap beserta gelar" disabled={readOnly} {...register("lecturerName")} />
                 </div>
                 <div className="space-y-1.5">
               <Label htmlFor="headOfProgramName" className="text-slate-700 dark:text-slate-300 font-medium">Nama Kaprodi</Label>
-                  <Input id="headOfProgramName" placeholder="Nama lengkap beserta gelar" {...register("headOfProgramName")} />
+                  <Input id="headOfProgramName" placeholder="Nama lengkap beserta gelar" disabled={readOnly} {...register("headOfProgramName")} />
                 </div>
               </div>
             </div>
@@ -142,14 +153,14 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nama Lengkap</Label>
-                      <Input placeholder="Nama Mahasiswa" {...register(`students.${index}.name` as const)} />
+                      <Input placeholder="Nama Mahasiswa" disabled={readOnly} {...register(`students.${index}.name` as const)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">NIM</Label>
-                      <Input placeholder="672019000" {...register(`students.${index}.nim` as const)} />
+                      <Input placeholder="672019000" disabled={readOnly} {...register(`students.${index}.nim` as const)} />
                     </div>
                   </div>
-                  {fields.length > 1 && (
+                  {fields.length > 1 && !readOnly && (
                     <Button 
                       type="button" 
                       variant="ghost" 
@@ -171,7 +182,7 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
               onClick={() => {
                 if (fields.length < 10) append({ name: '', nim: '' });
               }}
-              disabled={fields.length >= 10}
+              disabled={readOnly || fields.length >= 10}
             >
               <Plus className="w-4 h-4 mr-2" /> Tambah Anggota Kelompok
             </Button>
@@ -179,11 +190,11 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
 
           {/* Actions */}
       <div className="p-6 bg-white dark:bg-gray-800 flex flex-col sm:flex-row gap-3">
-        <Button onClick={onDownloadPdf} disabled={isDownloadingPdf} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-11 text-base">
+        <Button onClick={onDownloadPdf} disabled={readOnly || isDownloadingPdf} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-11 text-base">
               {isDownloadingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
               {isDownloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF'}
             </Button>
-        <Button onClick={onPrint} variant="outline" className="flex-1 h-11 text-base border-slate-300 dark:border-slate-600">
+        <Button onClick={onPrint} disabled={readOnly} variant="outline" className="flex-1 h-11 text-base border-slate-300 dark:border-slate-600">
               <Printer className="w-4 h-4 mr-2" /> Cetak Langsung
             </Button>
           </div>

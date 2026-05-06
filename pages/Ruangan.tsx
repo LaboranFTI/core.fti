@@ -70,9 +70,11 @@ const getConditionColor = (condition?: string) => {
 const Ruangan: React.FC<RoomsProps> = ({ role, isDarkMode, onNavigate, showToast }) => {
   // Helper: Cek admin case-insensitive
   const isAdmin = role.toString().toUpperCase() === Role.ADMIN.toString().toUpperCase();
+  const isMahasiswa = role.toString().toUpperCase() === Role.MAHASISWA.toString().toUpperCase();
   const isLaboran = role.toString().toUpperCase() === Role.LABORAN.toString().toUpperCase();
   const isSupervisor = role.toString().toUpperCase() === 'SUPERVISOR';
   const canManage = isAdmin || isLaboran || isSupervisor;
+  const canRequestBooking = !isMahasiswa;
 
   // Menggunakan custom hook useRooms (autoFetch dimatikan agar kontrol loading awal tetap dipegang Promise.all)
 const { rooms, fetchRooms: fetchRoomsApi } = useRooms({ autoFetch: false, excludeImage: true });
@@ -540,6 +542,15 @@ room.facilities.forEach((fac: string) => allFacs.add(fac));
     setViewMode('form');
   };
 
+  const handleOpenBooking = () => {
+    if (!canRequestBooking) {
+      showToast("Role Mahasiswa hanya memiliki akses baca pada halaman ruangan.", "info");
+      return;
+    }
+
+    setViewMode('booking');
+  };
+
 const handleEdit = async (room: Room) => {
     setFormData({ ...room, image: highResCache[room.id] || '' });
     setIsEditing(true);
@@ -862,12 +873,14 @@ const handleEdit = async (room: Room) => {
                                     <Calendar className="w-4 h-4 mr-2"/> Atur Jadwal
                                 </button>
                              )}
-                             <button 
-                                onClick={() => setViewMode('booking')}
-                                className="justify-center bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-md transition-colors inline-flex"
-                             >
-                                Ajukan Peminjaman
-                             </button>
+                             {canRequestBooking && (
+                                <button 
+                                   onClick={handleOpenBooking}
+                                   className="justify-center bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-md transition-colors inline-flex"
+                                >
+                                   Ajukan Peminjaman
+                                </button>
+                             )}
                           </div>
                       </div>
 
