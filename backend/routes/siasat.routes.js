@@ -11,18 +11,26 @@ const parser = new XMLParser({
   textNodeName: "_text",
 });
 
-// Konfigurasi API SIASAT (Sangat disarankan untuk memindahkannya ke file .env)
-const SOAP_URL = process.env.SIASAT_SOAP_URL;
-const SOAP_USER = process.env.SIASAT_SOAP_USER;
-const SOAP_PASS = process.env.SIASAT_SOAP_PASS;
+// Fungsi pembantu (mirip XPath //) untuk mencari tag tertentu secara dinamis
+// Berguna karena API .NET ASMX sering membungkus data dengan <diffgr:diffgram><NewDataSet>
+const findXmlNode = (obj, nodeName) => {
+  if (obj === null || typeof obj !== 'object') return undefined;
+  if (obj[nodeName]) return obj[nodeName];
+  for (const key in obj) {
+    const found = findXmlNode(obj[key], nodeName);
+    if (found) return found;
+  }
+  return undefined;
+};
 
 const getAutoSemesterCode = () => {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  if (month >= 1 && month <= 4) return `${year - 1}2`;
-  if (month >= 5 && month <= 8) return `${year - 1}3`;
+  // Penyesuaian kalender: Jan-Jun (Genap), Jul-Agu (Antara), Sep-Des (Ganjil)
+  if (month >= 1 && month <= 6) return `${year - 1}2`;
+  if (month >= 7 && month <= 8) return `${year - 1}3`;
   return `${year}1`;
 };
 
@@ -62,7 +70,21 @@ const formatSemesterInfo = (semesterCode) => {
 };
 
 const resolveSemesterCode = async (requestedSemester) => {
-  if (requestedSemester) return String(requestedSemester);
+  if (requestedSemester) {
+    const semStr = String(requestedSemester).toUpperCase();
+    
+    // Menerjemahkan logika $sem2 PHP (contoh input: "GANJIL 2017-2018" menjadi "20171")
+    if (semStr.includes(' ')) {
+      const parts = semStr.split(' ');
+      if (parts.length >= 2) {
+        const thn = parts[1].split('-')[0];
+        if (parts[0] === 'GANJIL') return `${thn}1`;
+        if (parts[0] === 'GENAP') return `${thn}2`;
+        if (parts[0] === 'ANTARA') return `${thn}3`;
+      }
+    }
+    return String(requestedSemester);
+  }
 
   try {
     const result = await pool.query("SELECT value FROM system_settings WHERE key = 'tu_current_semester_code' LIMIT 1");
@@ -79,7 +101,16 @@ const resolveSemesterCode = async (requestedSemester) => {
 router.get('/siasat/mahasiswa/:nim', verifyToken, async (req, res) => {
   const { nim } = req.params;
 
-  const xmlBody = `
+  const SOAP_URL = process.env.SIASAT_SOAP_URL;
+  const SOAP_USER = process.env.SIASAT_SOAP_USER;
+  const SOAP_PASS = process.env.SIASAT_SOAP_PASS;
+
+  if (!SOAP_URL) {
+    console.error('Konfigurasi SIASAT_SOAP_URL tidak ditemukan di environment variables.');
+    return res.status(500).json({ error: 'Konfigurasi sistem belum lengkap. Hubungi administrator.' });
+  }
+
+  const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
     <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
       <soap:Body>
         <getData xmlns="http://kpftiservice.org/">
@@ -96,7 +127,7 @@ router.get('/siasat/mahasiswa/:nim', verifyToken, async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://kpftiservice.org/getData'
+        'SOAPAction': '"http://kpftiservice.org/getData"'
       },
       body: xmlBody
     });
@@ -106,8 +137,8 @@ router.get('/siasat/mahasiswa/:nim', verifyToken, async (req, res) => {
     const xmlText = await response.text();
     const resultObj = parser.parse(xmlText);
     
-    // Telusuri hierarki respon XML untuk mendapatkan listmhs
-    const listMhs = resultObj['soap:Envelope']?.['soap:Body']?.['getDataResponse']?.['getDataResult']?.['listmhs'];
+    // Cari tag <listmhs> di mana pun ia berada (meniru XPath)
+    const listMhs = findXmlNode(resultObj, 'listmhs');
     
     if (!listMhs) {
       return res.status(404).json({ error: 'Data mahasiswa tidak ditemukan di SIASAT' });
@@ -130,7 +161,19 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
       return res.status(400).json({ error: 'Parameter semester tidak valid. Gunakan format seperti 20251, 20252, atau 20253.' });
   }
 
-  const xmlBody = `
+  const SOAP_URL = process.env.SIASAT_SOAP_URL;
+  const SOAP_USER = process.env.SIASAT_SOAP_USER;
+  const SOAP_PASS = process.env.SIASAT_SOAP_PASS;
+
+  console.log('[DEBUG SIASAT KST]');
+  console.log(`-> Mengecek NIM: ${nim} untuk Semester: ${semester} (${formatSemesterInfo(semester).label})`);
+
+  if (!SOAP_URL) {
+    console.error('Konfigurasi SIASAT_SOAP_URL tidak ditemukan di environment variables.');
+    return res.status(500).json({ error: 'Konfigurasi sistem belum lengkap. Hubungi administrator.' });
+  }
+
+  const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
     <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
       <soap:Body>
         <GetKartuStudi xmlns="http://kpftiservice.org/">
@@ -148,7 +191,7 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://kpftiservice.org/GetKartuStudi'
+        'SOAPAction': '"http://kpftiservice.org/GetKartuStudi"'
       },
       body: xmlBody
     });
@@ -158,8 +201,8 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
     const xmlText = await response.text();
     const resultObj = parser.parse(xmlText);
     
-    // Ambil list KST
-    let listKst = resultObj['soap:Envelope']?.['soap:Body']?.['GetKartuStudiResponse']?.['GetKartuStudiResult']?.['listmhskst'];
+    // Cari tag <listmhskst> di mana pun ia berada (mengabaikan wrapper diffgr dari .NET)
+    let listKst = findXmlNode(resultObj, 'listmhskst');
     
     if (!listKst) {
       return res.json({ success: true, data: [] });
@@ -171,14 +214,24 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
     }
 
     // Format output data untuk membuang field yang tidak perlu
-    const formattedKST = listKst.map(item => ({
-        kode: item.kodemkl,
-        makul: item.namamkl,
-        hari: item.hari,
-        jamMulai: item.jammulai ? String(item.jammulai).substring(0, 5) : '', // '08:00:00' -> '08:00'
-        jamUsai: item.jamusai ? String(item.jamusai).substring(0, 5) : '',
-        ruang: item.ruang
-    }));
+    const formattedKST = listKst.map(item => {
+        const jamMulaiRaw = item.jammulai ? String(item.jammulai) : '';
+        const jamUsaiRaw = item.jamusai ? String(item.jamusai) : '';
+        
+        // Menerjemahkan logika PHP: substr(...->jammulai,0,2).'-'.substr(...->jamusai,0,2)
+        const jamMulaiShort = jamMulaiRaw.length >= 2 ? jamMulaiRaw.substring(0, 2) : '';
+        const jamUsaiShort = jamUsaiRaw.length >= 2 ? jamUsaiRaw.substring(0, 2) : '';
+        const hariFormatPHP = (jamMulaiShort && jamUsaiShort) ? `${item.hari}, ${jamMulaiShort}-${jamUsaiShort}` : item.hari;
+
+        return {
+            kode: item.kodemkl,
+            makul: item.namamkl,
+            hari: hariFormatPHP, // Menghasilkan format persis seperti PHP lama, misal: "Senin, 08-10"
+            jamMulai: jamMulaiRaw.substring(0, 5),
+            jamUsai: jamUsaiRaw.substring(0, 5),
+            ruang: item.ruang
+        };
+    });
 
     res.json({ success: true, data: formattedKST, semester: formatSemesterInfo(semester) });
   } catch (error) {

@@ -470,7 +470,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
               className="bg-white dark:bg-gray-800"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Format `YYYYS` (S=1=Ganjil, 2=Antara, 3=Genap).<br/>Contoh:<br/>`20251` = Ganjil 2025/2026<br/>`20252` = Antara 2025/2026<br/>`20253` = Genap 2025/2026
+              Format `YYYYS` (S=1=Ganjil, 2=Genap, 3=Antara).<br/>Contoh:<br/>`20251` = Ganjil 2025/2026<br/>`20252` = Genap 2025/2026<br/>`20253` = Antara 2025/2026
             </p>
             <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
               Aktif: {formatSemesterLabel(tempCurrentSemesterCode)}

@@ -20,8 +20,8 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate, isOpen, isCollapsed = false, onToggleCollapse, onClose }) => {
   const [hoveredItem, setHoveredItem] = useState<{ label: string; top: number } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const mainItems = getVisibleMainItems(currentRole);
-  const menuGroups = getVisibleNavigationGroups(currentRole);
+  const mainItems = React.useMemo(() => getVisibleMainItems(currentRole), [currentRole]);
+  const menuGroups = React.useMemo(() => getVisibleNavigationGroups(currentRole), [currentRole]);
 
   useEffect(() => {
     const activeGroup = menuGroups.find((group) =>
