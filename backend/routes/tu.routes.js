@@ -467,7 +467,9 @@ const initTransporter = async () => {
     });
   }
 };
-initTransporter();
+initTransporter().catch(err => {
+  console.error('Gagal menginisialisasi transporter email:', err);
+});
 
 // Konfigurasi untuk setiap jenis surat
 const letterConfig = {
