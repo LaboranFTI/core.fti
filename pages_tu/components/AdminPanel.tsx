@@ -18,7 +18,7 @@ import { Label } from '../../components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2 } from 'lucide-react';
+import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download } from 'lucide-react';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { api } from '../../services/api';
 
@@ -283,8 +283,90 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!selectedRequest) return;
+    setIsProcessing(true);
+    setPanelFeedback(null);
+    try {
+      const res = await api(`/api/tu/requests/active-student/${selectedRequest.id}/download`, {
+        method: 'GET'
+      });
+      if (!res.ok) throw new Error('Gagal mendownload PDF');
+
+      const blob = await res.blob();
+      const safeLetterNumber = selectedRequest.letterNumber ? selectedRequest.letterNumber.replace(/\//g, '_') : 'Draft';
+      const filename = `${safeLetterNumber}_${selectedRequest.nim}.pdf`;
+
+      // Memaksa browser downloader dengan mengubah tipe MIME menjadi octet-stream
+      const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      setPanelFeedback({ type: 'error', message: 'Gagal mendownload file PDF surat.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handlePrint = () => {
-    window.print();
+    const safeLetterNumber = selectedRequest?.letterNumber ? selectedRequest.letterNumber.replace(/\//g, '_') : 'Draft';
+    const printTitle = `${safeLetterNumber}_${selectedRequest?.nim}`;
+
+    const printArea = document.getElementById('print-area-admin');
+    if (!printArea) {
+      const originalTitle = document.title;
+      document.title = printTitle;
+      window.print();
+      document.title = originalTitle;
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) return;
+
+    const styles = document.querySelectorAll('style, link[rel="stylesheet"]');
+    let stylesHtml = '';
+    styles.forEach((node) => {
+      stylesHtml += node.outerHTML;
+    });
+
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${printTitle}</title>
+          ${stylesHtml}
+          <style>
+            @page { size: A4 portrait; margin: 0; }
+            body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-wrapper { display: flex; justify-content: center; width: 100%; }
+          </style>
+        </head>
+        <body>
+          <div class="print-wrapper">${printArea.innerHTML}</div>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 1000);
+    }, 500);
   };
 
   const getStatusBadge = (status: string) => {
@@ -343,6 +425,9 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                 <Button variant="outline" onClick={handlePrint} className="border-slate-300 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-700">
                   <Printer className="w-4 h-4 mr-2" /> Cetak Surat
                 </Button>
+                <Button variant="outline" onClick={handleDownloadPdf} disabled={isProcessing} className="border-slate-300 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-700">
+                  <Download className="w-4 h-4 mr-2" /> Download PDF
+                </Button>
                 <Button 
                   onClick={() => handleSendEmail(selectedRequest.id)}
                   disabled={isProcessing}
@@ -379,7 +464,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
           </div>
 
           {/* Right Column: Letter Preview */}
-          <div className="xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0">
+          <div className="xl:col-span-7 print:block print:w-full print:m-0 print:p-0">
             <Card className="shadow-sm border-slate-200 dark:border-gray-700 print:border-0 print:shadow-none h-full">
               <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4 print:hidden">
                 <CardTitle className="text-lg flex items-center gap-2 dark:text-white">
@@ -389,7 +474,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                   <CardDescription className="text-xs dark:text-gray-400">Ini adalah preview surat yang akan digenerate dengan TTD dan Cap default.</CardDescription>
                 )}
               </CardHeader>
-              <CardContent className="p-6 bg-slate-200/50 print:bg-white print:p-0 flex justify-center overflow-auto min-h-200">
+              <CardContent id="print-area-admin" className="p-6 bg-slate-200/50 print:bg-white print:p-0 flex justify-center overflow-auto print:overflow-visible min-h-200">
                 <ActiveStudentLetter data={{
                   ...selectedRequest, 
                   semesterCode: currentSemesterCode,

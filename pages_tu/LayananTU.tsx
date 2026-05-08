@@ -4,10 +4,11 @@ import jsPDF from 'jspdf';
 import { Role } from '../types';
 import { ActiveStudentForm } from './components/ActiveStudentForm';
 import { AdminPanel } from './components/AdminPanel';
+import { LetterArchivePanel } from './components/LetterArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
 import { LetterPreview } from './components/LetterPreview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { FileText, Shield, LayoutPanelTop, PenSquare } from 'lucide-react';
+import { Archive, FileText, Shield, LayoutPanelTop, PenSquare } from 'lucide-react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
 
@@ -92,6 +93,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const [isDownloadingObservationPdf, setIsDownloadingObservationPdf] = useState(false);
   const [isPreparingObservationOutput, setIsPreparingObservationOutput] = useState(false);
   const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
+  const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
+  const lastSavedObservationSignatureRef = useRef<string | null>(null);
 
   // State untuk Preview Surat Observasi
   const [obsData, setObsData] = useState<ObservationData>({
@@ -114,17 +117,55 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       return;
     }
 
-    setObsData(sanitizedData);
-    setObservationView('preview');
-    setIsPreparingObservationOutput(true);
-    setObservationFeedback({ type: 'info', message: 'Preview siap dicetak. Pastikan pengaturan printer memakai ukuran A4.' });
-    await waitForNextPaint();
-    window.print();
+    try {
+      await persistObservationRequest(sanitizedData);
+      setObsData(sanitizedData);
+      setObservationView('preview');
+      setIsPreparingObservationOutput(true);
+      setObservationFeedback({ type: 'info', message: 'Preview siap dicetak. Pastikan pengaturan printer memakai ukuran A4.' });
+      await waitForNextPaint();
+      window.print();
+    } catch (error) {
+      console.error('Failed to save observation request:', error);
+      setObservationFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menyimpan data surat observasi.' });
+      setIsPreparingObservationOutput(false);
+    }
   };
 
   const handleObservationDataChange = useCallback((data: ObservationData) => {
     setObsData(data);
     setObservationFeedback(null);
+    lastSavedObservationSignatureRef.current = null;
+  }, []);
+
+  const persistObservationRequest = useCallback(async (data: ObservationData) => {
+    const payloadSignature = JSON.stringify(data);
+    if (lastSavedObservationSignatureRef.current === payloadSignature) {
+      return;
+    }
+
+    const response = await api('/api/observation-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipientName: data.recipientName,
+        companyName: data.companyName,
+        company: data.companyName,
+        companyAddress: data.companyAddress,
+        courseName: data.courseName,
+        lecturerName: data.lecturerName,
+        headOfProgramName: data.headOfProgramName,
+        students: data.students
+      })
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(json?.error || 'Gagal menyimpan data surat observasi.');
+    }
+
+    lastSavedObservationSignatureRef.current = payloadSignature;
+    setLetterArchiveRefreshKey((prev) => prev + 1);
   }, []);
 
   const handleDownloadObservationPdf = useCallback(async () => {
@@ -150,6 +191,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     setObservationFeedback({ type: 'info', message: 'Sedang menyiapkan PDF surat observasi...' });
 
     try {
+      await persistObservationRequest(sanitizedData);
+
       if ('fonts' in document) {
         await document.fonts.ready;
       }
@@ -180,7 +223,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       setIsDownloadingObservationPdf(false);
       setIsPreparingObservationOutput(false);
     }
-  }, [obsData]);
+  }, [obsData, persistObservationRequest]);
 
   const fetchLetterBackgrounds = useCallback(async () => {
     try {
@@ -225,6 +268,10 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         ? 'Role Mahasiswa hanya dapat melihat template dan preview surat observasi pada halaman ini.'
         : 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.'
     },
+    "arsip-surat": {
+      title: 'Arsip Surat',
+      description: 'Lihat data surat aktif kuliah dan observasi yang tersimpan, lalu cetak ulang atau kirim email kembali saat diperlukan.'
+    },
     "panel-admin": {
       title: 'Panel Admin TU',
       description: 'Kelola pengajuan, atur semester berjalan, dan siapkan pengesahan surat dari satu tempat.'
@@ -262,6 +309,12 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
             <TabsTrigger value="observasi" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
               Surat Ijin Observasi
             </TabsTrigger>
+            {isTUAdmin && (
+              <TabsTrigger value="arsip-surat" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
+                <Archive className="w-4 h-4 mr-2" />
+                Arsip Surat
+              </TabsTrigger>
+            )}
             {isTUAdmin && (
               <TabsTrigger value="panel-admin" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
                 <Shield className="w-4 h-4 mr-2" />
@@ -336,6 +389,12 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
               />
             </div>
           </TabsContent>
+
+          {isTUAdmin && (
+            <TabsContent value="arsip-surat" className="print:hidden focus:outline-none">
+              <LetterArchivePanel refreshKey={letterArchiveRefreshKey} />
+            </TabsContent>
+          )}
 
           {isTUAdmin && (
             <TabsContent value="panel-admin" className="print:hidden focus:outline-none">

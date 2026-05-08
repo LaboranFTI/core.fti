@@ -2,6 +2,7 @@ import express from 'express';
 import { XMLParser } from 'fast-xml-parser';
 import { pool } from '../config/database.js';
 import { verifyToken } from '../middleware/auth.js';
+import { formatStudentName } from '../utils/activeStudentLetter.js';
 
 const router = express.Router();
 
@@ -21,6 +22,59 @@ const findXmlNode = (obj, nodeName) => {
     if (found) return found;
   }
   return undefined;
+};
+
+const unwrapXmlValue = (value) => {
+  if (value && typeof value === 'object' && '_text' in value) {
+    return value._text;
+  }
+  return value;
+};
+
+const findFirstNamedXmlValue = (obj, nodeNames) => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return undefined;
+
+  for (const nodeName of nodeNames) {
+    if (Object.prototype.hasOwnProperty.call(obj, nodeName)) {
+      const value = unwrapXmlValue(obj[nodeName]);
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return value;
+      }
+    }
+  }
+
+  for (const key in obj) {
+    const child = obj[key];
+    if (child && typeof child === 'object') {
+      const found = findFirstNamedXmlValue(child, nodeNames);
+      if (found !== undefined && found !== null && String(found).trim() !== '') {
+        return found;
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const collectNamedXmlValues = (obj, targetKeys, results = []) => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return results;
+
+  for (const key in obj) {
+    const value = obj[key];
+
+    if (targetKeys.includes(key)) {
+      const unwrapped = unwrapXmlValue(value);
+      if (unwrapped !== undefined && unwrapped !== null && String(unwrapped).trim() !== '') {
+        results.push(String(unwrapped).trim());
+      }
+    }
+
+    if (value && typeof value === 'object') {
+      collectNamedXmlValues(value, targetKeys, results);
+    }
+  }
+
+  return results;
 };
 
 const getAutoSemesterCode = () => {
@@ -237,6 +291,100 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetch SIASAT KST:', error);
     res.status(500).json({ error: 'Gagal terhubung ke service SIASAT' });
+  }
+});
+
+// 3. Endpoint Get Nama Mahasiswa by NIM
+router.get('/siasat/mahasiswa/:nim/nama', verifyToken, async (req, res) => {
+  const { nim } = req.params;
+
+  const SOAP_URL = process.env.SIASAT_SOAP_URL;
+  const SOAP_USER = process.env.SIASAT_SOAP_USER;
+  const SOAP_PASS = process.env.SIASAT_SOAP_PASS;
+
+  if (!SOAP_URL) {
+    console.error('Konfigurasi SIASAT_SOAP_URL tidak ditemukan di environment variables.');
+    return res.status(500).json({ error: 'Konfigurasi sistem belum lengkap. Hubungi administrator.' });
+  }
+
+  const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+    <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+      <soap:Body>
+        <GetNamaMhs xmlns="http://kpftiservice.org/">
+          <nim>${nim}</nim>
+          <useracc>${SOAP_USER}</useracc>
+          <pwd>${SOAP_PASS}</pwd>
+        </GetNamaMhs>
+      </soap:Body>
+    </soap:Envelope>
+  `;
+
+  try {
+    const response = await fetch(SOAP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': '"http://kpftiservice.org/GetNamaMhs"'
+      },
+      body: xmlBody
+    });
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    const xmlText = await response.text();
+    const resultObj = parser.parse(xmlText);
+
+    const getNamaMhsResult = findXmlNode(resultObj, 'GetNamaMhsResult');
+    const listMhs = findXmlNode(resultObj, 'listmhs');
+
+    let namaMahasiswa =
+      findFirstNamedXmlValue(listMhs, ['namamhs', 'nama_mhs', 'nama']) ??
+      findFirstNamedXmlValue(getNamaMhsResult, ['namamhs', 'nama_mhs', 'nama']) ??
+      findFirstNamedXmlValue(resultObj, ['namamhs', 'nama_mhs']);
+
+    if (!namaMahasiswa && listMhs && typeof listMhs === 'object') {
+      // Beberapa service ASMX mengembalikan 1 baris data tanpa nama node yang konsisten.
+      // Kalau belum ketemu, ambil kandidat field string pertama yang bukan metadata umum.
+      const candidateEntries = Object.entries(listMhs).filter(([key, value]) => {
+        if (key.startsWith('@_') || key === '_text') return false;
+        if (value === null || value === undefined) return false;
+        if (typeof value === 'object') return false;
+
+        const normalizedKey = key.toLowerCase();
+        const normalizedValue = String(value).trim();
+
+        if (!normalizedValue) return false;
+        if (normalizedValue === nim) return false;
+        if (/^\d+([./-]\d+)*$/.test(normalizedValue)) return false;
+        if (['nim', 'tgllahir', 'kodewali', 'kotalahir', 'kotasal'].includes(normalizedKey)) return false;
+
+        return true;
+      });
+
+      namaMahasiswa = candidateEntries[0]?.[1];
+    }
+
+    if (!namaMahasiswa) {
+      const debugCandidates = collectNamedXmlValues(resultObj, ['namamhs', 'nama_mhs', 'nama']);
+      console.warn('[SIASAT GetNamaMhs] Nama tidak ditemukan', {
+        nim,
+        availableNameCandidates: debugCandidates,
+        listMhsKeys: listMhs && typeof listMhs === 'object' ? Object.keys(listMhs) : [],
+        getNamaMhsResultKeys: getNamaMhsResult && typeof getNamaMhsResult === 'object' ? Object.keys(getNamaMhsResult) : []
+      });
+      return res.status(404).json({ error: 'Nama mahasiswa tidak ditemukan di SIASAT' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        nim,
+        nama: formatStudentName(namaMahasiswa)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetch SIASAT Nama Mahasiswa:', error);
+    res.status(500).json({ error: 'Gagal terhubung ke service SIASAT. Pastikan jaringan terhubung ke intranet.' });
   }
 });
 

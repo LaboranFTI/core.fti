@@ -1,18 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { ObservationData } from '../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { api } from '../../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Plus, Trash2, Printer, Download, Building2, GraduationCap, Users, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Printer, Download, Building2, GraduationCap, Users, Loader2, QrCode, X, ChevronDown, FileText } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '../../components/ui/alert-dialog';
 
 interface ObservationFormProps {
   onDataChange: (data: ObservationData) => void;
   onPrint: () => void;
-  onDownloadPdf: () => void;
-  isDownloadingPdf?: boolean;
   readOnly?: boolean;
   feedback?: {
     type: 'success' | 'error' | 'info';
@@ -20,7 +29,26 @@ interface ObservationFormProps {
   } | null;
 }
 
-export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownloadingPdf = false, readOnly = false, feedback = null }: ObservationFormProps) {
+export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedback = null }: ObservationFormProps) {
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [formFeedback, setFormFeedback] = useState(feedback);
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [isFinalizingPrint, setIsFinalizingPrint] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | 'print' | null>(null);
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDownloadMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const { register, control, watch, getValues } = useForm<ObservationData>({
     defaultValues: {
       recipientName: '',
@@ -47,6 +75,113 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
     return () => subscription.unsubscribe();
   }, [getValues, watch, onDataChange]);
 
+  const handleConfirm = () => {
+    const action = confirmAction;
+    setConfirmAction(null);
+    if (action === 'pdf') {
+      handleDownloadPdf();
+    } else if (action === 'qr') {
+      handleGenerateQr();
+    } else if (action === 'print') {
+      handleFinalizeAndPrint();
+    }
+  };
+
+  const handleFinalizeAndPrint = async () => {
+    setIsFinalizingPrint(true);
+    setFormFeedback(null);
+    try {
+      const formData = getValues();
+      const res = await api('/api/tu/observation-letter/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal menghasilkan nomor surat.');
+
+      const tds = document.querySelectorAll('td');
+      tds.forEach(td => {
+        if (td.textContent?.includes('AUTO/FTI/S.Obs/')) {
+          td.textContent = json.letterNumber;
+        }
+      });
+      
+      setFormFeedback({ type: 'success', message: 'Surat berhasil diarsipkan dengan nomor resmi.' });
+      setTimeout(() => onPrint(), 300);
+    } catch (error) {
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memproses cetak surat.' });
+    } finally {
+      setIsFinalizingPrint(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    setFormFeedback(null);
+    try {
+      const formData = getValues();
+      const res = await api('/api/tu/observation-letter/generate-and-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({ error: 'Gagal mengunduh PDF.' }));
+        throw new Error(errorJson.error);
+      }
+
+      const blob = await res.blob();
+      const companyName = getValues('companyName');
+      const safeCompanyName = (companyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+      const filename = `SuratObservasi_${safeCompanyName}.pdf`;
+
+      const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setFormFeedback({ type: 'success', message: 'Surat berhasil diunduh dan diarsipkan secara otomatis.' });
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengunduh PDF.' });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleGenerateQr = async () => {
+    setIsGeneratingQr(true);
+    setFormFeedback(null);
+    try {
+      const formData = getValues();
+      const res = await api('/api/tu/observation-letter/generate-qr-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Gagal menghasilkan QR Code.');
+      }
+
+      setQrUrl(json.qrUrl);
+      setFormFeedback({ type: 'success', message: 'QR Code berhasil dibuat. Scan untuk mengunduh.' });
+    } catch (error) {
+      console.error('Failed to generate QR:', error);
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menghasilkan QR Code.' });
+    } finally {
+      setIsGeneratingQr(false);
+    }
+  };
+
   return (
     <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
       <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
@@ -59,18 +194,18 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
           <div className="px-6 py-4 bg-blue-50/80 text-sm text-blue-700 dark:bg-blue-950/20 dark:text-blue-300">
             {readOnly
               ? 'Role Mahasiswa hanya memiliki akses baca pada tab surat ijin observasi. Form, download PDF, dan cetak dinonaktifkan.'
-              : 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF saat preview sudah sesuai.'}
+              : 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF atau cetak saat preview sudah sesuai. Data surat akan otomatis masuk arsip.'}
           </div>
 
-          {feedback && (
+          {formFeedback && (
             <div className={`mx-6 my-5 rounded-2xl border px-4 py-3 text-sm ${
-              feedback.type === 'success'
+              formFeedback.type === 'success'
                 ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                : feedback.type === 'error'
+                : formFeedback.type === 'error'
                   ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
                   : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300'
             }`}>
-              {feedback.message}
+              {formFeedback.message}
             </div>
           )}
           
@@ -140,7 +275,7 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
                 <h3 className="font-semibold text-lg">Anggota Kelompok</h3>
               </div>
           <span className="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">
-                {fields.length} / 10
+                {fields.length} / 5
               </span>
             </div>
             
@@ -180,9 +315,9 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
               variant="outline" 
           className="w-full border-dashed border-2 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 text-slate-500 dark:text-slate-400 dark:border-slate-700"
               onClick={() => {
-                if (fields.length < 10) append({ name: '', nim: '' });
+                if (fields.length < 5) append({ name: '', nim: '' });
               }}
-              disabled={readOnly || fields.length >= 10}
+              disabled={readOnly || fields.length >= 5}
             >
               <Plus className="w-4 h-4 mr-2" /> Tambah Anggota Kelompok
             </Button>
@@ -190,17 +325,95 @@ export function ObservationForm({ onDataChange, onPrint, onDownloadPdf, isDownlo
 
           {/* Actions */}
       <div className="p-6 bg-white dark:bg-gray-800 flex flex-col sm:flex-row gap-3">
-        <Button onClick={onDownloadPdf} disabled={readOnly || isDownloadingPdf} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-11 text-base">
-              {isDownloadingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              {isDownloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF'}
-            </Button>
-        <Button onClick={onPrint} disabled={readOnly} variant="outline" className="flex-1 h-11 text-base border-slate-300 dark:border-slate-600">
-              <Printer className="w-4 h-4 mr-2" /> Cetak Langsung
+        <div className="relative flex-1" ref={dropdownRef}>
+          <Button 
+            type="button"
+            onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)} 
+            disabled={readOnly || isDownloadingPdf || isGeneratingQr} 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-11 text-base"
+          >
+            {(isDownloadingPdf || isGeneratingQr) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+            {(isDownloadingPdf || isGeneratingQr) ? 'Menyiapkan...' : 'Download'}
+            <ChevronDown className="w-4 h-4 ml-2" />
+          </Button>
+          
+          {isDownloadMenuOpen && (
+            <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-50">
+              <button
+                type="button"
+                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-700 flex items-center text-slate-700 dark:text-slate-200 transition-colors"
+                onClick={() => {
+                  setConfirmAction('pdf');
+                  setIsDownloadMenuOpen(false);
+                }}
+              >
+                <FileText className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
+                <span className="font-medium">Simpan sebagai PDF</span>
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-700 flex items-center text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-gray-700"
+                onClick={() => {
+                  setConfirmAction('qr');
+                  setIsDownloadMenuOpen(false);
+                }}
+              >
+                <QrCode className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
+                <span className="font-medium">Download via QR Code</span>
+              </button>
+            </div>
+          )}
+        </div>
+        <Button type="button" onClick={() => setConfirmAction('print')} disabled={readOnly || isFinalizingPrint} variant="outline" className="flex-1 h-11 text-base border-slate-300 dark:border-slate-600">
+              {isFinalizingPrint ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
+              {isFinalizingPrint ? 'Menyiapkan...' : 'Cetak Langsung'}
             </Button>
           </div>
 
         </div>
       </CardContent>
+
+      <AlertDialog open={confirmAction !== null} onOpenChange={(open) => !open && setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Konfirmasi Pembuatan Surat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin data yang diisi sudah benar? Tindakan ini akan <strong>menghasilkan nomor surat resmi</strong> dan menyimpan dokumen ke dalam arsip TU.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Periksa Kembali</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700">
+              Yakin & Generate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {qrUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl max-w-sm w-full text-center relative">
+            <button 
+              onClick={() => setQrUrl(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Scan untuk Download</h3>
+            <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Gunakan kamera HP atau aplikasi scanner untuk mengunduh PDF secara otomatis.</p>
+            <div className="bg-white p-4 rounded-xl inline-block border border-slate-200 shadow-sm mb-4">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} 
+                alt="QR Code Download" 
+                className="w-48 h-48"
+              />
+            </div>
+            <div className="bg-slate-100 dark:bg-gray-700/50 p-3 rounded-lg break-all text-xs text-slate-500 dark:text-gray-400 text-left">
+              {qrUrl}
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

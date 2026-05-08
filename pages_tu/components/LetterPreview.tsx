@@ -8,6 +8,9 @@ interface LetterPreviewProps {
   backgroundImageBase64?: string;
   layout?: LetterLayout;
   showLayoutGuide?: boolean;
+  letterNumber?: string;
+  signatureBase64?: string;
+  stampBase64?: string;
 }
 
 const getObservationNumberPlaceholder = () => {
@@ -19,16 +22,19 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   data,
   backgroundImageBase64,
   layout,
-  showLayoutGuide = true
+  showLayoutGuide = true,
+  letterNumber,
+  signatureBase64,
+  stampBase64
 }, ref) => {
   const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
-  const observationNumber = getObservationNumberPlaceholder();
+  const observationNumber = letterNumber || getObservationNumberPlaceholder();
   const pageLayout = layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
 
   return (
     <div
       ref={ref}
-      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white font-serif text-[11pt] leading-[1.6] text-black shadow-lg"
+      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white font-serif text-[11pt] leading-normal text-black shadow-lg"
     >
       {backgroundImageBase64 ? (
         <img
@@ -78,6 +84,8 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           </div>
         </div>
 
+        <hr className="mb-[4mm] border-0 border-t border-black" />
+
         <table className="mb-[7mm] w-full border-collapse text-[10.5pt]">
           <tbody>
             <tr>
@@ -106,8 +114,8 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
             <tbody>
               {data.students.length > 0 ? data.students.map((student, index) => (
                 <tr key={index}>
-                  <td className="py-[0.8mm] font-bold align-top">{student.name || '-'}</td>
-                  <td className="py-[0.8mm] font-bold align-top">{student.nim || '-'}</td>
+                  <td className="py-[0.8mm] align-top">{student.name || '-'}</td>
+                  <td className="py-[0.8mm] align-top">{student.nim || '-'}</td>
                 </tr>
               )) : (
                 <tr>
@@ -133,7 +141,8 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
         <div className="mt-[16mm] grid grid-cols-2 gap-[16mm] px-[6mm]">
           <div className="text-center">
             <p>Mengetahui,</p>
-            <div className="h-[24mm]" />
+            <div className="relative h-[24mm]">
+            </div>
             <p className="font-bold underline underline-offset-4">{data.headOfProgramName || '[Nama Kaprodi]'}</p>
             <p>Kaprodi S1 Teknik Informatika</p>
           </div>

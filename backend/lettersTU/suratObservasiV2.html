@@ -41,7 +41,7 @@
             position: relative;
             z-index: 1;
             font-size: 11pt;
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .top-block {
@@ -70,6 +70,12 @@
         .reference-meta td {
             padding: 0.7mm 0;
             vertical-align: top;
+        }
+
+        .separator {
+            border: none;
+            border-top: 1px solid black;
+            margin: 0 0 4mm 0;
         }
 
         .recipient-block {
@@ -155,6 +161,8 @@
                 </div>
             </div>
 
+            <hr class="separator">
+
             <table class="reference-meta">
                 <tr>
                     <td style="width: 35%;"><strong>Acuan Kami</strong></td>
@@ -178,10 +186,7 @@
                     <th>Nama Mahasiswa</th>
                     <th style="width: 42mm;">NIM</th>
                 </tr>
-                <tr>
-                    <td><strong>{{name}}</strong></td>
-                    <td><strong>{{nim}}</strong></td>
-                </tr>
+                {{studentRows}}
             </table>
 
             <p>Bahwa sebagai salah satu syarat untuk memenuhi sebagian tugas dari mata kuliah <strong>{{courseName}}</strong>, yang diwajibkan oleh Fakultas, maka melalui surat ini kami mohon kesediaan Bapak/Ibu memberikan izin untuk dapat melakukan observasi dan wawancara di <strong>{{company}}</strong>.</p>
@@ -191,8 +196,6 @@
                 <div>
                     <p>Mengetahui,</p>
                     <div class="signature-area">
-                        <img src="{{stampImage}}" alt="Cap Fakultas" class="stamp-image">
-                        <img src="{{signatureImage}}" alt="Tanda Tangan" class="signature-image">
                     </div>
                     <p class="signature-name">{{headOfProgramName}}</p>
                     <p>Kaprodi S1 Teknik Informatika</p>

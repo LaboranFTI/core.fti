@@ -2,6 +2,12 @@ import React from 'react';
 import { ActiveStudentRequest, LetterLayout } from '../types';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import {
+  buildBirthPlaceAndDate,
+  DEFAULT_FACULTY,
+  DEFAULT_UNIVERSITY,
+  deriveStudyProgramFromNim
+} from './activeStudentUtils';
 
 interface ActiveStudentLetterProps {
   data: ActiveStudentRequest & {
@@ -18,11 +24,18 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
   const academicYear = data.academicYear || (currentMonth >= 7 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`);
   const letterNumber = data.letterNumber || `AUTO/FTI/S.Ket/${format(new Date(), 'MM/yyyy')}`;
   const layout = data.layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
+  const derivedStudyProgram = deriveStudyProgramFromNim(data.nim);
+  const studyProgramLevel = data.studyProgramLevel || derivedStudyProgram?.studyProgramLevel || '[Jenjang Program]';
+  const studyProgramName = data.studyProgramName || derivedStudyProgram?.studyProgramName || '[Program Studi]';
+  const birthPlaceAndDate = buildBirthPlaceAndDate(data.birthPlace, data.birthDate) || '[Tempat & Tanggal Lahir]';
+  const faculty = data.faculty || DEFAULT_FACULTY;
+  const university = data.university || DEFAULT_UNIVERSITY;
 
   return (
     <div
       ref={ref}
-      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white font-serif text-[11pt] leading-[1.75] text-black shadow-lg"
+      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white text-[11pt] leading-[1.5] text-black shadow-lg"
+      style={{ fontFamily: 'Arial, sans-serif' }}
     >
       {data.backgroundImageBase64 ? (
         <img
@@ -51,8 +64,8 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
           paddingLeft: `${layout.marginLeftMm}mm`
         }}
       >
-        <div className="mb-[7mm] text-center">
-          <h3 className="text-[15pt] font-bold uppercase tracking-[0.08em] underline underline-offset-4">
+        <div className="mb-[8mm] text-center">
+          <h3 className="text-[15pt] uppercase">
             Surat Keterangan
           </h3>
         </div>
@@ -65,15 +78,16 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
               <td className="py-[1mm] align-top">{letterNumber}</td>
             </tr>
             <tr>
+              <td className="py-[1mm] align-top">Hal</td>
+              <td className="py-[1mm] align-top">:</td>
+              <td className="py-[1mm] align-top">Permohonan Surat Aktif Kuliah</td>
+            </tr>
+            <tr>
               <td className="py-[1mm] align-top">Lamp</td>
               <td className="py-[1mm] align-top">:</td>
               <td className="py-[1mm] align-top">1 lembar</td>
             </tr>
-            <tr>
-              <td className="py-[1mm] align-top">Hal</td>
-              <td className="py-[1mm] align-top">:</td>
-              <td className="py-[1mm] align-top font-bold">Permohonan Surat Aktif Kuliah</td>
-            </tr>
+
           </tbody>
         </table>
 
@@ -85,67 +99,72 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
               <tr>
                 <td className="w-[48mm] py-[1.1mm] align-top">Nama Mahasiswa</td>
                 <td className="w-[5mm] py-[1.1mm] align-top">:</td>
-                <td className="py-[1.1mm] align-top font-bold">{data.name || '[Nama Mahasiswa]'}</td>
+                <td className="py-[1.1mm] align-top">{data.name || '[Nama Mahasiswa]'}</td>
               </tr>
               <tr>
                 <td className="py-[1.1mm] align-top">NIM</td>
                 <td className="py-[1.1mm] align-top">:</td>
-                <td className="py-[1.1mm] align-top font-bold">{data.nim || '[NIM Mahasiswa]'}</td>
+                <td className="py-[1.1mm] align-top">{data.nim || '[NIM Mahasiswa]'}</td>
+              </tr>
+              <tr>
+                <td className="py-[1.1mm] align-top">Tempat &amp; Tanggal Lahir</td>
+                <td className="py-[1.1mm] align-top">:</td>
+                <td className="py-[1.1mm] align-top">{birthPlaceAndDate}</td>
               </tr>
               <tr>
                 <td className="py-[1.1mm] align-top">Jenjang Program</td>
                 <td className="py-[1.1mm] align-top">:</td>
-                <td className="py-[1.1mm] align-top">Sarjana</td>
+                <td className="py-[1.1mm] align-top">{studyProgramLevel}</td>
               </tr>
               <tr>
                 <td className="py-[1.1mm] align-top">Program Studi</td>
                 <td className="py-[1.1mm] align-top">:</td>
-                <td className="py-[1.1mm] align-top">Teknik Informatika</td>
+                <td className="py-[1.1mm] align-top">{studyProgramName}</td>
               </tr>
               <tr>
                 <td className="py-[1.1mm] align-top">Fakultas</td>
                 <td className="py-[1.1mm] align-top">:</td>
-                <td className="py-[1.1mm] align-top">Teknologi Informasi</td>
+                <td className="py-[1.1mm] align-top">{faculty}</td>
               </tr>
               <tr>
                 <td className="py-[1.1mm] align-top">Universitas</td>
                 <td className="py-[1.1mm] align-top">:</td>
-                <td className="py-[1.1mm] align-top">Kristen Satya Wacana</td>
+                <td className="py-[1.1mm] align-top">{university}</td>
               </tr>
             </tbody>
           </table>
 
           <p>
-            Benar sebagai Mahasiswa Fakultas Teknologi Informasi yang saat ini pada Semester{' '}
-            <span className="font-bold">{semester}</span> Tahun Akademik <span className="font-bold">{academicYear}</span>{' '}
+            Benar sebagai Mahasiswa Fakultas {faculty} yang saat ini pada Semester{' '}
+            <span>{semester}</span> Tahun Akademik <span>{academicYear}</span>{' '}
             terdaftar dengan status aktif kuliah.
           </p>
 
           <p>Demikian surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagaimana mestinya.</p>
         </div>
 
-        <div className="mt-[16mm] ml-auto w-[72mm]">
+      <div className="mt-[14mm] ml-0 w-[90mm] leading-tight">
           <p>Salatiga, {today}</p>
           <p>Hormat kami,</p>
 
-          <div className="relative my-[2mm] h-[34mm]">
-            {data.stampBase64 && (
-              <img
-                src={data.stampBase64}
-                alt="Cap Fakultas"
-                className="absolute bottom-0 left-0 h-[30mm] object-contain opacity-90 mix-blend-multiply"
-              />
-            )}
+        <div className="relative my-[2mm] h-[24mm]">
             {data.signatureBase64 && (
               <img
                 src={data.signatureBase64}
                 alt="Tanda Tangan Dekan"
-                className="absolute bottom-[6mm] left-[18mm] h-[22mm] object-contain"
+              className="absolute bottom-[2mm] left-[15mm] h-[18mm] object-contain z-10"
+              />
+            )}
+            {data.stampBase64 && (
+              <img
+                src={data.stampBase64}
+                alt="Cap Fakultas"
+              className="absolute bottom-[-2mm] left-0 h-[24mm] object-contain opacity-90 mix-blend-multiply z-20"
               />
             )}
           </div>
 
-          <p className="font-bold underline underline-offset-4">Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.</p>
+          <p className="font-bold underline underline-offset-4 whitespace-nowrap">Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.</p>
           <p>Dekan</p>
         </div>
       </div>

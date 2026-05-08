@@ -42,20 +42,18 @@
             z-index: 1;
             padding: {{marginTopMm}}mm {{marginRightMm}}mm {{marginBottomMm}}mm {{marginLeftMm}}mm;
             font-size: 11pt;
-            line-height: 1.75;
+            line-height: 1.5;
         }
 
         .title {
             margin: 0 0 8mm;
             text-align: center;
             font-size: 15pt;
-            font-weight: bold;
             text-transform: uppercase;
-            text-decoration: underline;
         }
 
         .letter-meta {
-            margin-bottom: 10mm;
+            margin-bottom: 8mm;
             width: 100%;
             border-collapse: collapse;
             font-size: 10.5pt;
@@ -79,35 +77,44 @@
 
         .signature-block {
             margin-top: 14mm;
-            width: 74mm;
-            margin-left: auto;
+            width: 90mm;
+            margin-left: 0;
             text-align: left;
+            line-height: 1.2;
+        }
+
+        .signature-block p {
+            margin: 0;
         }
 
         .signature-area {
             position: relative;
-            height: 34mm;
-            margin: 2mm 0 4mm;
+            height: 24mm;
+            margin: 2mm 0 2mm;
         }
 
         .stamp-image {
             position: absolute;
             left: 0;
-            bottom: 0;
-            height: 30mm;
+            bottom: -2mm;
+            height: 24mm;
             opacity: 0.9;
+            z-index: 20;
+            mix-blend-mode: multiply;
         }
 
         .signature-image {
             position: absolute;
-            left: 18mm;
-            bottom: 6mm;
-            height: 22mm;
+            left: 15mm;
+            bottom: 2mm;
+            height: 18mm;
+            z-index: 10;
         }
 
         .signature-name {
             font-weight: bold;
             text-decoration: underline;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -123,20 +130,16 @@
                     <td style="width: 22mm;">Nomor</td>
                     <td style="width: 4mm;">:</td>
                     <td>{{nomorSurat}}</td>
-                    <td style="width: 35%;"><strong>Nomor</strong></td>
-                    <td style="width: 20%;"><strong>Lamp.</strong></td>
-                    <td style="width: 45%;"><strong>Hal</strong></td>
-                </tr>
-                <tr>
-                    <td>Lamp</td>
-                    <td>:</td>
-                    <td>{{nomorSurat}}</td>
-                    <td>{{lampiran}}</td>
                 </tr>
                 <tr>
                     <td>Hal</td>
                     <td>:</td>
-                    <td><strong>{{letterPurpose}}</strong></td>
+                    <td>{{letterPurpose}}</td>
+                </tr>
+                <tr>
+                    <td>Lamp</td>
+                    <td>:</td>
+                    <td>{{lampiran}}</td>
                 </tr>
             </table>
 
@@ -146,17 +149,22 @@
                 <tr>
                     <td style="width: 48mm;">Nama Mahasiswa</td>
                     <td style="width: 5mm;">:</td>
-                    <td><strong>{{name}}</strong></td>
+                    <td>{{name}}</td>
                 </tr>
                 <tr>
                     <td>NIM</td>
                     <td>:</td>
-                    <td><strong>{{nim}}</strong></td>
+                    <td>{{nim}}</td>
+                </tr>
+                <tr>
+                    <td>Tempat &amp; Tanggal Lahir</td>
+                    <td>:</td>
+                    <td>{{tempatTanggalLahir}}</td>
                 </tr>
                 <tr>
                     <td>Jenjang Program</td>
                     <td>:</td>
-                    <td>Sarjana</td>
+                    <td>{{jenjangProgram}}</td>
                 </tr>
                 <tr>
                     <td>Program Studi</td>
@@ -166,24 +174,24 @@
                 <tr>
                     <td>Fakultas</td>
                     <td>:</td>
-                    <td>Teknologi Informasi</td>
+                    <td>{{fakultas}}</td>
                 </tr>
                 <tr>
                     <td>Universitas</td>
                     <td>:</td>
-                    <td>Kristen Satya Wacana</td>
+                    <td>{{universitas}}</td>
                 </tr>
             </table>
 
-            <p>Benar sebagai Mahasiswa Fakultas Teknologi Informasi yang saat ini pada Semester {{semester}} Tahun Akademik {{tahunAkademik}} terdaftar dengan status aktif kuliah.</p>
+            <p>Benar sebagai Mahasiswa Fakultas {{fakultas}} yang saat ini pada Semester {{semester}} Tahun Akademik {{tahunAkademik}} terdaftar dengan status aktif kuliah.</p>
             <p>Demikian surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagaimana mestinya.</p>
 
             <div class="signature-block">
                 <p>Salatiga, {{tanggalSurat}}</p>
                 <p>Hormat kami,</p>
                 <div class="signature-area">
-                    <img src="{{stampImage}}" alt="Cap Fakultas" class="stamp-image">
                     <img src="{{signatureImage}}" alt="Tanda Tangan" class="signature-image">
+                    <img src="{{stampImage}}" alt="Cap Fakultas" class="stamp-image">
                 </div>
                 <p class="signature-name">Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.</p>
                 <p>Dekan</p>

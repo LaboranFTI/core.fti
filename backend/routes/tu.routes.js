@@ -575,7 +575,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
       // 7. Melampirkan Buffer PDF ke Nodemailer
       attachments: [
         {
-          filename: `${config.pdfFilename}_${requestData.nim}.pdf`,
+          filename: `${(requestData.letter_number || config.pdfFilename).replace(/\//g, '_')}_${requestData.nim}.pdf`,
           content: pdfBuffer,
           contentType: 'application/pdf'
         }

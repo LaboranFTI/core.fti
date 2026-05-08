@@ -437,6 +437,12 @@ CREATE TABLE active_student_requests (
     name VARCHAR(100) NOT NULL,
     nim VARCHAR(50) NOT NULL,
     email VARCHAR(100) NOT NULL,
+    birth_place VARCHAR(100),
+    birth_date VARCHAR(30),
+    study_program_level VARCHAR(100),
+    study_program_name VARCHAR(255),
+    faculty VARCHAR(255),
+    university VARCHAR(255),
     transcript_base64 TEXT,
     transcript_name VARCHAR(255),
     signature_base64 TEXT,
@@ -461,6 +467,10 @@ CREATE TABLE observation_requests (
     company_address TEXT, -- Alamat instansi/perusahaan tujuan
     purpose TEXT, -- Tujuan spesifik observasi
     company VARCHAR(255), -- Nama instansi/perusahaan tujuan
+    course_name VARCHAR(255),
+    lecturer_name VARCHAR(255),
+    head_of_program_name VARCHAR(255),
+    student_members JSONB NOT NULL DEFAULT '[]'::jsonb, -- Anggota kelompok observasi
     signature_base64 TEXT,
     stamp_base64 TEXT,
     letter_number VARCHAR(100),
@@ -526,6 +536,6 @@ ON observation_requests(letter_number)
 WHERE letter_number IS NOT NULL;
 
 -- Pengaturan default untuk Layanan TU
-INSERT INTO system_settings (key, value) VALUES ('tu_dean_signature_base64', '');
-INSERT INTO system_settings (key, value) VALUES ('tu_faculty_stamp_base64', '');
-INSERT INTO system_settings (key, value) VALUES ('tu_current_semester_code', '');
+INSERT INTO system_settings (key, value) VALUES ('tu_dean_signature_base64', '') ON CONFLICT (key) DO NOTHING;
+INSERT INTO system_settings (key, value) VALUES ('tu_faculty_stamp_base64', '') ON CONFLICT (key) DO NOTHING;
+INSERT INTO system_settings (key, value) VALUES ('tu_current_semester_code', '') ON CONFLICT (key) DO NOTHING;
