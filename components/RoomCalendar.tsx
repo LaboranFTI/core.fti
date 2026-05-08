@@ -64,6 +64,7 @@ interface RoomCalendarProps {
     type: "success" | "error" | "info" | "warning",
   ) => void;
   getCalendarId: (url: string) => string | null;
+  filterComponent?: React.ReactNode;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +121,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   role,
   showToast,
   getCalendarId,
+  filterComponent,
 }) => {
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -804,35 +806,40 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
         ──────────────────────────────────────────────────────────────────── */}
       {(canManage ||
         isGapiInitialized ||
-        !!selectedRoom?.googleCalendarUrl) && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 flex flex-col sm:flex-row gap-3 justify-between items-center">
-          {/* ── Left cluster: Add Event + Refresh ── */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {canManage && (
-              <button
-                onClick={handleOpenAddEventModal}
-                disabled={isLoading}
-                className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors disabled:opacity-50 shadow-sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Tambah Jadwal
-              </button>
-            )}
-            {isGapiInitialized && (
-              <button
-                onClick={fetchCurrentEvents}
-                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                title="Refresh Jadwal"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-500" : ""}`}
-                />
-              </button>
-            )}
+        !!selectedRoom?.googleCalendarUrl ||
+        filterComponent) && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
+          {/* ── Left cluster: Filter + Add Event + Refresh ── */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
+            {filterComponent}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {canManage && (
+                <button
+                  onClick={handleOpenAddEventModal}
+                  disabled={isLoading}
+                  className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Tambah Jadwal
+                </button>
+              )}
+              {isGapiInitialized && (
+                <button
+                  onClick={fetchCurrentEvents}
+                  className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  title="Refresh Jadwal"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-500" : ""}`}
+                  />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ── Right cluster: Google Calendar link + Auth ── */}
-          <div className="flex items-center gap-3 flex-wrap justify-end">
+          <div className="flex items-center gap-3 flex-wrap w-full md:w-auto justify-start md:justify-end">
             {/*  External Google Calendar link.
                  Visible to ALL roles whenever the room has a calendar URL.
                  Previously this only appeared in JadwalRuang's filter card,
@@ -929,26 +936,26 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={goToToday}
-                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   Hari Ini
                 </button>
                 <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
                   <button
                     onClick={() => setViewMode("day")}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "day" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400"}`}
+                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "day" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
                   >
                     Hari
                   </button>
                   <button
                     onClick={() => setViewMode("week")}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "week" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400"}`}
+                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "week" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
                   >
                     Minggu
                   </button>
                   <button
                     onClick={() => setViewMode("month")}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "month" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400"}`}
+                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "month" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
                   >
                     Bulan
                   </button>
@@ -1284,7 +1291,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         }
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                       />
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Kosongkan jika ingin berulang selamanya.
                       </p>
                     </div>
@@ -1350,7 +1357,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       Hapus ini saja
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Menghapus hanya event ini
                     </p>
                   </div>
@@ -1371,7 +1378,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       Ini dan selanjutnya
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Menghapus event ini dan event mendatang
                     </p>
                   </div>
@@ -1392,7 +1399,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       Semua event
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Menghapus semua event yang cocok
                     </p>
                   </div>

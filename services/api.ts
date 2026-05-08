@@ -45,14 +45,20 @@ export const api = async (endpoint: string, options: ApiRequest = {}) => {
 
   // Handle POST/PUT data
   if (options.data) {
-    config.body = JSON.stringify(options.data);
+    if (options.data instanceof FormData) {
+      config.body = options.data;
+      // Hapus header Content-Type bawaan agar browser otomatis menambahkan boundary form-data
+      delete (config.headers as Record<string, string>)['Content-Type'];
+    } else {
+      config.body = JSON.stringify(options.data);
+    }
   }
 
   try {
     let response = await fetch(url, config);
 
     // --- INTERCEPTOR: Handle 401 Unauthorized (Token Expired) ---
-    if (response.status === 401 && endpoint !== '/api/auth/refresh' && endpoint !== '/api/login') {
+    if (response.status === 401 && formattedEndpoint !== '/api/auth/refresh' && formattedEndpoint !== '/api/login') {
       const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken');
       const deviceId = localStorage.getItem('deviceId');
 
@@ -79,12 +85,15 @@ export const api = async (endpoint: string, options: ApiRequest = {}) => {
                 onRefreshed(data.token);
               } else {
                 onRefreshed(null); // Gagal refresh, session invalid
+                window.dispatchEvent(new Event('auth:unauthorized'));
               }
             } else {
               onRefreshed(null);
+              window.dispatchEvent(new Event('auth:unauthorized'));
             }
           } catch (refreshErr) {
             onRefreshed(null);
+            window.dispatchEvent(new Event('auth:unauthorized'));
           } finally {
             isRefreshing = false;
           }

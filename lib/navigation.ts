@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   BookOpen,
   Box,
+  Backpack,
   CalendarDays,
   CalendarRange,
   ClipboardCheck,
@@ -14,9 +15,10 @@ import {
   Info,
   LayoutDashboard,
   LucideIcon,
+  SlidersHorizontal,
   Settings,
+  UserCog,
   Users,
-  Wrench,
 } from "lucide-react";
 
 import { Role } from "../types";
@@ -107,7 +109,7 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       {
         id: "jadwal-ruang",
-        label: "Jadwal Ruang",
+        label: "Ruang",
         icon: CalendarRange,
         roles: [
           Role.MAHASISWA,
@@ -121,7 +123,7 @@ export const navigationGroups: NavigationGroup[] = [
       },
       {
         id: "jadwal-kuliah",
-        label: "Jadwal Kuliah",
+        label: "Kuliah",
         icon: BookOpen,
         roles: [Role.ADMIN, Role.LABORAN, Role.DOSEN, Role.SUPERVISOR],
       },
@@ -136,32 +138,39 @@ export const navigationGroups: NavigationGroup[] = [
   {
     id: "manajemen",
     title: "Manajemen",
-    icon: Users,
+    icon: SlidersHorizontal,
     items: [
       {
         id: "manajemen-user",
-        label: "Manajemen User",
+        label: "User",
         icon: Users,
         roles: [Role.ADMIN],
       },
       {
+        id: 'manajemen-dosen',
+        label: 'Dosen',
+        icon: GraduationCap, // Anda bisa menggantinya dengan ikon GraduationCap atau yang lain
+        roles: [Role.ADMIN, Role.ADMIN_TU] // Restriksi Role
+      },
+      {
         id: "manajemen-laboran",
-        label: "Manajemen Laboran",
-        icon: Wrench,
+        label: "Laboran",
+        icon: UserCog,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
       {
         id: "manajemen-pkl",
-        label: "Manajemen PKL",
-        icon: GraduationCap,
+        label: "PKL",
+        icon: Backpack,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
       {
         id: "manajemen-spesifikasi",
-        label: "Spesifikasi & Software",
+        label: "Spesifikasi Lab",
         icon: Cpu,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
+
     ],
   },
   {
@@ -274,7 +283,7 @@ export const getMobilePrimaryItems = (currentRole: Role) => {
     .map((id) => getNavigationItemById(id))
     .filter(
       (item): item is NavigationItem =>
-        Boolean(item) && isNavigationItemVisible(currentRole, item),
+        item != null && isNavigationItemVisible(currentRole, item),
     );
 
   return visibleItems;

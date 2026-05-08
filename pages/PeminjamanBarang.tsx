@@ -429,34 +429,40 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
     });
   };
 
-  const filteredLoans = loans.filter(loan => {
-    const matchesSearch = loan.borrowerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          ((loan as any).nim && (loan as any).nim.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                          loan.equipmentName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filter === 'All' || loan.status === filter;
-    
-    let matchesDate = true;
-    if (startDate && endDate) {
-      matchesDate = loan.borrowDate >= startDate && loan.borrowDate <= endDate;
-    } else if (startDate) {
-      matchesDate = loan.borrowDate >= startDate;
-    } else if (endDate) {
-      matchesDate = loan.borrowDate <= endDate;
-    }
+  const filteredLoans = React.useMemo(() => {
+    return loans.filter(loan => {
+      const matchesSearch = loan.borrowerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            ((loan as any).nim && (loan as any).nim.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            loan.equipmentName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFilter = filter === 'All' || loan.status === filter;
+      
+      let matchesDate = true;
+      if (startDate && endDate) {
+        matchesDate = loan.borrowDate >= startDate && loan.borrowDate <= endDate;
+      } else if (startDate) {
+        matchesDate = loan.borrowDate >= startDate;
+      } else if (endDate) {
+        matchesDate = loan.borrowDate <= endDate;
+      }
 
-    return matchesSearch && matchesFilter && matchesDate;
-  });
+      return matchesSearch && matchesFilter && matchesDate;
+    });
+  }, [loans, searchTerm, filter, startDate, endDate]);
 
-  const groupedLoans = filteredLoans.reduce((groups, loan) => {
-    const key = loan.transactionId;
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-    groups[key].push(loan);
-    return groups;
-  }, {} as Record<string, Loan[]>);
+  const groupedLoans = React.useMemo(() => {
+    return filteredLoans.reduce((groups, loan) => {
+      const key = loan.transactionId;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(loan);
+      return groups;
+    }, {} as Record<string, Loan[]>);
+  }, [filteredLoans]);
 
-  const sortedGroupKeys = Object.keys(groupedLoans).sort((a, b) => b.localeCompare(a));
+  const sortedGroupKeys = React.useMemo(() => {
+    return Object.keys(groupedLoans).sort((a, b) => b.localeCompare(a));
+  }, [groupedLoans]);
 
   // Pagination
   const {

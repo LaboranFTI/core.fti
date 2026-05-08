@@ -15,7 +15,7 @@ interface LetterPreviewProps {
 
 const getObservationNumberPlaceholder = () => {
   const now = new Date();
-  return `AUTO/FTI/S.Obs/${format(now, 'MM/yyyy')}`;
+  return `AUTO/FTI-OBS/${format(now, 'MM/yyyy')}`;
 };
 
 export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps>(({

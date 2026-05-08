@@ -70,36 +70,6 @@ const JadwalRuang: React.FC<ScheduleProps> = ({ role, showToast, isDarkMode }) =
         </div>
       </div>
 
-      {/* Room Filter */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-2 w-full md:w-72">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <select 
-                    value={filterRoom}
-                    onChange={(e) => setFilterRoom(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
-                    disabled={isLoading}
-                >
-                    {isLoading && <option value="">Memuat ruangan...</option>}
-                    {rooms.map(r => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                </select>
-            </div>
-            {selectedRoom?.googleCalendarUrl && role !== Role.MAHASISWA && role !== Role.LEMBAGA_KEMAHASISWAAN && role !== Role.DOSEN && (
-                <a 
-                    href={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(getCalendarId(selectedRoom.googleCalendarUrl) || '')}`}
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline flex items-center"
-                >
-                    Buka jadwal di Google Calendar <ExternalLink className="w-4 h-4 ml-1" />
-                </a>
-            )}
-        </div>
-      </div>
-
       {/* RoomCalendar Component - handles all calendar rendering and modals */}
       <RoomCalendar
         selectedRoom={selectedRoom}
@@ -107,6 +77,22 @@ const JadwalRuang: React.FC<ScheduleProps> = ({ role, showToast, isDarkMode }) =
         role={role}
         showToast={showToast}
         getCalendarId={getCalendarId}
+        filterComponent={
+          <div className="flex items-center gap-2 w-full sm:w-64 md:w-72">
+            <Filter className="w-4 h-4 text-gray-400 shrink-0" />
+            <select
+              value={filterRoom}
+              onChange={(e) => setFilterRoom(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+              disabled={isLoading}
+            >
+              {isLoading && <option value="">Memuat ruangan...</option>}
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+        }
       />
     </div>
   );

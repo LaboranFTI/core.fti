@@ -32,7 +32,7 @@ const LETTER_TYPE_TO_CLIENT_KEY = {
 };
 const LETTER_TYPE_TO_CODE = {
   'active-student': 'S.Ket',
-  observation: 'S.Obs'
+  observation: 'FTI-OBS'
 };
 
 const createEmptyLetterBackgrounds = () => ({
@@ -405,7 +405,7 @@ const getSemesterMeta = (semesterCode) => {
 const formatLetterNumber = (type, sequence, date) => {
   const paddedSequence = String(sequence).padStart(3, '0');
   const paddedMonth = String(date.getMonth() + 1).padStart(2, '0');
-  return `${paddedSequence}/FTI/${LETTER_TYPE_TO_CODE[type]}/${paddedMonth}/${date.getFullYear()}`;
+  return `${paddedSequence}/${LETTER_TYPE_TO_CODE[type]}/${paddedMonth}/${date.getFullYear()}`;
 };
 
 const reserveLetterNumber = async (client, type, date) => {
@@ -535,6 +535,20 @@ const saveLetterLayouts = async (client, letterLayouts) => {
       ]
     );
   }
+};
+
+// Helper: Generate PDF Buffer menggunakan Puppeteer
+const generatePdfBuffer = async (htmlContent) => {
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+  await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+  const pdfBuffer = await page.pdf({
+    format: 'A4',
+    printBackground: true,
+    margin: { top: '0', right: '0', bottom: '0', left: '0' }
+  });
+  await browser.close();
+  return pdfBuffer;
 };
 
 let transporter;
@@ -1020,15 +1034,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
       htmlContent = htmlContent.replace(new RegExp(key, 'g'), specificPlaceholders[key]);
     }
 
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' }
-    });
-    await browser.close();
+    const pdfBuffer = await generatePdfBuffer(htmlContent);
 
     const mailOptions = {
       from: `"${process.env.SENDER_NAME || 'Layanan TU FTI'}" <${process.env.SMTP_USER}>`,
@@ -1081,11 +1087,7 @@ router.post('/tu/observation-letter/finalize', verifyRole(TU_SUBMIT_ROLES), asyn
   const primaryStudent = normalizeObservationStudents(students)[0] || {};
   const resolvedName = formatStudentName(req.body.name || primaryStudent.name || req.user?.nama || 'Mahasiswa');
   const resolvedNim = String(req.body.nim || primaryStudent.nim || req.user?.identifier || '000000000').trim();
-  const resolvedEmail = String(req.body.email || req.user?.email || '').trim();
-
-  if (!resolvedEmail) {
-    return res.status(400).json({ error: 'Email pemohon tidak dapat ditentukan. Gagal mengarsipkan.' });
-  }
+  const resolvedEmail = String(req.body.email || req.user?.email || '').trim() || `arsip-${resolvedNim}@core.fti`;
 
   const client = await pool.connect();
   try {
@@ -1137,11 +1139,7 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
   const primaryStudent = normalizeObservationStudents(students)[0] || {};
   const resolvedName = formatStudentName(req.body.name || primaryStudent.name || req.user?.nama || 'Mahasiswa');
   const resolvedNim = String(req.body.nim || primaryStudent.nim || req.user?.identifier || '000000000').trim();
-  const resolvedEmail = String(req.body.email || req.user?.email || '').trim();
-
-  if (!resolvedEmail) {
-    return res.status(400).json({ error: 'Email pemohon tidak dapat ditentukan. Gagal mengarsipkan.' });
-  }
+  const resolvedEmail = String(req.body.email || req.user?.email || '').trim() || `arsip-${resolvedNim}@core.fti`;
 
   const client = await pool.connect();
   try {
@@ -1191,12 +1189,7 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
       htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
     }
 
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
-    await browser.close();
-
+    const pdfBuffer = await generatePdfBuffer(htmlContent);
     await client.query('COMMIT');
 
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
@@ -1228,11 +1221,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
   const primaryStudent = normalizeObservationStudents(students)[0] || {};
   const resolvedName = formatStudentName(req.body.name || primaryStudent.name || req.user?.nama || 'Mahasiswa');
   const resolvedNim = String(req.body.nim || primaryStudent.nim || req.user?.identifier || '000000000').trim();
-  const resolvedEmail = String(req.body.email || req.user?.email || '').trim();
-
-  if (!resolvedEmail) {
-    return res.status(400).json({ error: 'Email pemohon tidak dapat ditentukan. Gagal mengarsipkan.' });
-  }
+  const resolvedEmail = String(req.body.email || req.user?.email || '').trim() || `arsip-${resolvedNim}@core.fti`;
 
   const client = await pool.connect();
   try {
@@ -1282,12 +1271,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
       htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
     }
 
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
-    await browser.close();
-
+    const pdfBuffer = await generatePdfBuffer(htmlContent);
     await client.query('COMMIT');
 
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
@@ -1368,15 +1352,7 @@ router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async
       htmlContent = htmlContent.replace(new RegExp(key, 'g'), specificPlaceholders[key]);
     }
 
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' }
-    });
-    await browser.close();
+    const pdfBuffer = await generatePdfBuffer(htmlContent);
 
     const safeLetterNumber = (requestData.letter_number || config.pdfFilename).replace(/\//g, '_');
     const filename = `${safeLetterNumber}_${requestData.nim}.pdf`;

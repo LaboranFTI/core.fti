@@ -71,6 +71,17 @@ CREATE TABLE staff (
 
 CREATE TRIGGER update_staff_updated_at BEFORE UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Tabel Lecturer
+-- Menyimpan data dosen pengampu (id menggunakan kode dosen)
+CREATE TABLE lecturer (
+    id VARCHAR(50) PRIMARY KEY,
+    nama VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_lecturer_updated_at BEFORE UPDATE ON lecturer FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Tabel Rooms
 -- Menyimpan data ruangan laboratorium
 CREATE TABLE rooms (
@@ -306,13 +317,15 @@ CREATE TABLE class_schedules (
     end_date DATE,                          -- Tanggal Selesai Periode Semester
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_class_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
+    CONSTRAINT fk_class_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL,
+    CONSTRAINT fk_class_lecturer FOREIGN KEY (lecturer_id) REFERENCES lecturer(id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER update_class_schedules_updated_at BEFORE UPDATE ON class_schedules FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Indexing untuk Class Schedules
 CREATE INDEX idx_class_schedules_room ON class_schedules(room_id);
+CREATE INDEX idx_class_schedules_lecturer ON class_schedules(lecturer_id);
 CREATE INDEX idx_class_schedules_semester ON class_schedules(semester);
 CREATE INDEX idx_class_schedules_academic ON class_schedules(academic_year);
 CREATE INDEX idx_class_schedules_day ON class_schedules(day_of_week);

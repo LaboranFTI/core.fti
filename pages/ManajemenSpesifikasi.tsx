@@ -537,7 +537,7 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
             </div>
           ))}
           {filteredRooms.length === 0 && (
-            <div className="col-span-full text-center py-12 text-gray-500">Tidak ada ruangan ditemukan</div>
+            <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">Tidak ada ruangan ditemukan</div>
           )}
         </div>
       </div>
@@ -594,7 +594,7 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'computers' 
               ? 'border-blue-600 text-blue-600 dark:text-blue-400' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
           }`}
         >
           <Monitor className="w-4 h-4 inline mr-2" />
@@ -605,7 +605,7 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'software' 
               ? 'border-blue-600 text-blue-600 dark:text-blue-400' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
           }`}
         >
           <Package className="w-4 h-4 inline mr-2" />
@@ -672,16 +672,16 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredComputers.map(pc => (
-                  <tr key={pc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr key={pc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100">
                     <td className="px-4 py-3 font-bold">{pc.pcNumber}</td>
                     <td className="px-4 py-3">{pc.cpu}</td>
                     <td className="px-4 py-3">
                       <div className="text-xs">{pc.gpuModel}</div>
-                      <div className="text-[10px] text-gray-500">{pc.gpuType} ({pc.vram})</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400">{pc.gpuType} ({pc.vram})</div>
                     </td>
                     <td className="px-4 py-3">
                       <div>{pc.ram}</div>
-                      <div className="text-xs text-gray-500">{pc.storage}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{pc.storage}</div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getConditionColor(pc.condition)}`}>{pc.condition}</span>
@@ -696,7 +696,7 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
                   </tr>
                 ))}
                 {filteredComputers.length === 0 && (
-                  <tr><td colSpan={canManage ? 7 : 6} className="text-center py-8 text-gray-500">Belum ada data komputer</td></tr>
+                  <tr><td colSpan={canManage ? 7 : 6} className="text-center py-8 text-gray-500 dark:text-gray-400">Belum ada data komputer</td></tr>
                 )}
               </tbody>
             </table>
@@ -721,7 +721,7 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredSoftware.map(soft => (
-                  <tr key={soft.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr key={soft.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100">
                     <td className="px-4 py-3 font-medium">{soft.name}</td>
                     <td className="px-4 py-3">{soft.version}</td>
                     <td className="px-4 py-3">{soft.category || '-'}</td>
@@ -744,7 +744,7 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
                   </tr>
                 ))}
                 {filteredSoftware.length === 0 && (
-                  <tr><td colSpan={canManage ? 6 : 5} className="text-center py-8 text-gray-500">Belum ada data software</td></tr>
+                  <tr><td colSpan={canManage ? 6 : 5} className="text-center py-8 text-gray-500 dark:text-gray-400">Belum ada data software</td></tr>
                 )}
               </tbody>
             </table>

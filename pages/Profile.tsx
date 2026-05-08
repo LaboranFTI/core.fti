@@ -322,7 +322,7 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 canEditProfile ? (
                   <button 
                     onClick={() => setIsEditing(true)}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
                   >
                     Edit Profil
                   </button>

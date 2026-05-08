@@ -20,6 +20,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate, isOpen, isCollapsed = false, onToggleCollapse, onClose }) => {
   const [hoveredItem, setHoveredItem] = useState<{ label: string; top: number } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [isHovered, setIsHovered] = useState(false);
   const mainItems = React.useMemo(() => getVisibleMainItems(currentRole), [currentRole]);
   const menuGroups = React.useMemo(() => getVisibleNavigationGroups(currentRole), [currentRole]);
 
@@ -43,15 +44,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
     });
   }, [currentPage, menuGroups]);
 
+  // Menentukan status ciut secara visual (melebar saat di-hover)
+  const effectiveCollapsed = isCollapsed && !isHovered;
+
   return (
-    <aside className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex h-screen w-[min(21rem,90vw)] flex-col border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 dark:border-gray-700 dark:bg-gray-900/95 md:relative md:translate-x-0 md:shadow-none ${isCollapsed ? 'md:w-24' : 'md:w-72'} print:hidden`}>
-      <div className={`flex min-h-22 items-center border-b border-gray-200 dark:border-gray-700 ${isCollapsed ? 'justify-center px-4 py-5' : 'gap-3 px-5 py-5 md:px-6'} shrink-0 transition-all duration-300`}>
+    <aside 
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex h-screen w-[min(21rem,90vw)] flex-col border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-200 dark:border-gray-700 dark:bg-gray-900/95 md:relative md:translate-x-0 md:shadow-none ${effectiveCollapsed ? 'md:w-24' : 'md:w-72'} print:hidden`}
+    >
+      <div className={`flex min-h-22 items-center border-b border-gray-200 dark:border-gray-700 ${effectiveCollapsed ? 'justify-center px-4 py-5' : 'gap-3 px-5 py-5 md:px-6'} shrink-0 transition-all duration-200`}>
         <img
           src={nocLogo}
           alt="NOC Logo"
-          className={`${isCollapsed ? 'h-10 w-10' : 'h-12 w-12'} object-contain transition-all duration-300`}
+          className={`${effectiveCollapsed ? 'h-10 w-10' : 'h-12 w-12'} object-contain transition-all duration-200`}
         />
-        <div className={`transition-opacity duration-300 ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 flex-1'}`}>
+        <div className={`transition-opacity duration-200 ${effectiveCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 flex-1'}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <span className="font-brand block whitespace-nowrap text-xl font-bold leading-none text-gray-900 dark:text-white">CORE.FTI</span>
@@ -72,9 +80,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
       <div className="flex-1 overflow-y-auto px-4 pb-8 pt-5">
         {/* Main Items */}
         <div className="mb-8">
-          <div className={!isCollapsed ? "mb-3 px-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-gray-400" : ''}>
-            Utama
-          </div>
+          {!effectiveCollapsed && (
+            <div className="mb-3 px-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-gray-400 transition-opacity duration-200">
+              Utama
+            </div>
+          )}
           <nav className="space-y-1">
             {mainItems.map((item) => {
               const Icon = item.icon;
@@ -84,20 +94,20 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
                   onMouseEnter={(e) => {
-                    if (isCollapsed) {
+                    if (effectiveCollapsed) {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setHoveredItem({ label: item.label, top: rect.top + rect.height / 2 });
                     }
                   }}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className={`group flex w-full min-h-12 items-center rounded-2xl py-3 text-sm font-semibold transition-all duration-300 ${isCollapsed ? 'justify-center px-2.5' : 'px-4'} ${
+                  className={`group flex w-full min-h-12 items-center rounded-2xl py-3 text-sm font-semibold transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-2.5' : 'px-4'} ${
                     isActive
                       ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-900/60'
                       : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-all duration-300`} />
-                  {!isCollapsed && <span className="overflow-hidden whitespace-nowrap transition-all duration-300">{item.label}</span>}
+                  <Icon className={`h-5 w-5 ${effectiveCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-all duration-200`} />
+                  {!effectiveCollapsed && <span className="overflow-hidden whitespace-nowrap transition-all duration-200">{item.label}</span>}
                 </button>
               );
             })}
@@ -131,13 +141,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                   setExpandedGroups(newExpanded);
                 }}
                 onMouseEnter={(e) => {
-                  if (isCollapsed) {
+                  if (effectiveCollapsed) {
                     const rect = e.currentTarget.getBoundingClientRect();
                     setHoveredItem({ label: group.title, top: rect.top + rect.height / 2 });
                   }
                 }}
                 onMouseLeave={() => setHoveredItem(null)}
-                className={`group flex w-full min-h-12 items-center rounded-2xl py-3 text-sm font-semibold transition-all duration-300 ${isCollapsed ? 'justify-center px-2.5' : 'px-4'} ${
+                className={`group flex w-full min-h-12 items-center rounded-2xl py-3 text-sm font-semibold transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-2.5' : 'px-4'} ${
                   isActiveGroup
                     ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-900/60'
                     : isExpanded
@@ -145,11 +155,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                       : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                 }`}
               >
-                <GroupIcon className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'} ${isActiveGroup || isExpanded ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-all duration-300`} />
-                {!isCollapsed && <span className="flex-1 text-left">{group.title}</span>}
-                {!isCollapsed && <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />}
+                <GroupIcon className={`h-5 w-5 ${effectiveCollapsed ? '' : 'mr-3'} ${isActiveGroup || isExpanded ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-all duration-200`} />
+                {!effectiveCollapsed && <span className="flex-1 text-left">{group.title}</span>}
+                {!effectiveCollapsed && <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />}
               </button>
-              {isExpanded && !isCollapsed && (
+              {isExpanded && !effectiveCollapsed && (
                 <nav className="mt-2 space-y-1 border-l border-gray-200 pl-3 dark:border-gray-800 md:ml-4">
                   {group.items.map((item) => {
                     const Icon = item.icon;
@@ -158,7 +168,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                       <button
                         key={item.id}
                         onClick={() => onNavigate(item.id)}
-                        className={`group flex w-full min-h-11 items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
+                        className={`group flex w-full min-h-11 items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                           isActive
                             ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
@@ -180,13 +190,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
       {/* Toggle Button (Desktop Only) */}
       <button
         onClick={onToggleCollapse}
+        title={isCollapsed ? "Expand" : "Collapse"}
         className="absolute -right-3 top-20 z-50 hidden items-center justify-center rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-md transition-colors hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 md:flex"
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
       </button>
 
       {/* Custom Tooltip for Collapsed Mode */}
-      {isCollapsed && hoveredItem && (
+      {effectiveCollapsed && hoveredItem && (
         <div 
           className="pointer-events-none fixed left-24 z-50 ml-2 whitespace-nowrap rounded-md bg-gray-900 px-3 py-2 text-xs font-medium text-white shadow-lg animate-fade-in-up dark:bg-gray-700"
           style={{ top: hoveredItem.top, transform: 'translateY(-50%)' }}

@@ -165,15 +165,17 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     </div>
   );
 
-  const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.ukswCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (item.serialNumber && item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCondition = filterCondition === 'All' || item.condition === filterCondition;
-    const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
-    return matchesSearch && matchesCondition && matchesCategory;
-  });
+  const filteredItems = React.useMemo(() => {
+    return items.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.ukswCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (item.serialNumber && item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCondition = filterCondition === 'All' || item.condition === filterCondition;
+      const matchesCategory = filterCategory === 'All' || item.category === filterCategory;
+      return matchesSearch && matchesCondition && matchesCategory;
+    });
+  }, [items, searchTerm, filterCondition, filterCategory]);
 
   // Sorting Logic
   const sortedItems = React.useMemo(() => {
@@ -798,7 +800,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     }
   };
 
-  const categories = Array.from(new Set(items.map(i => i.category)));
+  const categories = React.useMemo(() => {
+    return Array.from(new Set(items.map(i => i.category)));
+  }, [items]);
 
   const SortIcon = ({ columnKey }: { columnKey: keyof Equipment }) => {
     if (sortConfig?.key !== columnKey) return <ArrowUpDown className="w-3 h-3 ml-1 text-gray-400" />;

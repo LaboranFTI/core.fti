@@ -102,7 +102,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
       const tds = document.querySelectorAll('td');
       tds.forEach(td => {
-        if (td.textContent?.includes('AUTO/FTI/S.Obs/')) {
+        if (td.textContent?.includes('AUTO/FTI-OBS/')) {
           td.textContent = json.letterNumber;
         }
       });

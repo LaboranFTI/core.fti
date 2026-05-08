@@ -68,7 +68,7 @@ const LETTER_TYPE_TO_CLIENT_KEY = {
 };
 const LETTER_TYPE_TO_CODE = {
   'active-student': 'S.Ket',
-  observation: 'S.Obs'
+  observation: 'FTI-OBS'
 };
 
 const createEmptyLetterAsset = () => ({ imageBase64: '', fileName: '', mimeType: 'image/png' });

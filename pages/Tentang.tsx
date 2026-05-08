@@ -1,8 +1,44 @@
-import React from 'react';
-import { Info, Users, Code, Mail, Phone, MapPin, ExternalLink, Github, Linkedin, Twitter, Heart } from 'lucide-react';
+import React, { useState } from 'react';
+import { Info, Users, Code, Mail, Phone, MapPin, ExternalLink, Github, Linkedin, Twitter, Heart, X } from 'lucide-react';
 import { APP_VERSION, APP_NAME, APP_FULL_NAME } from '../config';
+import nocLogo from "../src/assets/NOC.svg";
+import ftiLogo from "../src/assets/FTI.svg";
+import ukswLogo from "../src/assets/UKSW.svg";
+import confetti from 'canvas-confetti';
 
 const Tentang: React.FC = () => {
+  // State untuk Easter Egg NOC
+  const [nocClicks, setNocClicks] = useState(0);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [showEasterEggModal, setShowEasterEggModal] = useState(false);
+
+  const handleNocClick = () => {
+    const newClicks = nocClicks + 1;
+    setNocClicks(newClicks);
+    
+    if (newClicks === 5) {
+      setIsSpinning(true);
+      
+      // Ledakan confetti!
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        zIndex: 9999
+      });
+
+      // Tampilkan custom modal alih-alih alert bawaan browser agar confetti tidak tertutup/berhenti
+      setTimeout(() => {
+        setShowEasterEggModal(true);
+      }, 300);
+
+      setTimeout(() => {
+        setIsSpinning(false);
+        setNocClicks(0);
+      }, 3000);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Page Header */}
@@ -25,18 +61,46 @@ const Tentang: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{APP_NAME}</h3>
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
                 <span className="font-bold">{APP_NAME}</span> ({APP_FULL_NAME}) 
-                adalah sistem manajemen resources dan fasilitas dari Laboratorium Fakultas Teknologi Informasi 
-                UKSW. Sistem ini dirancang untuk memudahkan pengelolaan peminjaman ruangan, peralatan, 
+                adalah sistem manajemen resources dan fasilitas dari Sarana dan Prasarana Fakultas Teknologi Informasi 
+                UKSW. Sistem ini dirancang untuk memudahkan pengelolaan peminjaman ruangan, peralatan, administrasi, 
                 serta penjadwalan kegiatan di lingkungan FTI UKSW.
               </p>
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
                 Dengan adanya sistem ini, mahasiswa, dosen, dan staff dapat dengan mudah melakukan 
-                pemesanan ruangan, melihat jadwal ketersediaan ruang, serta mengelola inventaris 
-                laboratorium secara efisien dan terstruktur.
+                pemesanan ruangan, melihat jadwal ketersediaan ruang, menikmati layanan administrasi serta mengelola inventaris 
+                sarpras secara efisien dan terstruktur.
               </p>
             </div>
             <div className="md:w-1/3 flex flex-col items-center justify-center">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 text-center w-full">
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <a 
+                    href="https://www.uksw.edu" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="transition-transform duration-300 hover:scale-110 hover:-translate-y-1"
+                    title="Kunjungi Website UKSW"
+                  >
+                    <img src={ukswLogo} alt="UKSW Logo" className="h-10 w-auto object-contain" />
+                  </a>
+                  <a 
+                    href="https://fti.uksw.edu" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="transition-transform duration-300 hover:scale-110 hover:-translate-y-1"
+                    title="Kunjungi Website FTI UKSW"
+                  >
+                    <img src={ftiLogo} alt="FTI Logo" className="h-10 w-auto object-contain" />
+                  </a>
+                  <button 
+                    type="button"
+                    onClick={handleNocClick}
+                    className={`outline-none transition-all duration-300 hover:scale-110 hover:rotate-12 cursor-pointer ${isSpinning ? 'animate-spin' : ''}`}
+                    title="Tim NOC"
+                  >
+                    <img src={nocLogo} alt="NOC Logo" className="h-10 w-10 object-contain" />
+                  </button>
+                </div>
                 <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-1">{APP_NAME}</div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">Versi {APP_VERSION}</div>
                 <div className="mt-3 inline-flex items-center px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
@@ -172,7 +236,7 @@ const Tentang: React.FC = () => {
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
               <div className="flex items-start space-x-4">
                 <div className="w-16 h-16 bg-linear-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-                  RF
+                  FFA
                 </div>
                 <div className="flex-1">
                   <h4 className="font-bold text-gray-900 dark:text-white">Firmandez Febrian Afandy</h4>
@@ -218,17 +282,17 @@ const Tentang: React.FC = () => {
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
               <div className="flex items-start space-x-4">
                 <div className="w-16 h-16 bg-linear-to-br from-blue-500 to-cyan-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-                  RN
+                  NCP
                 </div>
                 <div className="flex-1">
                   <h4 className="font-bold text-gray-900 dark:text-white">Nauval Caesaro Premana</h4>
-                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Backend Developer & DevOps</p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">DevOps</p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Laboran Mahasiswa Angkatan 2021</p>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  Membantu pengembangan database sistem dan deployment.
+                  Membantu hosting dan deployment.
                 </p>
                 <div className="flex space-x-3">
                   <a 
@@ -262,6 +326,36 @@ const Tentang: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Modal Easter Egg Custom */}
+      {showEasterEggModal && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center relative border border-gray-200 dark:border-gray-700 animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setShowEasterEggModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="text-5xl mb-4">🎉</div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">DOR!</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Kamu baru aja nemuin Easter Egg!
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
+              <p className="text-blue-800 dark:text-blue-300 font-mono text-sm italic">
+                "Segabut itu ya ngeklik logo NOC sampe 5 kali? atau ngefans sama developernya?"
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowEasterEggModal(false)}
+              className="mt-6 w-full py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

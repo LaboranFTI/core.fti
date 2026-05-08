@@ -71,6 +71,24 @@ interface LabStaff {
   status: string;
 }
 
+interface BookingGroup {
+  key: string;
+  master: BookingWithTech;
+  entries: BookingWithTech[];
+  roomCount: number;
+  totalSchedules: number;
+  status: BookingStatus;
+}
+
+interface GroupDetailRow {
+  booking: BookingWithTech;
+  date: string;
+  startTime: string;
+  endTime: string;
+  isFirst: boolean;
+  schedCount: number;
+}
+
 const PesananRuang: React.FC<ManageBookingsProps> = ({
   addNotification,
   showToast,
@@ -610,28 +628,30 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     }
   };
 
-  const filteredBookings = bookings.filter((b) => {
-    const matchesSearch =
-      b.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.purpose.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === "All" || b.status === filterStatus;
-    const matchesRoom = filterRoom === "All" || b.roomId === filterRoom;
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      const matchesSearch =
+        b.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        b.purpose.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = filterStatus === "All" || b.status === filterStatus;
+      const matchesRoom = filterRoom === "All" || b.roomId === filterRoom;
 
-    // Cek tanggal di semua jadwal (schedules)
-    const matchesDate =
-      !filterDate ||
-      (b.schedules &&
-        b.schedules.some(
-          (s: any) =>
-            new Date(s.date).toLocaleDateString("en-CA") === filterDate,
-        )) ||
-      b.date === filterDate;
-    return matchesSearch && matchesStatus && matchesRoom && matchesDate;
-  });
+      // Cek tanggal di semua jadwal (schedules)
+      const matchesDate =
+        !filterDate ||
+        (b.schedules &&
+          b.schedules.some(
+            (s: any) =>
+              new Date(s.date).toLocaleDateString("en-CA") === filterDate,
+          )) ||
+        b.date === filterDate;
+      return matchesSearch && matchesStatus && matchesRoom && matchesDate;
+    });
+  }, [bookings, searchTerm, filterStatus, filterRoom, filterDate]);
 
-  const pendingCount = bookings.filter(
-    (b) => b.status === BookingStatus.PENDING,
-  ).length;
+  const pendingCount = useMemo(() => {
+    return bookings.filter((b) => b.status === BookingStatus.PENDING).length;
+  }, [bookings]);
 
   // ── Expandable row state ──────────────────────────────────────────────────
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -734,7 +754,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     });
   };
 
-  const getGroupDetailRows = (group: any) =>
+  const getGroupDetailRows = (group: any): GroupDetailRow[] =>
     group.entries.flatMap((booking: BookingWithTech) => {
       const scheds = booking.schedules?.length
         ? booking.schedules
@@ -746,11 +766,11 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
             },
           ];
 
-      return scheds.map((schedule, idx) => ({
+      return scheds.map((schedule: any, idx: number) => ({
         booking,
-        date: schedule.date,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
+        date: schedule.date || "",
+        startTime: schedule.startTime || "",
+        endTime: schedule.endTime || "",
         isFirst: idx === 0,
         schedCount: scheds.length,
       }));
@@ -923,7 +943,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
 
                     <div className="mt-3 space-y-2">
                       {(isExpanded ? detailRows : detailRows.slice(0, 2)).map(
-                        (row, idx) => (
+                        (row: GroupDetailRow, idx: number) => (
                           <div
                             key={`${row.booking.id}-mobile-${idx}`}
                             className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
@@ -1298,7 +1318,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40 bg-white dark:bg-gray-900/40">
-                                    {detailRows.map((row, idx) => (
+                                    {detailRows.map((row: GroupDetailRow, idx: number) => (
                                       <tr
                                         key={`${row.booking.id}-${idx}`}
                                         onClick={(e) => {

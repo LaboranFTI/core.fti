@@ -204,7 +204,7 @@ router.get('/class-schedules', async (req, res) => {
   try {
     const { semester, academicYear, roomId } = req.query;
     
-    let query = 'SELECT cs.*, r.name as room_name FROM class_schedules cs LEFT JOIN rooms r ON cs.room_id = r.id';
+    let query = 'SELECT cs.*, r.name as room_name, l.nama as lecturer_name FROM class_schedules cs LEFT JOIN rooms r ON cs.room_id = r.id LEFT JOIN lecturer l ON cs.lecturer_id = l.id';
     let params = [];
     let conditions = [];
     
@@ -243,6 +243,7 @@ router.get('/class-schedules', async (req, res) => {
       academicYear: row.academic_year,
       roomId: row.room_id,
       roomName: row.room_name,
+      lecturerId: row.lecturer_id,
       lecturerName: row.lecturer_name,
       startDate: row.start_date ? new Date(row.start_date).toLocaleDateString('en-CA') : '',
       endDate: row.end_date ? new Date(row.end_date).toLocaleDateString('en-CA') : ''
@@ -252,6 +253,87 @@ router.get('/class-schedules', async (req, res) => {
   } catch (err) {
     console.error('Get class schedules error:', err);
     res.status(500).json({ error: 'Gagal mengambil jadwal kelas.' });
+  }
+});
+
+// Add New Class Schedule
+router.post('/class-schedules', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
+  const {
+    courseCode, courseName, classGroup, dayOfWeek,
+    startTime, endTime, semester, academicYear,
+    roomId, lecturerId, lecturerName, startDate, endDate
+  } = req.body;
+
+  try {
+    const id = `SCH-${Date.now()}`;
+    const result = await pool.query(
+      `INSERT INTO class_schedules 
+       (id, course_code, course_name, class_group, day_of_week, start_time, end_time, semester, academic_year, room_id, lecturer_id, lecturer_name, start_date, end_date) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
+       RETURNING *`,
+      [
+        id, courseCode, courseName, classGroup || '-', dayOfWeek, 
+        startTime, endTime, semester, academicYear, 
+        roomId || null, lecturerId || null, lecturerName || '', 
+        startDate || null, endDate || null
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating class schedule:', err);
+    res.status(500).json({ error: 'Gagal menambahkan jadwal kelas' });
+  }
+});
+
+// Update Class Schedule
+router.put('/class-schedules/:id', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
+  const { id } = req.params;
+  const {
+    courseCode, courseName, classGroup, dayOfWeek,
+    startTime, endTime, semester, academicYear,
+    roomId, lecturerId, lecturerName, startDate, endDate
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE class_schedules 
+       SET course_code = $1, course_name = $2, class_group = $3, day_of_week = $4, 
+           start_time = $5, end_time = $6, semester = $7, academic_year = $8, 
+           room_id = $9, lecturer_id = $10, lecturer_name = $11, start_date = $12, end_date = $13,
+           updated_at = NOW()
+       WHERE id = $14 RETURNING *`,
+      [
+        courseCode, courseName, classGroup || '-', dayOfWeek, 
+        startTime, endTime, semester, academicYear, 
+        roomId || null, lecturerId || null, lecturerName || '', 
+        startDate || null, endDate || null, id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jadwal kelas tidak ditemukan' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating class schedule:', err);
+    res.status(500).json({ error: 'Gagal memperbarui jadwal kelas' });
+  }
+});
+
+// Delete Class Schedule
+router.delete('/class-schedules/:id', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM class_schedules WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Jadwal kelas tidak ditemukan' });
+    }
+    res.json({ success: true, message: 'Jadwal kelas berhasil dihapus' });
+  } catch (err) {
+    console.error('Error deleting class schedule:', err);
+    res.status(500).json({ error: 'Gagal menghapus jadwal kelas' });
   }
 });
 

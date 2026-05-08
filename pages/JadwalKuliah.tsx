@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Role, Room } from '../types';
 import { Search, Plus, Filter, Edit, Trash2, X, Check, RefreshCw, Loader2, Users, BookOpen, Calendar, Clock, MapPin, Download, FileSpreadsheet, AlertTriangle, LogIn, LogOut } from 'lucide-react';
 import { api } from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
 import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
 import SearchBar from '../components/SearchBar';
+import { useLecturers } from '../hooks/useLecturers';
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 import { Button, buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -28,6 +29,7 @@ interface ClassSchedule {
   academicYear: string;
   roomId: string;
   roomName: string;
+  lecturerId?: string;
   lecturerName: string;
   startDate: string;
   endDate: string;
@@ -71,6 +73,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     semester: 'Ganjil',
     academicYear: '',
     roomId: '',
+    lecturerId: '',
     lecturerName: '',
     startDate: '', // Tanggal mulai periode semester
     endDate: ''    // Tanggal selesai periode semester
@@ -89,7 +92,8 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     isOpen: boolean;
     pendingSchedules: any[];
     unmatchedRooms: Set<string>;
-  }>({ isOpen: false, pendingSchedules: [], unmatchedRooms: new Set() });
+    unmatchedLecturers: Set<string>;
+  }>({ isOpen: false, pendingSchedules: [], unmatchedRooms: new Set(), unmatchedLecturers: new Set() });
 
   const [bulkFormData, setBulkFormData] = useState({
     semester: 'Ganjil' as 'Ganjil' | 'Antara' | 'Genap',
@@ -126,6 +130,14 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
   
   // Academic years
   const [academicYears, setAcademicYears] = useState<string[]>([]);
+
+  const { lecturers } = useLecturers();
+  const lecturerOptions: SelectOption[] = lecturers.map(l => ({
+    value: l.id,
+    label: l.nama,
+    subLabel: l.id
+  }));
+
 
   const fetchSchedules = async () => {
     setIsLoading(true);
@@ -172,15 +184,17 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     fetchRooms();
   }, []);
 
-  const filteredSchedules = schedules.filter(schedule => {
-    const matchesSearch = 
-      schedule.courseCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      schedule.courseName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDay = filterDay === 'All' || schedule.dayOfWeek === filterDay;
-    const matchesLecturer = !filterLecturer || (schedule.lecturerName && schedule.lecturerName.toLowerCase().includes(filterLecturer.toLowerCase()));
-    const matchesRoom = filterRoom === 'All' || schedule.roomId === filterRoom;
-    return matchesSearch && matchesDay && matchesLecturer && matchesRoom;
-  });
+  const filteredSchedules = useMemo(() => {
+    return schedules.filter(schedule => {
+      const matchesSearch = 
+        schedule.courseCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        schedule.courseName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDay = filterDay === 'All' || schedule.dayOfWeek === filterDay;
+      const matchesLecturer = !filterLecturer || (schedule.lecturerName && schedule.lecturerName.toLowerCase().includes(filterLecturer.toLowerCase()));
+      const matchesRoom = filterRoom === 'All' || schedule.roomId === filterRoom;
+      return matchesSearch && matchesDay && matchesLecturer && matchesRoom;
+    });
+  }, [schedules, searchTerm, filterDay, filterLecturer, filterRoom]);
 
   const handleOpenModal = (schedule?: ClassSchedule) => {
     if (schedule) {
@@ -195,6 +209,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
         semester: schedule.semester,
         academicYear: schedule.academicYear,
         roomId: schedule.roomId || '',
+        lecturerId: schedule.lecturerId || '',
         lecturerName: schedule.lecturerName || '',
         startDate: schedule.startDate || '',
         endDate: schedule.endDate || ''
@@ -211,6 +226,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
         semester: filterSemester || 'Ganjil',
         academicYear: filterAcademicYear || (academicYears.length > 0 ? academicYears[0] : ''),
         roomId: '',
+        lecturerId: '',
         lecturerName: '',
         startDate: '',
         endDate: ''
@@ -318,7 +334,7 @@ const handleDownloadTemplate = async () => {
   };
 
 
-  const performImport = async (newSchedules: any[], unmatchedRooms: Set<string>) => {
+  const performImport = async (newSchedules: any[], unmatchedRooms: Set<string>, unmatchedLecturers: Set<string>) => {
     setIsLoading(true);
     let successCount = 0;
     let errorCount = 0;
@@ -377,6 +393,11 @@ const handleDownloadTemplate = async () => {
         showToast(`Peringatan: Beberapa jadwal ditolak karena ruangan (${Array.from(unmatchedRooms).join(', ')}) tidak ditemukan di sistem.`, "warning");
       }, 500);
     }
+    if (unmatchedLecturers.size > 0) {
+      setTimeout(() => {
+        showToast(`Peringatan: Dosen pengampu (${Array.from(unmatchedLecturers).join(', ')}) tidak ditemukan, jadwal tetap diimport tanpa relasi dosen.`, "warning");
+      }, 2000);
+    }
     setIsLoading(false);
   };
 
@@ -399,6 +420,7 @@ const handleDownloadTemplate = async () => {
         }
 
         const newSchedules: any[] = [];
+        const unmatchedLecturers = new Set<string>();
         const unmatchedRooms = new Set<string>();
         const headers: {[key: number]: string} = {};
         
@@ -468,6 +490,16 @@ const handleDownloadTemplate = async () => {
                 unmatchedRooms.add(String(roomName).trim());
               }
             }
+                        let matchedLecturerId = '';
+            if (lecturerName) {
+              const searchName = String(lecturerName).toLowerCase().trim();
+              const foundLecturer = lecturers.find(l => l.nama.toLowerCase().trim() === searchName);
+              if (foundLecturer) {
+                matchedLecturerId = foundLecturer.id;
+              } else {
+                unmatchedLecturers.add(String(lecturerName).trim());
+              }
+            }
 
             newSchedules.push({
               courseCode,
@@ -479,6 +511,7 @@ const handleDownloadTemplate = async () => {
               semester: semester || 'Ganjil',
               academicYear: academicYear || '',
               roomId: matchedRoomId,
+              lecturerId: matchedLecturerId,
               lecturerName,
               startDate,
               endDate
@@ -515,7 +548,8 @@ const handleDownloadTemplate = async () => {
                 setBulkModal({
                   isOpen: true,
                   pendingSchedules: newSchedules,
-                  unmatchedRooms
+                  unmatchedRooms,
+                  unmatchedLecturers
                 });
               },
               onCancel: () => {
@@ -527,7 +561,8 @@ const handleDownloadTemplate = async () => {
               setBulkModal({
                 isOpen: true,
                 pendingSchedules: newSchedules,
-                unmatchedRooms
+                unmatchedRooms,
+                unmatchedLecturers
               });
           }
         } else {
@@ -799,10 +834,12 @@ const handleDownloadTemplate = async () => {
   };
 
   // Group schedules by day for display
-  const groupedByDay = days.reduce((acc, day) => {
-    acc[day] = filteredSchedules.filter(s => s.dayOfWeek === day);
-    return acc;
-  }, {} as Record<string, ClassSchedule[]>);
+  const groupedByDay = useMemo(() => {
+    return days.reduce((acc, day) => {
+      acc[day] = filteredSchedules.filter(s => s.dayOfWeek === day);
+      return acc;
+    }, {} as Record<string, ClassSchedule[]>);
+  }, [filteredSchedules]);
 
   if (isLoading) {
     return <TableSkeleton />;
@@ -1133,13 +1170,16 @@ const handleDownloadTemplate = async () => {
                  </div>
 
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dosen Pengampu</label>
-                    <input 
-                        type="text" 
-                        value={formData.lecturerName} 
-                        onChange={e => setFormData({...formData, lecturerName: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="Nama Dosen"
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dosen Pengampu <span className="text-xs font-normal text-gray-400">(Opsional)</span></label>
+                    <SearchableSelect 
+                        options={lecturerOptions}
+                        value={formData.lecturerId || ''}
+                        onChange={val => {
+                          const lecturer = lecturers.find(l => l.id === val);
+                          setFormData({...formData, lecturerId: val, lecturerName: lecturer ? lecturer.nama : ''});
+                        }}
+                        placeholder="-- Pilih Dosen --"
+                        searchPlaceholder="Cari nama atau kode dosen..."
                     />
                  </div>
 
@@ -1185,13 +1225,20 @@ const handleDownloadTemplate = async () => {
                 endDate: s.endDate || bulkFormData.endDate
               }));
               setBulkModal(prev => ({ ...prev, isOpen: false }));
-              performImport(finalSchedules, bulkModal.unmatchedRooms);
+              performImport(finalSchedules, bulkModal.unmatchedRooms, bulkModal.unmatchedLecturers);
             }} className="p-6 space-y-4">
               {bulkModal.unmatchedRooms.size > 0 && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4">
                   <p className="text-sm text-yellow-800 dark:text-yellow-400 font-medium">Beberapa ruangan tidak ditemukan:</p>
                   <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">{Array.from(bulkModal.unmatchedRooms).join(', ')}</p>
                   <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">Jadwal ini akan tetap diimport tanpa ruangan.</p>
+                </div>
+              )}
+              {bulkModal.unmatchedLecturers.size > 0 && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-400 font-medium">Beberapa dosen tidak ditemukan di sistem:</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">{Array.from(bulkModal.unmatchedLecturers).join(', ')}</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">Jadwal akan tetap diimport tanpa relasi data dosen.</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">

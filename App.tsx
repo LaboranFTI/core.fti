@@ -63,6 +63,8 @@ const Tentang = lazyWithReload(() => import('./pages/Tentang'));
 const NotFound = lazyWithReload(() => import('./pages/NotFound'));
 const LayananTU = lazyWithReload(() => import('./pages_tu/LayananTU'));
 const MobileUpload = lazyWithReload(() => import('./pages_tu/components/MobileUpload'));
+const LecturerManagement = lazyWithReload(() => import('./pages/ManajemenDosen'));
+
 
 // Loading fallback component
 const PageLoader = () => (
@@ -143,23 +145,6 @@ const AppContent: React.FC = () => {
       setIsLoading(false);
     }, 1500); // Reduced from 2000ms to 1500ms for faster initial render
 
-    // Fetch Notifications
-    const fetchNotifications = async () => {
-      if (!isAuthenticated) return;
-      try {
-        const res = await api('/api/notifications');
-        if (res.ok) setNotifications(await res.json());
-      } catch (e) {
-        // Silent fail for notifications
-      }
-    };
-
-    let notifInterval: NodeJS.Timeout;
-    if (isAuthenticated) {
-      fetchNotifications(); // Ambil langsung saat load
-      notifInterval = setInterval(fetchNotifications, 10000); // Cek lagi setiap 10 detik
-    }
-
     // 2. Polling Pengecekan Versi Baru (Cek setiap 15 menit)
     let lastEtag = '';
     const checkVersion = async () => {
@@ -204,12 +189,35 @@ const AppContent: React.FC = () => {
 
     return () => {
       clearTimeout(timer);
-      if (notifInterval) clearInterval(notifInterval);
       clearInterval(versionInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Changed dependency to empty array - only run once on mount
+
+  // Efek khusus untuk mengambil notifikasi agar sinkron dengan state login
+  useEffect(() => {
+    let notifInterval: NodeJS.Timeout;
+
+    const fetchNotifications = async () => {
+      if (!isAuthenticated) return;
+      try {
+        const res = await api('/api/notifications');
+        if (res.ok) setNotifications(await res.json());
+      } catch (e) {
+        // Silent fail for notifications
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchNotifications();
+      notifInterval = setInterval(fetchNotifications, 10000); // Polling setiap 10 detik
+    }
+
+    return () => {
+      if (notifInterval) clearInterval(notifInterval);
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -510,6 +518,19 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('storage', syncLogout);
   }, [navigate]);
 
+  // --- INTERCEPTOR UNAUTHORIZED LISTENER ---
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      if (isAuthenticated) {
+        handleLogout();
+      }
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
   // Render Global Loader
   if (isLoading) {
     return <LoadingScreen />;
@@ -638,6 +659,11 @@ const AppContent: React.FC = () => {
           <Route path="/manajemen-user" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <ManajemenUser showToast={showToast} />
+            </ProtectedRoute>
+          } />
+          <Route path="/manajemen-dosen" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <LecturerManagement showToast={showToast} />
             </ProtectedRoute>
           } />
           <Route path="/pemesanan-saya" element={

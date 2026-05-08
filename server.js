@@ -17,6 +17,7 @@ import systemRoutes from './backend/routes/system.routes.js';
 import settingsRoutes from './backend/routes/settings.routes.js';
 import siasatRoutes from './backend/routes/siasat.routes.js';
 import tuRoutes from './backend/routes/tu.routes.v2.js';
+import lecturerRoutes from './backend/routes/lecturer.routes.js';
 
 const app = express();
 const port = process.env.PORT || 5000; // Menggunakan port dari env atau default 5000
@@ -124,6 +125,7 @@ app.use('/api', systemRoutes);
 app.use('/api', settingsRoutes);
 app.use('/api', siasatRoutes);
 app.use('/api', tuRoutes);
+app.use('/api', lecturerRoutes);
 
 // Global Error Handler untuk menangkap error yang tidak terduga
 app.use((err, req, res, next) => {
