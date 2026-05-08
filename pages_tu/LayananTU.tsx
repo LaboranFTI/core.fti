@@ -1,6 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import * as htmlToImage from 'html-to-image';
-import jsPDF from 'jspdf';
 import { Role } from '../types';
 import { ActiveStudentForm } from './components/ActiveStudentForm';
 import { AdminPanel } from './components/AdminPanel';
@@ -90,7 +88,6 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const capturePreviewRef = useRef<HTMLDivElement>(null);
-  const [isDownloadingObservationPdf, setIsDownloadingObservationPdf] = useState(false);
   const [isPreparingObservationOutput, setIsPreparingObservationOutput] = useState(false);
   const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
   const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
@@ -167,63 +164,6 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     lastSavedObservationSignatureRef.current = payloadSignature;
     setLetterArchiveRefreshKey((prev) => prev + 1);
   }, []);
-
-  const handleDownloadObservationPdf = useCallback(async () => {
-    const sanitizedData = sanitizeObservationData(obsData);
-    const validationMessage = validateObservationData(sanitizedData);
-
-    if (validationMessage) {
-      setObservationFeedback({ type: 'error', message: validationMessage });
-      setObservationView('form');
-      return;
-    }
-
-    const previewElement = capturePreviewRef.current;
-    if (!previewElement) {
-      setObservationFeedback({ type: 'error', message: 'Preview surat belum siap. Muat ulang halaman lalu coba lagi.' });
-      return;
-    }
-
-    setObsData(sanitizedData);
-    setObservationView('preview');
-    setIsDownloadingObservationPdf(true);
-    setIsPreparingObservationOutput(true);
-    setObservationFeedback({ type: 'info', message: 'Sedang menyiapkan PDF surat observasi...' });
-
-    try {
-      await persistObservationRequest(sanitizedData);
-
-      if ('fonts' in document) {
-        await document.fonts.ready;
-      }
-
-      await waitForNextPaint();
-
-      const dataUrl = await htmlToImage.toPng(previewElement, {
-        pixelRatio: 2,
-        backgroundColor: '#ffffff'
-      });
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
-
-      pdf.addImage(dataUrl, 'PNG', 0, 0, 210, 297);
-      pdf.save(buildObservationFileName(sanitizedData));
-
-      setObservationFeedback({ type: 'success', message: 'PDF surat observasi berhasil diunduh.' });
-      setObservationView('preview');
-    } catch (error) {
-      console.error('Failed to generate observation PDF:', error);
-      setObservationFeedback({ type: 'error', message: 'Gagal membuat PDF surat observasi. Silakan coba lagi.' });
-    } finally {
-      setIsDownloadingObservationPdf(false);
-      setIsPreparingObservationOutput(false);
-    }
-  }, [obsData, persistObservationRequest]);
 
   const fetchLetterBackgrounds = useCallback(async () => {
     try {
@@ -364,8 +304,6 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                 <ObservationForm
                   onDataChange={handleObservationDataChange}
                   onPrint={handlePrint}
-                  onDownloadPdf={handleDownloadObservationPdf}
-                  isDownloadingPdf={isDownloadingObservationPdf}
                   feedback={observationFeedback}
                   readOnly={isMahasiswa}
                 />
