@@ -594,7 +594,7 @@ const letterConfig = {
     getPlaceholders: async ({ data, letterNumber, semesterMeta }) => {
       let deanName = 'Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.';
       let deanTitle = 'Dekan';
-      
+
       try {
         const deanResult = await pool.query("SELECT nama, jabatan FROM lecturer WHERE jabatan ILIKE 'Dekan%' LIMIT 1");
         if (deanResult.rows.length > 0) {
@@ -639,10 +639,10 @@ const letterConfig = {
         'Magister': 'S2',
         'Doktor': 'S3'
       };
-      
+
       return {
         '{{nomorSurat}}': letterNumber,
-        '{{letterPurpose}}': 'Permohonan Ijin Observasi',
+        '{{letterPurpose}}': 'Pengantar Observasi',
         '{{lampiran}}': '-',
         '{{recipientName}}': data.recipient_name || data.recipientName || '(tidak disebutkan)',
         '{{companyAddress}}': data.company_address || data.companyAddress || '(tidak disebutkan)',
@@ -1044,15 +1044,15 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
 
     const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
-                             .replace(/{{nim}}/g, requestData.nim || '')
-                             .replace(/{{tanggalSurat}}/g, tanggalSurat)
-                             .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-                             .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-                             .replace(/{{backgroundImage}}/g, backgroundImage)
-                             .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-                             .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-                             .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-                             .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
+      .replace(/{{nim}}/g, requestData.nim || '')
+      .replace(/{{tanggalSurat}}/g, tanggalSurat)
+      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
+      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+      .replace(/{{backgroundImage}}/g, backgroundImage)
+      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
+      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
+      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
+      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
 
     const specificPlaceholders = await config.getPlaceholders({
       data: requestData,
@@ -1205,10 +1205,10 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
 
     const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     htmlContent = htmlContent.replace(/{{backgroundImage}}/g, backgroundImage)
-                             .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-                             .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-                             .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-                             .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
+      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
+      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
+      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
+      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
 
     const placeholders = config.getPlaceholders({
       data: requestData,
@@ -1287,15 +1287,15 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
 
     const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
-                             .replace(/{{nim}}/g, requestData.nim || '')
-                             .replace(/{{tanggalSurat}}/g, tanggalSurat)
-                             .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-                             .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-                             .replace(/{{backgroundImage}}/g, backgroundImage)
-                             .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-                             .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-                             .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-                             .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
+      .replace(/{{nim}}/g, requestData.nim || '')
+      .replace(/{{tanggalSurat}}/g, tanggalSurat)
+      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
+      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+      .replace(/{{backgroundImage}}/g, backgroundImage)
+      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
+      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
+      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
+      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
 
     const placeholders = config.getPlaceholders({
       data: requestData,
@@ -1312,7 +1312,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const filename = `SuratObservasi_${safeCompanyName}.pdf`;
 
-    const token = `QR-${Date.now()}-${Math.random().toString(36).substring(2,8)}`;
+    const token = `QR-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     qrDownloadSessions.set(token, { buffer: pdfBuffer, filename });
     setTimeout(() => qrDownloadSessions.delete(token), 10 * 60 * 1000); // 10 Menit timeout
 
@@ -1334,7 +1334,7 @@ router.get('/tu/public/qr-download/:token', (req, res) => {
   }
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Length', session.buffer.length);
-  res.setHeader('Content-Disposition', `inline; filename="${session.filename}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${session.filename}"`);
   res.send(session.buffer);
 });
 
@@ -1368,15 +1368,15 @@ router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async
 
     const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
-                             .replace(/{{nim}}/g, requestData.nim || '')
-                             .replace(/{{tanggalSurat}}/g, tanggalSurat)
-                             .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-                             .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-                             .replace(/{{backgroundImage}}/g, backgroundImage)
-                             .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-                             .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-                             .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-                             .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
+      .replace(/{{nim}}/g, requestData.nim || '')
+      .replace(/{{tanggalSurat}}/g, tanggalSurat)
+      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
+      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+      .replace(/{{backgroundImage}}/g, backgroundImage)
+      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
+      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
+      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
+      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
 
     const specificPlaceholders = config.getPlaceholders({
       data: requestData,

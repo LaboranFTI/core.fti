@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -111,7 +112,7 @@
             text-align: center;
         }
 
-        .signatures-wrapper > div {
+        .signatures-wrapper>div {
             width: 48%;
             text-align: center;
         }
@@ -140,28 +141,26 @@
 
         .signature-name {
             font-weight: bold;
-            text-decoration: underline;
         }
     </style>
 </head>
+
 <body>
     <div class="page">
         <img src="{{backgroundImage}}" alt="Background Surat" class="background-image">
 
-        <div class="content" style="padding: {{marginTopMm}}mm {{marginRightMm}}mm {{marginBottomMm}}mm {{marginLeftMm}}mm;">
+        <div class="content"
+            style="padding: {{marginTopMm}}mm {{marginRightMm}}mm {{marginBottomMm}}mm {{marginLeftMm}}mm;">
             <div class="top-block">
-                <table class="subject-meta">
-                    <tr>
-                        <td style="width: 18mm;">Perihal</td>
-                        <td style="width: 4mm;">:</td>
-                        <td><strong>{{letterPurpose}}</strong></td>
-                    </tr>
-                </table>
+                <div class="subject-meta" style="margin: 0;">
+                    <p style="margin: 0;"><strong>Perihal:</strong></p>
+                    <p style="margin: 0;">{{letterPurpose}}</p>
+                </div>
 
                 <div class="recipient-block">
-                    <p>Kepada Yth:</p>
-                    <p><strong>{{recipientName}}</strong></p>
-                    <p><strong>{{company}}</strong></p>
+                    <p><strong>Kepada Yth:</strong></p>
+                    <p>{{recipientName}}</p>
+                    <p>{{company}}</p>
                     <p>{{companyAddress}}</p>
                 </div>
             </div>
@@ -184,14 +183,20 @@
             </table>
 
             <p>Dengan Hormat,</p>
-            <p>Bersama dengan surat ini kami memberitahukan bahwa mahasiswa Fakultas Teknologi Informasi Program Studi {{jenjangProgram}} {{programStudi}} Universitas Kristen Satya Wacana berikut ini:</p>
+            <p>Bersama dengan surat ini kami memberitahukan bahwa mahasiswa Fakultas Teknologi Informasi Program Studi
+                {{jenjangProgram}} {{programStudi}} Universitas Kristen Satya Wacana berikut ini:</p>
 
             <table class="student-list">
                 {{studentRows}}
             </table>
 
-            <p>Bahwa sebagai salah satu syarat untuk memenuhi sebagian tugas dari mata kuliah <strong>{{courseName}}</strong>, yang diwajibkan oleh Fakultas, maka melalui surat ini kami mohon kesediaan Bapak/Ibu memberikan izin untuk dapat melakukan observasi dan wawancara di <strong>{{company}}</strong>.</p>
-            <p>Demikian surat ini kami sampaikan. Atas perhatian dan izin yang diberikan diucapkan terima kasih. Kiranya kerja sama ini dapat berlanjut di masa yang akan datang.</p>
+            <p>Bahwa sebagai salah satu syarat untuk memenuhi sebagian tugas dari mata kuliah
+                {{courseName}}, yang diwajibkan oleh Fakultas, maka melalui surat ini kami mohon
+                kesediaan Bapak/Ibu memberikan izin untuk dapat melakukan observasi dan wawancara di
+                {{company}}.
+            </p>
+            <p>Demikian surat ini kami sampaikan. Atas perhatian dan izin yang diberikan diucapkan terima kasih. Kiranya
+                kerja sama ini dapat berlanjut di masa yang akan datang.</p>
 
             <div class="signatures-wrapper">
                 <div>
@@ -211,4 +216,5 @@
         </div>
     </div>
 </body>
+
 </html>

@@ -79,15 +79,10 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
         }}
       >
         <div className="mb-[4mm] grid grid-cols-[1fr_78mm] gap-[10mm] text-[10.5pt]">
-          <table className="w-full max-w-[90mm] border-collapse">
-            <tbody>
-              <tr>
-                <td className="w-[18mm] py-[0.7mm] align-top font-bold">Perihal</td>
-                <td className="w-[4mm] py-[0.7mm] align-top">:</td>
-                <td className="py-[0.7mm] align-top">Pengantar Observasi</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="w-full max-w-[90mm]">
+            <p className="font-bold">Perihal:</p>
+            <p>Pengantar Observasi</p>
+          </div>
 
           <div className="space-y-[0.8mm]">
             <p>Kepada Yth:</p>
