@@ -18,6 +18,18 @@ const getObservationNumberPlaceholder = () => {
   return `AUTO/FTI-OBS/${format(now, 'MM/yyyy')}`;
 };
 
+// Konversi jenjang program ke singkatan untuk penulisan di surat
+const shortLevel = (level?: string): string => {
+  if (!level) return 'S1';
+  const map: Record<string, string> = {
+    'Diploma Tiga': 'D3',
+    'Sarjana': 'S1',
+    'Magister': 'S2',
+    'Doktor': 'S3',
+  };
+  return map[level] || level;
+};
+
 export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps>(({
   data,
   backgroundImageBase64,
@@ -106,8 +118,8 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
         <div className="space-y-[5mm] text-justify">
           <p>Dengan Hormat,</p>
           <p>
-            Bersama dengan surat ini kami memberitahukan bahwa mahasiswa Fakultas Teknologi Informasi
-            Program Studi S1 Teknik Informatika Universitas Kristen Satya Wacana berikut ini:
+            Bersama dengan surat ini kami memberitahukan bahwa mahasiswa Fakultas Teknologi Informasi{' '}
+            Program Studi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'} Universitas Kristen Satya Wacana berikut ini:
           </p>
 
           <table className="mb-[2mm] ml-[12mm] w-[calc(100%-12mm)] border-collapse text-left text-[10.5pt]">
@@ -138,15 +150,15 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           </p>
         </div>
 
-        <div className="mt-[16mm] grid grid-cols-2 gap-[16mm] px-[6mm]">
-          <div className="text-center">
+        <div className="mt-[16mm] flex justify-between">
+          <div className="text-center w-[48%]">
             <p>Mengetahui,</p>
             <div className="relative h-[24mm]">
             </div>
             <p className="font-bold underline underline-offset-4">{data.headOfProgramName || '[Nama Kaprodi]'}</p>
-            <p>Kaprodi S1 Teknik Informatika</p>
+            <p>Kaprodi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'}</p>
           </div>
-          <div className="text-center">
+          <div className="text-center w-[48%]">
             <p>Salam,</p>
             <div className="h-[24mm]" />
             <p className="font-bold underline underline-offset-4">{data.lecturerName || '[Nama Dosen Pengampu]'}</p>

@@ -1,4 +1,4 @@
-﻿﻿import 'dotenv/config';
+﻿import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
@@ -18,6 +18,7 @@ import settingsRoutes from './backend/routes/settings.routes.js';
 import siasatRoutes from './backend/routes/siasat.routes.js';
 import tuRoutes from './backend/routes/tu.routes.v2.js';
 import lecturerRoutes from './backend/routes/lecturer.routes.js';
+import studyProgramRoutes from './backend/routes/study_program.routes.js';
 
 const app = express();
 const port = process.env.PORT || 5000; // Menggunakan port dari env atau default 5000
@@ -126,6 +127,7 @@ app.use('/api', settingsRoutes);
 app.use('/api', siasatRoutes);
 app.use('/api', tuRoutes);
 app.use('/api', lecturerRoutes);
+app.use('/api', studyProgramRoutes);
 
 // Global Error Handler untuk menangkap error yang tidak terduga
 app.use((err, req, res, next) => {

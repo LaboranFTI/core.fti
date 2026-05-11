@@ -591,18 +591,35 @@ const letterConfig = {
       <p>Permohonan Surat Keterangan Aktif Kuliah Anda telah disetujui dan diproses oleh Tata Usaha.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
     `,
-    getPlaceholders: ({ data, letterNumber, semesterMeta }) => ({
-      '{{tempatTanggalLahir}}': buildBirthPlaceAndDate(data.birth_place || data.birthPlace, data.birth_date || data.birthDate),
-      '{{jenjangProgram}}': data.study_program_level || data.studyProgramLevel || deriveStudyProgramFromNim(data.nim)?.studyProgramLevel || '',
-      '{{programStudi}}': data.study_program_name || data.studyProgramName || deriveStudyProgramFromNim(data.nim)?.studyProgramName || '',
-      '{{fakultas}}': data.faculty || data.facultyName || DEFAULT_FACULTY,
-      '{{universitas}}': data.university || DEFAULT_UNIVERSITY,
-      '{{semester}}': semesterMeta.semesterName,
-      '{{tahunAkademik}}': semesterMeta.academicYear,
-      '{{nomorSurat}}': letterNumber,
-      '{{letterPurpose}}': 'Permohonan Surat Aktif Kuliah',
-      '{{lampiran}}': '1 lembar'
-    })
+    getPlaceholders: async ({ data, letterNumber, semesterMeta }) => {
+      let deanName = 'Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.';
+      let deanTitle = 'Dekan';
+      
+      try {
+        const deanResult = await pool.query("SELECT nama, jabatan FROM lecturer WHERE jabatan ILIKE 'Dekan%' LIMIT 1");
+        if (deanResult.rows.length > 0) {
+          deanName = deanResult.rows[0].nama;
+          deanTitle = deanResult.rows[0].jabatan;
+        }
+      } catch (e) {
+        console.error('Failed to fetch Dean data:', e);
+      }
+
+      return {
+        '{{tempatTanggalLahir}}': buildBirthPlaceAndDate(data.birth_place || data.birthPlace, data.birth_date || data.birthDate),
+        '{{jenjangProgram}}': data.study_program_level || data.studyProgramLevel || deriveStudyProgramFromNim(data.nim)?.studyProgramLevel || '',
+        '{{programStudi}}': data.study_program_name || data.studyProgramName || deriveStudyProgramFromNim(data.nim)?.studyProgramName || '',
+        '{{fakultas}}': data.faculty || data.facultyName || DEFAULT_FACULTY,
+        '{{universitas}}': data.university || DEFAULT_UNIVERSITY,
+        '{{semester}}': semesterMeta.semesterName,
+        '{{tahunAkademik}}': semesterMeta.academicYear,
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Permohonan Surat Aktif Kuliah',
+        '{{lampiran}}': '1 lembar',
+        '{{deanName}}': deanName,
+        '{{deanTitle}}': deanTitle
+      };
+    }
   },
   observation: {
     table: 'observation_requests',
@@ -613,19 +630,32 @@ const letterConfig = {
       <p>Permohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
     `,
-    getPlaceholders: ({ data, letterNumber }) => ({
-      '{{nomorSurat}}': letterNumber,
-      '{{letterPurpose}}': 'Pengantar Observasi',
-      '{{lampiran}}': '-',
-      '{{recipientName}}': data.recipient_name || data.recipientName || '(tidak disebutkan)',
-      '{{companyAddress}}': data.company_address || data.companyAddress || '(tidak disebutkan)',
-      '{{purpose}}': data.purpose || '(tidak disebutkan)',
-      '{{company}}': data.company || '(tidak disebutkan)',
-      '{{courseName}}': data.course_name || data.courseName || '(tidak disebutkan)',
-      '{{lecturerName}}': data.lecturer_name || data.lecturerName || '(tidak disebutkan)',
-      '{{headOfProgramName}}': data.head_of_program_name || data.headOfProgramName || '(tidak disebutkan)',
-      '{{studentRows}}': buildObservationStudentRowsHtml(data.student_members || data.students)
-    })
+    getPlaceholders: ({ data, letterNumber }) => {
+      const derivedProdi = deriveStudyProgramFromNim(data.nim);
+      const level = data.study_program_level || derivedProdi?.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        'Sarjana': 'S1',
+        'Magister': 'S2',
+        'Doktor': 'S3'
+      };
+      
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Pengantar Observasi',
+        '{{lampiran}}': '-',
+        '{{recipientName}}': data.recipient_name || data.recipientName || '(tidak disebutkan)',
+        '{{companyAddress}}': data.company_address || data.companyAddress || '(tidak disebutkan)',
+        '{{purpose}}': data.purpose || '(tidak disebutkan)',
+        '{{company}}': data.company || '(tidak disebutkan)',
+        '{{courseName}}': data.course_name || data.courseName || '(tidak disebutkan)',
+        '{{lecturerName}}': data.lecturer_name || data.lecturerName || '(tidak disebutkan)',
+        '{{headOfProgramName}}': data.head_of_program_name || data.headOfProgramName || '(tidak disebutkan)',
+        '{{jenjangProgram}}': map[level] || level,
+        '{{programStudi}}': data.study_program_name || derivedProdi?.studyProgramName || 'Teknik Informatika',
+        '{{studentRows}}': buildObservationStudentRowsHtml(data.student_members || data.students)
+      };
+    }
   }
 };
 
@@ -1024,7 +1054,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
                              .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
                              .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
 
-    const specificPlaceholders = config.getPlaceholders({
+    const specificPlaceholders = await config.getPlaceholders({
       data: requestData,
       letterNumber: requestData.letter_number,
       semesterMeta

@@ -188,5 +188,8 @@ export interface ObservationData {
   courseName: string;
   lecturerName: string;
   headOfProgramName: string;
+  studyProgramId?: string;
+  studyProgramName?: string;
+  studyProgramLevel?: string;
   students: { name: string; nim: string }[];
 }

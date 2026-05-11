@@ -15,10 +15,10 @@ const Tentang: React.FC = () => {
   const handleNocClick = () => {
     const newClicks = nocClicks + 1;
     setNocClicks(newClicks);
-    
+
     if (newClicks === 5) {
       setIsSpinning(true);
-      
+
       // Ledakan confetti!
       confetti({
         particleCount: 150,
@@ -60,39 +60,39 @@ const Tentang: React.FC = () => {
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{APP_NAME}</h3>
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-                <span className="font-bold">{APP_NAME}</span> ({APP_FULL_NAME}) 
-                adalah sistem manajemen resources dan fasilitas dari Sarana dan Prasarana Fakultas Teknologi Informasi 
-                UKSW. Sistem ini dirancang untuk memudahkan pengelolaan peminjaman ruangan, peralatan, administrasi, 
+                <span className="font-bold">{APP_NAME}</span> ({APP_FULL_NAME})
+                adalah sistem manajemen resources dan fasilitas dari Sarana dan Prasarana Fakultas Teknologi Informasi
+                UKSW. Sistem ini dirancang untuk memudahkan pengelolaan peminjaman ruangan, peralatan, administrasi,
                 serta penjadwalan kegiatan di lingkungan FTI UKSW.
               </p>
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
-                Dengan adanya sistem ini, mahasiswa, dosen, dan staff dapat dengan mudah melakukan 
-                pemesanan ruangan, melihat jadwal ketersediaan ruang, menikmati layanan administrasi serta mengelola inventaris 
+                Dengan adanya sistem ini, mahasiswa, dosen, dan staff dapat dengan mudah melakukan
+                pemesanan ruangan, melihat jadwal ketersediaan ruang, menikmati layanan administrasi serta mengelola inventaris
                 sarpras secara efisien dan terstruktur.
               </p>
             </div>
             <div className="md:w-1/3 flex flex-col items-center justify-center">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 text-center w-full">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <a 
-                    href="https://www.uksw.edu" 
-                    target="_blank" 
+                  <a
+                    href="https://www.uksw.edu"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="transition-transform duration-300 hover:scale-110 hover:-translate-y-1"
                     title="Kunjungi Website UKSW"
                   >
                     <img src={ukswLogo} alt="UKSW Logo" className="h-10 w-auto object-contain" />
                   </a>
-                  <a 
-                    href="https://fti.uksw.edu" 
-                    target="_blank" 
+                  <a
+                    href="https://fti.uksw.edu"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="transition-transform duration-300 hover:scale-110 hover:-translate-y-1"
                     title="Kunjungi Website FTI UKSW"
                   >
                     <img src={ftiLogo} alt="FTI Logo" className="h-10 w-auto object-contain" />
                   </a>
-                  <button 
+                  <button
                     type="button"
                     onClick={handleNocClick}
                     className={`outline-none transition-all duration-300 hover:scale-110 hover:rotate-12 cursor-pointer ${isSpinning ? 'animate-spin' : ''}`}
@@ -110,7 +110,7 @@ const Tentang: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Features Grid */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
@@ -151,14 +151,14 @@ const Tentang: React.FC = () => {
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Tim Laboran FTI UKSW</h3>
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-                <span className="font-bold">Laboran FTI UKSW</span> adalah tim teknisi dan admin yang bertanggung jawab 
+                <span className="font-bold">Laboran FTI UKSW</span> adalah tim teknisi dan admin yang bertanggung jawab
                 atas pengelolaan, pemeliharaan, dan administrasi fasilitas laboratorium di Fakultas Teknologi Informasi
                 Universitas Kristen Satya Wacana.
               </p>
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-                Tim kami terdiri dari mahasiswa part-time yang berdedikasi untuk memastikan semua peralatan laboratorium 
-                berfungsi dengan baik, menyediakan dukungan teknis untuk kegiatan akademik, dan membantu 
-                mahasiswa serta dosen dalam memanfaatkan fasilitas laboratorium secara optimal.
+                Tim kami terdiri dari mahasiswa part-time dan staff tendik yang berdedikasi untuk memastikan semua peralatan laboratorium
+                berfungsi dengan baik, menyediakan dukungan teknis untuk kegiatan akademik, dan membantu
+                mahasiswa serta dosen dalam memanfaatkan fasilitas laboratorium dan fakultas secara optimal.
               </p>
             </div>
           </div>
@@ -171,7 +171,7 @@ const Tentang: React.FC = () => {
                 <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">1</span>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Mengelola peminjaman ruangan dan peralatan laboratorium</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Mengelola peminjaman ruangan dan peralatan</p>
               </div>
               <div className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center shrink-0 mt-0.5">
@@ -225,8 +225,8 @@ const Tentang: React.FC = () => {
         </div>
         <div className="p-6">
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            {APP_NAME} dikembangkan oleh tim laboran mahasiswa yang sedang melakukan proyek untuk internal Sarpras. 
-            Kami berkomitmen untuk terus mengembangkan dan menyempurnakan sistem ini demi kenyamanan 
+            {APP_NAME} dikembangkan oleh tim laboran mahasiswa yang sedang melakukan proyek untuk internal Sarpras.
+            Kami berkomitmen untuk terus mengembangkan dan menyempurnakan sistem ini demi kenyamanan
             seluruh civitas akademika FTI UKSW.
           </p>
 
@@ -249,25 +249,25 @@ const Tentang: React.FC = () => {
                   Bertanggung jawab penuh dalam pengembangan sistem {APP_NAME} dari awal hingga akhir.
                 </p>
                 <div className="flex space-x-3">
-                  <a 
-                    href="https://github.com/Firmandez" 
-                    target="_blank" 
+                  <a
+                    href="https://github.com/Firmandez"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                   >
                     <Github className="w-4 h-4" />
                     <span>GitHub</span>
                   </a>
-                  <a 
-                    href="https://linkedin.com/in/firmandezfebrian" 
-                    target="_blank" 
+                  <a
+                    href="https://linkedin.com/in/firmandezfebrian"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     <Linkedin className="w-4 h-4" />
                     <span>LinkedIn</span>
                   </a>
-                  <a 
+                  <a
                     href="mailto:firmandez10@gmail.com"
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
@@ -295,25 +295,25 @@ const Tentang: React.FC = () => {
                   Membantu hosting dan deployment.
                 </p>
                 <div className="flex space-x-3">
-                  <a 
-                    href="https://github.com/caesaro" 
-                    target="_blank" 
+                  <a
+                    href="https://github.com/caesaro"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                   >
                     <Github className="w-4 h-4" />
                     <span>GitHub</span>
                   </a>
-                  <a 
-                    href="https://linkedin.com/in/nauvalcaesaropremana" 
-                    target="_blank" 
+                  <a
+                    href="https://linkedin.com/in/nauvalcaesaropremana"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     <Linkedin className="w-4 h-4" />
                     <span>LinkedIn</span>
                   </a>
-                  <a 
+                  <a
                     href="mailto:nauvalpremana@gmail.com"
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
@@ -331,7 +331,7 @@ const Tentang: React.FC = () => {
       {showEasterEggModal && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center relative border border-gray-200 dark:border-gray-700 animate-in zoom-in-95 duration-300">
-            <button 
+            <button
               onClick={() => setShowEasterEggModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
             >
@@ -347,7 +347,7 @@ const Tentang: React.FC = () => {
                 "Segabut itu ya ngeklik logo NOC sampe 5 kali? atau ngefans sama developernya?"
               </p>
             </div>
-            <button 
+            <button
               onClick={() => setShowEasterEggModal(false)}
               className="mt-6 w-full py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors"
             >

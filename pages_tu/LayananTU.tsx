@@ -44,6 +44,9 @@ const sanitizeObservationData = (data: ObservationData): ObservationData => ({
   courseName: data.courseName.trim(),
   lecturerName: data.lecturerName.trim(),
   headOfProgramName: data.headOfProgramName.trim(),
+  studyProgramId: data.studyProgramId,
+  studyProgramName: data.studyProgramName,
+  studyProgramLevel: data.studyProgramLevel,
   students: data.students
     .map((student) => ({
       name: student.name.trim(),
@@ -101,6 +104,9 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     courseName: '',
     lecturerName: '',
     headOfProgramName: '',
+    studyProgramId: '',
+    studyProgramName: '',
+    studyProgramLevel: '',
     students: []
   });
 

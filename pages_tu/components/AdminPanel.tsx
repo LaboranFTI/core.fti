@@ -82,6 +82,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [panelFeedback, setPanelFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [requestToVerify, setRequestToVerify] = useState<ActiveStudentRequest | null>(null);
+  const [deanName, setDeanName] = useState<string>('');
 
   const formatSemesterLabel = (semesterCode: string) => {
     if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
@@ -142,9 +143,22 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     return null;
   };
 
+  const fetchDeanName = async () => {
+    try {
+      const res = await api('/api/lecturers/by-jabatan/Dekan');
+      const json = await res.json();
+      if (json.found && json.data.length > 0) {
+        setDeanName(json.data[0].nama);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dean name:', error);
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
     fetchTuSettings();
+    fetchDeanName();
     const interval = setInterval(fetchRequests, 15000); // Poll for new requests
     return () => clearInterval(interval);
   }, []);
@@ -483,7 +497,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                   signatureBase64: selectedRequest.status === 'pending' ? defaultSignature : selectedRequest.signatureBase64, 
                   stampBase64: selectedRequest.status === 'pending' ? defaultStamp : selectedRequest.stampBase64,
                   backgroundImageBase64: letterBackgrounds.activeStudent.imageBase64,
-                  layout: letterLayouts.activeStudent
+                  layout: letterLayouts.activeStudent,
+                  deanName: deanName
                 }} />
               </CardContent>
             </Card>

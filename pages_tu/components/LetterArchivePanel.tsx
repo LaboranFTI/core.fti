@@ -113,6 +113,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [currentSemesterCode, setCurrentSemesterCode] = useState('');
   const [defaultSignature, setDefaultSignature] = useState('');
   const [defaultStamp, setDefaultStamp] = useState('');
+  const [deanName, setDeanName] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -224,6 +225,20 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   useEffect(() => {
     fetchArchiveData({ showLoader: true });
+
+    // Fetch dean name
+    (async () => {
+      try {
+        const res = await api('/api/lecturers/by-jabatan/Dekan');
+        const json = await res.json();
+        if (json.found && json.data.length > 0) {
+          setDeanName(json.data[0].nama);
+        }
+      } catch (e) {
+        console.error('Failed to fetch dean name:', e);
+      }
+    })();
+
     const interval = setInterval(() => {
       fetchArchiveData({ showError: false });
     }, 20000);
@@ -517,6 +532,8 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       courseName: observationItem?.courseName || '',
                       lecturerName: observationItem?.lecturerName || '',
                       headOfProgramName: observationItem?.headOfProgramName || '',
+                      studyProgramName: (observationItem as any)?.studyProgramName,
+                      studyProgramLevel: (observationItem as any)?.studyProgramLevel,
                       students: observationItem?.students || []
                     }}
                     backgroundImageBase64={letterBackgrounds.observation.imageBase64}
@@ -536,7 +553,8 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       signatureBase64: activeItem?.status === 'pending' ? defaultSignature : activeItem?.signatureBase64,
                       stampBase64: activeItem?.status === 'pending' ? defaultStamp : activeItem?.stampBase64,
                       backgroundImageBase64: letterBackgrounds.activeStudent.imageBase64,
-                      layout: letterLayouts.activeStudent
+                      layout: letterLayouts.activeStudent,
+                      deanName: deanName
                     }}
                   />
                 )}

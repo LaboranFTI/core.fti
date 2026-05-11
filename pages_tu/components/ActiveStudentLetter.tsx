@@ -9,14 +9,23 @@ import {
   deriveStudyProgramFromNim
 } from './activeStudentUtils';
 
+import { useLecturers } from '../../hooks/useLecturers';
+
 interface ActiveStudentLetterProps {
   data: ActiveStudentRequest & {
     backgroundImageBase64?: string;
     layout?: LetterLayout;
+    deanName?: string;
+    deanTitle?: string;
   };
 }
 
 export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStudentLetterProps>(({ data }, ref) => {
+  const { lecturers } = useLecturers();
+  const dean = lecturers.find(l => l.jabatan && l.jabatan.toLowerCase().startsWith('dekan'));
+  const derivedDeanName = dean ? dean.nama : 'Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.';
+  const derivedDeanTitle = dean ? dean.jabatan : 'Dekan';
+
   const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
@@ -143,30 +152,32 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
           <p>Demikian surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagaimana mestinya.</p>
         </div>
 
-      <div className="mt-[14mm] ml-0 w-[90mm] leading-tight">
+      <div className="mt-[14mm] flex justify-end">
+        <div className="w-[48%] leading-tight text-center">
           <p>Salatiga, {today}</p>
           <p>Hormat kami,</p>
 
-        <div className="relative my-[2mm] h-[24mm]">
+          <div className="relative my-[2mm] h-[24mm]">
             {data.signatureBase64 && (
               <img
                 src={data.signatureBase64}
                 alt="Tanda Tangan Dekan"
-              className="absolute bottom-[2mm] left-[15mm] h-[18mm] object-contain z-10"
+                className="absolute bottom-[2mm] left-1/2 -translate-x-1/2 h-[18mm] object-contain z-10"
               />
             )}
             {data.stampBase64 && (
               <img
                 src={data.stampBase64}
                 alt="Cap Fakultas"
-              className="absolute bottom-[-2mm] left-0 h-[24mm] object-contain opacity-90 mix-blend-multiply z-20"
+                className="absolute bottom-[-2mm] left-[10mm] h-[24mm] object-contain opacity-90 mix-blend-multiply z-20"
               />
             )}
           </div>
 
-          <p className="font-bold underline underline-offset-4 whitespace-nowrap">Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.</p>
-          <p>Dekan</p>
+          <p className="font-bold underline underline-offset-4">{data.deanName || derivedDeanName}</p>
+          <p>{data.deanTitle || derivedDeanTitle}</p>
         </div>
+      </div>
       </div>
 
       {/* Watermark/Status Indicator (Hidden when printing) */}

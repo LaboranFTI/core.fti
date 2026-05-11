@@ -5,6 +5,10 @@ import { api } from '../services/api';
 export interface Lecturer {
   id: string;
   nama: string;
+  jabatan?: string;
+  study_program_id?: string;
+  study_program_name?: string;
+  study_program_level?: string;
   created_at?: string;
   updated_at?: string;
 }

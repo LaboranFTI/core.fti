@@ -71,16 +71,46 @@ CREATE TABLE staff (
 
 CREATE TRIGGER update_staff_updated_at BEFORE UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Tabel Program Studi
+-- ID menggunakan kode awal NIM (2 digit), misal '67' = S1 Teknik Informatika
+CREATE TABLE study_programs (
+    id VARCHAR(10) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    level VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_study_programs_updated_at BEFORE UPDATE ON study_programs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Seed data program studi (berdasarkan kode awal NIM)
+INSERT INTO study_programs (id, name, level) VALUES
+('56', 'Teknik Informatika', 'Diploma Tiga'),
+('60', 'Hubungan Masyarakat', 'Sarjana'),
+('67', 'Teknik Informatika', 'Sarjana'),
+('68', 'Sistem Informasi', 'Sarjana'),
+('69', 'Desain Komunikasi Visual', 'Sarjana'),
+('70', 'Pendidikan Teknik Informatika dan Komputer', 'Sarjana'),
+('74', 'Perpustakaan dan Sains Informasi', 'Sarjana'),
+('84', 'Bisnis Digital', 'Sarjana'),
+('97', 'Sistem Informasi', 'Magister'),
+('98', 'Ilmu Komputer', 'Doktor');
+
 -- Tabel Lecturer
 -- Menyimpan data dosen pengampu (id menggunakan kode dosen)
 CREATE TABLE lecturer (
     id VARCHAR(50) PRIMARY KEY,
     nama VARCHAR(100) NOT NULL,
+    jabatan VARCHAR(100),
+    study_program_id VARCHAR(10),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_lecturer_study_program FOREIGN KEY (study_program_id) REFERENCES study_programs(id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER update_lecturer_updated_at BEFORE UPDATE ON lecturer FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE INDEX idx_lecturer_jabatan ON lecturer(jabatan);
+CREATE INDEX idx_lecturer_study_program ON lecturer(study_program_id);
 
 -- Tabel Rooms
 -- Menyimpan data ruangan laboratorium

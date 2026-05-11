@@ -662,8 +662,8 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } />
           <Route path="/manajemen-dosen" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <LecturerManagement showToast={showToast} />
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <LecturerManagement showToast={showToast} role={currentRole} />
             </ProtectedRoute>
           } />
           <Route path="/pemesanan-saya" element={

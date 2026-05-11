@@ -105,10 +105,14 @@
 
         .signatures-wrapper {
             margin-top: 18mm;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            column-gap: 16mm;
+            display: flex;
+            justify-content: space-between;
             padding: 0 6mm;
+            text-align: center;
+        }
+
+        .signatures-wrapper > div {
+            width: 48%;
             text-align: center;
         }
 
@@ -198,7 +202,7 @@
                     <div class="signature-area">
                     </div>
                     <p class="signature-name">{{headOfProgramName}}</p>
-                    <p>Kaprodi S1 Teknik Informatika</p>
+                    <p>Kaprodi {{jenjangProgram}} {{programStudi}}</p>
                 </div>
                 <div>
                     <p>Salam,</p>
