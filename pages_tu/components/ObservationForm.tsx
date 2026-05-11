@@ -228,7 +228,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Gagal menghasilkan QR Code.');
+        console.error('Server Error Details:', json.details, json.stack);
+        throw new Error(json.details ? `${json.error} Details: ${json.details}` : (json.error || 'Gagal menghasilkan QR Code.'));
       }
 
       setQrUrl(json.qrUrl);
