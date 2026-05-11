@@ -642,7 +642,7 @@ const letterConfig = {
       
       return {
         '{{nomorSurat}}': letterNumber,
-        '{{letterPurpose}}': 'Pengantar Observasi',
+        '{{letterPurpose}}': 'Permohonan Ijin Observasi',
         '{{lampiran}}': '-',
         '{{recipientName}}': data.recipient_name || data.recipientName || '(tidak disebutkan)',
         '{{companyAddress}}': data.company_address || data.companyAddress || '(tidak disebutkan)',

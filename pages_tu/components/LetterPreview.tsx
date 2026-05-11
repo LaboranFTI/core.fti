@@ -89,9 +89,9 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           </table>
 
           <div className="space-y-[0.8mm]">
-            <p className="font-bold">Kepada Yth:</p>
-            <p>{data.recipientName || '[Nama Penerima / Jabatan]'}</p>
-            <p>{data.companyName || '[Nama Perusahaan / Instansi]'}</p>
+            <p>Kepada Yth:</p>
+            <p className="font-bold">{data.recipientName || '[Nama Penerima / Jabatan]'}</p>
+            <p className="font-bold">{data.companyName || '[Nama Perusahaan / Instansi]'}</p>
             <p>{data.companyAddress || '[Alamat Instansi]'}</p>
           </div>
         </div>
@@ -122,7 +122,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
             Program Studi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'} Universitas Kristen Satya Wacana berikut ini:
           </p>
 
-          <table className="mb-[2mm] ml-[12mm] w-[calc(100%-12mm)] border-collapse text-left text-[10.5pt]">
+          <table className="mb-[6mm] ml-[12mm] w-[calc(100%-12mm)] border-collapse text-left text-[10.5pt]">
             <tbody>
               {data.students.length > 0 ? data.students.map((student, index) => (
                 <tr key={index}>
@@ -154,20 +154,6 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           <div className="text-center w-[48%]">
             <p>Mengetahui,</p>
             <div className="relative h-[24mm]">
-              {signatureBase64 && (
-                <img
-                  src={signatureBase64}
-                  alt="Tanda Tangan Kaprodi"
-                  className="absolute bottom-[2mm] left-[20mm] h-[20mm] object-contain z-10"
-                />
-              )}
-              {stampBase64 && (
-                <img
-                  src={stampBase64}
-                  alt="Cap Fakultas"
-                  className="absolute bottom-[-6mm] left-[0mm] h-[35mm] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"
-                />
-              )}
             </div>
             <p className="font-bold underline underline-offset-4">{data.headOfProgramName || '[Nama Kaprodi]'}</p>
             <p>Kaprodi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'}</p>
