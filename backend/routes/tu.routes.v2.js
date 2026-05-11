@@ -1316,10 +1316,8 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     qrDownloadSessions.set(token, { buffer: pdfBuffer, filename });
     setTimeout(() => qrDownloadSessions.delete(token), 10 * 60 * 1000); // 10 Menit timeout
 
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const qrUrl = `${protocol}://${host}/api/tu/public/qr-download/${token}`;
-    res.json({ success: true, qrUrl });
+    const qrPath = `/api/tu/public/qr-download/${token}`;
+    res.json({ success: true, qrUrl: qrPath, token });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Observation letter QR generate error:', err);

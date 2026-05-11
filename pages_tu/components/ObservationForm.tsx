@@ -232,7 +232,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         throw new Error(json.details ? `${json.error} Details: ${json.details}` : (json.error || 'Gagal menghasilkan QR Code.'));
       }
 
-      setQrUrl(json.qrUrl);
+      const absoluteQrUrl = `${window.location.origin}${json.qrUrl}`;
+      setQrUrl(absoluteQrUrl);
       setFormFeedback({ type: 'success', message: 'QR Code berhasil dibuat. Scan untuk mengunduh.' });
     } catch (error) {
       console.error('Failed to generate QR:', error);
