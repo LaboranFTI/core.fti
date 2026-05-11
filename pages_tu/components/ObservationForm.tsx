@@ -232,7 +232,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         throw new Error(json.details ? `${json.error} Details: ${json.details}` : (json.error || 'Gagal menghasilkan QR Code.'));
       }
 
-      const absoluteQrUrl = `${window.location.origin}${json.qrUrl}`;
+      // Dipaksa menggunakan IP spesifik untuk rute jaringan lokal sesuai permintaan
+      const absoluteQrUrl = `https://192.168.229.201${json.qrUrl}`;
       setQrUrl(absoluteQrUrl);
       setFormFeedback({ type: 'success', message: 'QR Code berhasil dibuat. Scan untuk mengunduh.' });
     } catch (error) {
