@@ -169,7 +169,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
               <img
                 src={data.stampBase64}
                 alt="Cap Fakultas"
-                className="absolute bottom-[-2mm] left-[10mm] h-[24mm] object-contain opacity-90 mix-blend-multiply z-20"
+                className="absolute bottom-[-6mm] left-[5mm] h-[35mm] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"
               />
             )}
           </div>

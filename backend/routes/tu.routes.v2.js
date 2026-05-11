@@ -1286,7 +1286,12 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
 
     const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    htmlContent = htmlContent.replace(/{{backgroundImage}}/g, backgroundImage)
+    htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
+                             .replace(/{{nim}}/g, requestData.nim || '')
+                             .replace(/{{tanggalSurat}}/g, tanggalSurat)
+                             .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
+                             .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+                             .replace(/{{backgroundImage}}/g, backgroundImage)
                              .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
                              .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
                              .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
@@ -1316,7 +1321,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Observation letter QR generate error:', err);
-    res.status(500).json({ error: 'Gagal membuat QR Code surat observasi.' });
+    res.status(500).json({ error: 'Gagal membuat QR Code surat observasi.', details: err.message, stack: err.stack });
   } finally {
     client.release();
   }

@@ -154,6 +154,20 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           <div className="text-center w-[48%]">
             <p>Mengetahui,</p>
             <div className="relative h-[24mm]">
+              {signatureBase64 && (
+                <img
+                  src={signatureBase64}
+                  alt="Tanda Tangan Kaprodi"
+                  className="absolute bottom-[2mm] left-[20mm] h-[20mm] object-contain z-10"
+                />
+              )}
+              {stampBase64 && (
+                <img
+                  src={stampBase64}
+                  alt="Cap Fakultas"
+                  className="absolute bottom-[-6mm] left-[0mm] h-[35mm] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"
+                />
+              )}
             </div>
             <p className="font-bold underline underline-offset-4">{data.headOfProgramName || '[Nama Kaprodi]'}</p>
             <p>Kaprodi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'}</p>

@@ -124,10 +124,11 @@
 
         .stamp-image {
             position: absolute;
-            left: 5mm;
-            bottom: -2mm;
-            height: 28mm;
+            left: 0;
+            bottom: -6mm;
+            height: 35mm;
             opacity: 0.9;
+            mix-blend-mode: multiply;
         }
 
         .signature-image {
@@ -200,6 +201,8 @@
                 <div>
                     <p>Mengetahui,</p>
                     <div class="signature-area">
+                        <img src="{{signatureImage}}" alt="Tanda Tangan Kaprodi" class="signature-image">
+                        <img src="{{stampImage}}" alt="Cap Fakultas" class="stamp-image">
                     </div>
                     <p class="signature-name">{{headOfProgramName}}</p>
                     <p>Kaprodi {{jenjangProgram}} {{programStudi}}</p>
