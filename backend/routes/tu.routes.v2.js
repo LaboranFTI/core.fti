@@ -1333,7 +1333,8 @@ router.get('/tu/public/qr-download/:token', (req, res) => {
     return res.status(404).send('Link download tidak valid atau sudah kadaluarsa (maksimal 10 menit).');
   }
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${session.filename}"`);
+  res.setHeader('Content-Length', session.buffer.length);
+  res.setHeader('Content-Disposition', `inline; filename="${session.filename}"`);
   res.send(session.buffer);
 });
 

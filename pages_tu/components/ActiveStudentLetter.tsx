@@ -44,7 +44,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
     <div
       ref={ref}
       className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white text-[11pt] leading-[1.5] text-black shadow-lg"
-      style={{ fontFamily: 'Arial, sans-serif' }}
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
     >
       {data.backgroundImageBase64 ? (
         <img

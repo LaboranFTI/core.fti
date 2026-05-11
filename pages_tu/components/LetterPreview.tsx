@@ -46,7 +46,8 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   return (
     <div
       ref={ref}
-      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white font-serif text-[11pt] leading-normal text-black shadow-lg"
+      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white text-[11pt] leading-normal text-black shadow-lg"
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
     >
       {backgroundImageBase64 ? (
         <img
