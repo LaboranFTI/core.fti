@@ -7,7 +7,7 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { api } from '../../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Plus, Trash2, Printer, Download, Building2, GraduationCap, Users, Loader2, QrCode, X, ChevronDown, FileText } from 'lucide-react';
+import { Plus, Trash2, Printer, Download, Building2, GraduationCap, Users, Loader2, QrCode, X, ChevronDown, FileText, Mail } from 'lucide-react';
 import SearchableSelect, { SelectOption } from '../../components/SearchableSelect';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import { useLecturers } from '../../hooks/useLecturers';
@@ -34,12 +34,15 @@ interface ObservationFormProps {
 
 export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedback = null }: ObservationFormProps) {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [formFeedback, setFormFeedback] = useState(feedback);
   const [isGeneratingQr, setIsGeneratingQr] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [isFinalizingPrint, setIsFinalizingPrint] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | 'print' | null>(null);
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [targetEmail, setTargetEmail] = useState('');
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Program Studi & Dosen data
@@ -143,6 +146,32 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       handleGenerateQr();
     } else if (action === 'print') {
       handleFinalizeAndPrint();
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+      setFormFeedback({ type: 'error', message: 'Masukkan alamat email yang valid.' });
+      return;
+    }
+    setIsSendingEmail(true);
+    setEmailModalOpen(false);
+    setFormFeedback(null);
+    try {
+      const formData = getValues();
+      const res = await api('/api/tu/observation-letter/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, targetEmail })
+      });
+      const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
+      if (!res.ok) throw new Error(json.error);
+      setFormFeedback({ type: 'success', message: `Surat berhasil dikirim ke ${targetEmail}. Nomor surat: ${json.letterNumber || '-'}.` });
+      setTargetEmail('');
+    } catch (error) {
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengirim email.' });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -451,12 +480,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                   <Button
                     type="button"
                     onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
-                    disabled={readOnly || isDownloadingPdf || isGeneratingQr}
+                    disabled={readOnly || isDownloadingPdf || isGeneratingQr || isSendingEmail}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-11 text-base"
                   >
-                    {(isDownloadingPdf || isGeneratingQr) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                    {(isDownloadingPdf || isGeneratingQr) ? 'Menyiapkan...' : 'Download'}
-                    <ChevronDown className="w-4 h-4 ml-2" />
+                    {(isDownloadingPdf || isGeneratingQr || isSendingEmail) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                    {isDownloadingPdf ? 'Mengunduh PDF...' : isGeneratingQr ? 'Membuat QR...' : isSendingEmail ? 'Mengirim Email...' : 'Download'}
+                    {!isDownloadingPdf && !isGeneratingQr && !isSendingEmail && <ChevronDown className="w-4 h-4 ml-2" />}
                   </Button>
 
                   {isDownloadMenuOpen && (
@@ -482,6 +511,20 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                       >
                         <QrCode className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
                         <span className="font-medium">Download via QR Code</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-700 flex items-center text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-gray-700"
+                        onClick={() => {
+                          setEmailModalOpen(true);
+                          setIsDownloadMenuOpen(false);
+                        }}
+                      >
+                        <Mail className="w-4 h-4 mr-3 text-green-600 dark:text-green-400" />
+                        <div>
+                          <span className="font-medium">Kirim via Email</span>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">PDF surat langsung ke kotak masuk</p>
+                        </div>
                       </button>
                     </div>
                   )}
@@ -512,6 +555,67 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal: Input Email Tujuan */}
+      {emailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => { setEmailModalOpen(false); setTargetEmail(''); }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30">
+                <Mail className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Kirim Surat via Email</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">PDF surat observasi akan dilampirkan secara otomatis</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <Label htmlFor="obs-target-email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Alamat Email Tujuan <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="obs-target-email"
+                type="email"
+                placeholder="contoh@gmail.com"
+                value={targetEmail}
+                onChange={(e) => setTargetEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendEmail()}
+                className="bg-white dark:bg-gray-700"
+                autoFocus
+              />
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Isi dengan email penerima surat (mahasiswa, perusahaan, dsb.). Surat akan diarsipkan otomatis.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 border-slate-300 dark:border-slate-600"
+                onClick={() => { setEmailModalOpen(false); setTargetEmail(''); }}
+              >
+                Batal
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleSendEmail}
+                disabled={!targetEmail}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Kirim Sekarang
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {qrUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">

@@ -18,7 +18,7 @@ import { Label } from '../../components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download } from 'lucide-react';
+import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download, Trash2 } from 'lucide-react';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { api } from '../../services/api';
 
@@ -64,6 +64,12 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<ActiveStudentRequest | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<ActiveStudentRequest | null>(null);
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<ActiveStudentRequest[]>([]);
+  const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
+  const [confirmText, setConfirmText] = useState('');
 
   // State untuk pengaturan default
   const [defaultSignature, setDefaultSignature] = useState<string>('');
@@ -275,7 +281,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   }
 
   const handleSendEmail = async (reqId: string) => {
-    setIsProcessing(true);
+    setIsSendingEmail(true);
     setPanelFeedback(null);
     try {
       const res = await api(`/api/tu/requests/active-student/${reqId}/send-email`, { method: 'POST' });
@@ -293,7 +299,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
       console.error('Failed to send email:', error);
       setPanelFeedback({ type: 'error', message: 'Gagal mengirim surat ke email mahasiswa.' });
     } finally {
-      setIsProcessing(false);
+      setIsSendingEmail(false);
     }
   };
 
@@ -383,6 +389,64 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     }, 500);
   };
 
+  // ── Delete handlers ──────────────────────────────────────────────────────────
+  const handleDeleteSingle = (req: ActiveStudentRequest) => {
+    setDeleteTarget(req);
+    setBatchDeleteTargets([]);
+    setConfirmPhase(1);
+    setConfirmText('');
+  };
+
+  const handleBatchDeleteOpen = () => {
+    setBatchDeleteTargets(requests.filter(r => selectedIds.has(r.id)));
+    setDeleteTarget(null);
+    setConfirmPhase(1);
+    setConfirmText('');
+  };
+
+  const closeConfirm = () => {
+    setConfirmPhase(null);
+    setConfirmText('');
+    setDeleteTarget(null);
+    setBatchDeleteTargets([]);
+  };
+
+  const executeDelete = async () => {
+    if (confirmText !== 'HAPUS') return;
+    setIsProcessing(true);
+    closeConfirm();
+    try {
+      if (deleteTarget) {
+        const res = await api(`/api/tu/requests/active-student/${deleteTarget.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
+        setPanelFeedback({ type: 'success', message: `Pengajuan ${deleteTarget.name} berhasil dihapus.` });
+      } else {
+        const ids = batchDeleteTargets.map(r => r.id);
+        const res = await api('/api/tu/requests/active-student/batch-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
+        setSelectedIds(new Set());
+        setPanelFeedback({ type: 'success', message: `${batchDeleteTargets.length} pengajuan berhasil dihapus.` });
+      }
+      await fetchRequests();
+    } catch (err) {
+      setPanelFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menghapus data.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const toggleSelectId = (id: string) => {
+    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(selectedIds.size === requests.length ? new Set() : new Set(requests.map(r => r.id)));
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -444,10 +508,13 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                 </Button>
                 <Button 
                   onClick={() => handleSendEmail(selectedRequest.id)}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isSendingEmail}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  <Mail className="w-4 h-4 mr-2" /> Kirim ke Email User
+                  {isSendingEmail
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Mengirim...</>
+                    : <><Mail className="w-4 h-4 mr-2" />Kirim ke Email User</>
+                  }
                 </Button>
               </>
             )}
@@ -738,8 +805,24 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
 
       <Card className="shadow-sm border-slate-200 dark:border-gray-700">
         <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-          <CardTitle className="text-xl text-slate-800 dark:text-white">Daftar Permohonan Surat Aktif Kuliah</CardTitle>
-          <CardDescription className="dark:text-gray-400">Verifikasi dan proses permohonan dari mahasiswa.</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-xl text-slate-800 dark:text-white">Daftar Permohonan Surat Aktif Kuliah</CardTitle>
+              <CardDescription className="dark:text-gray-400">Verifikasi dan proses permohonan dari mahasiswa.</CardDescription>
+            </div>
+            {selectedIds.size > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                onClick={handleBatchDeleteOpen}
+                disabled={isProcessing}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Hapus {selectedIds.size} Terpilih
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -753,6 +836,15 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50/50 dark:bg-gray-800/50">
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      className="rounded border-slate-300 dark:border-gray-600 cursor-pointer accent-blue-600"
+                      checked={selectedIds.size === requests.length && requests.length > 0}
+                      onChange={toggleSelectAll}
+                      title="Pilih semua"
+                    />
+                  </TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Nama Mahasiswa</TableHead>
                   <TableHead>NIM</TableHead>
@@ -763,7 +855,15 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
               </TableHeader>
               <TableBody>
                 {requests.map((req) => (
-                  <TableRow key={req.id}>
+                  <TableRow key={req.id} className={selectedIds.has(req.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300 dark:border-gray-600 cursor-pointer accent-blue-600"
+                        checked={selectedIds.has(req.id)}
+                        onChange={() => toggleSelectId(req.id)}
+                      />
+                    </TableCell>
                     <TableCell className="text-slate-500">
                       {format(new Date(req.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
                     </TableCell>
@@ -774,13 +874,24 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                     </TableCell>
                     <TableCell>{getStatusBadge(req.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="outline" className="border-slate-300 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-700"
-                        size="sm"
-                        onClick={() => setSelectedRequest(req)}
-                      >
-                        <Eye className="w-4 h-4 mr-2" /> Detail & Proses
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline" className="border-slate-300 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-700"
+                          size="sm"
+                          onClick={() => setSelectedRequest(req)}
+                        >
+                          <Eye className="w-4 h-4 mr-2" /> Detail & Proses
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          onClick={() => handleDeleteSingle(req)}
+                          disabled={isProcessing}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -790,6 +901,81 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         </CardContent>
       </Card>
 
+      {/* ── Double Confirm Delete Dialog ───────────────────────────────────── */}
+      {confirmPhase === 1 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Hapus Pengajuan?</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Langkah 1 dari 2 — tinjau data yang akan dihapus</p>
+              </div>
+            </div>
+            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-4 mb-5 space-y-1">
+              {deleteTarget ? (
+                <>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{deleteTarget.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">NIM: {deleteTarget.nim} | Status: {deleteTarget.status}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300">{batchDeleteTargets.length} pengajuan akan dihapus</p>
+                  {batchDeleteTargets.slice(0, 4).map(r => (
+                    <p key={r.id} className="text-xs text-slate-600 dark:text-slate-400">• {r.name} ({r.nim})</p>
+                  ))}
+                  {batchDeleteTargets.length > 4 && <p className="text-xs text-slate-400">...dan {batchDeleteTargets.length - 4} lainnya</p>}
+                </>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 dark:border-gray-600" onClick={closeConfirm}>Batal</Button>
+              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => setConfirmPhase(2)}>Lanjutkan →</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmPhase === 2 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Konfirmasi Penghapusan</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Langkah 2 dari 2 — tindakan ini tidak dapat dibatalkan</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+              Ketik <strong className="text-red-600 dark:text-red-400">HAPUS</strong> untuk mengkonfirmasi penghapusan permanen.
+            </p>
+            <Input
+              placeholder="Ketik HAPUS di sini"
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              className="mb-4 border-red-300 focus:ring-red-400 dark:border-red-800 dark:bg-gray-700"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && confirmText === 'HAPUS' && executeDelete()}
+            />
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 dark:border-gray-600" onClick={() => setConfirmPhase(1)}>← Kembali</Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                onClick={executeDelete}
+                disabled={confirmText !== 'HAPUS' || isProcessing}
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Hapus Permanen
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+

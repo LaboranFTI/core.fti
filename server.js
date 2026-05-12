@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
@@ -19,6 +19,7 @@ import siasatRoutes from './backend/routes/siasat.routes.js';
 import tuRoutes from './backend/routes/tu.routes.v2.js';
 import lecturerRoutes from './backend/routes/lecturer.routes.js';
 import studyProgramRoutes from './backend/routes/study_program.routes.js';
+import { verifyMailer } from './backend/utils/mailer.js';
 
 const app = express();
 const port = process.env.PORT || 5000; // Menggunakan port dari env atau default 5000
@@ -146,6 +147,7 @@ const startServer = async () => {
     await testConnection();
     await ensureAuthSchema();
     await createIndexes();
+    await verifyMailer(); // Verifikasi koneksi SMTP Gmail
 
     app.listen(port, () => {
       console.log(`Backend server berjalan di http://localhost:${port}`);

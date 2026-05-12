@@ -43,19 +43,22 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "primary",
-  size = "default",
-  ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+import * as React from "react"
+
+const Button = React.forwardRef<
+  React.ElementRef<typeof ButtonPrimitive>,
+  React.ComponentPropsWithoutRef<typeof ButtonPrimitive> &
+    VariantProps<typeof buttonVariants>
+>(({ className, variant = "primary", size = "default", ...props }, ref) => {
   return (
     <ButtonPrimitive
+      ref={ref}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   )
-}
+})
+Button.displayName = "Button"
 
 export { Button, buttonVariants }

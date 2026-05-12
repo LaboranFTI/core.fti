@@ -22,12 +22,16 @@ import {
   FileText,
   GraduationCap,
   Mail,
+  Pencil,
+  Plus,
   Printer,
   RefreshCcw,
   Search,
   Send,
   ShieldCheck,
+  Trash2,
   Users,
+  X,
   Download
 } from 'lucide-react';
 
@@ -123,6 +127,15 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'active' | 'observation'; label: string } | null>(null);
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<Array<{ id: string; type: 'active' | 'observation'; label: string }>>([]);
+  const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [selectedActiveIds, setSelectedActiveIds] = useState<Set<string>>(new Set());
+  const [selectedObsIds, setSelectedObsIds] = useState<Set<string>>(new Set());
+  // Edit observation state
+  const [editTarget, setEditTarget] = useState<ObservationRequest | null>(null);
 
   const formatSemesterLabel = (semesterCode: string) => {
     if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
@@ -399,7 +412,90 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     }
   };
 
+  // ── Delete handlers ─────────────────────────────────────────────────────────
+  const openDeleteSingle = (id: string, type: 'active' | 'observation', label: string) => {
+    setDeleteTarget({ id, type, label });
+    setBatchDeleteTargets([]);
+    setConfirmPhase(1);
+    setConfirmText('');
+  };
+
+  const openBatchDelete = (type: 'active' | 'observation') => {
+    const ids = type === 'active' ? selectedActiveIds : selectedObsIds;
+    const sourceList = type === 'active' ? activeRequests : observationRequests;
+    const targets = sourceList
+      .filter(i => ids.has(i.id))
+      .map(i => ({ id: i.id, type, label: i.name + (type === 'observation' ? ` — ${(i as ObservationRequest).company || ''}` : '') }));
+    setDeleteTarget(null);
+    setBatchDeleteTargets(targets);
+    setConfirmPhase(1);
+    setConfirmText('');
+  };
+
+  const closeConfirm = () => { setConfirmPhase(null); setConfirmText(''); setDeleteTarget(null); setBatchDeleteTargets([]); };
+
+  const executeDelete = async () => {
+    if (confirmText !== 'HAPUS') return;
+    setIsProcessing(true);
+    closeConfirm();
+    try {
+      if (deleteTarget) {
+        const apiType = deleteTarget.type === 'active' ? 'active-student' : 'observation';
+        const res = await api(`/api/tu/requests/${apiType}/${deleteTarget.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
+        if (selectedLetter?.item.id === deleteTarget.id) setSelectedLetter(null);
+        setFeedback({ type: 'success', message: `${deleteTarget.label} berhasil dihapus.` });
+      } else {
+        const type = batchDeleteTargets[0]?.type;
+        const apiType = type === 'active' ? 'active-student' : 'observation';
+        const ids = batchDeleteTargets.map(t => t.id);
+        const res = await api(`/api/tu/requests/${apiType}/batch-delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
+        if (type === 'active') setSelectedActiveIds(new Set());
+        else setSelectedObsIds(new Set());
+        setFeedback({ type: 'success', message: `${batchDeleteTargets.length} arsip berhasil dihapus.` });
+      }
+      await fetchArchiveData({ showError: false });
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menghapus data.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const toggleActiveId = (id: string) => setSelectedActiveIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleObsId = (id: string) => setSelectedObsIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAllActive = () => setSelectedActiveIds(selectedActiveIds.size === filteredActiveRequests.length ? new Set() : new Set(filteredActiveRequests.map(i => i.id)));
+  const toggleAllObs = () => setSelectedObsIds(selectedObsIds.size === filteredObservationRequests.length ? new Set() : new Set(filteredObservationRequests.map(i => i.id)));
+
+  // ── Edit Observation ────────────────────────────────────────────────────────
+  const handleSaveObservationEdit = async (data: Partial<ObservationRequest> & { students: { name: string; nim: string }[] }) => {
+    if (!editTarget) return;
+    setIsProcessing(true);
+    try {
+      const res = await api(`/api/tu/requests/observation/${editTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan.');
+      setEditTarget(null);
+      await fetchArchiveData({ showError: false });
+      setFeedback({ type: 'success', message: 'Data surat observasi berhasil diperbarui.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menyimpan perubahan.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
+
   const matchesStatus = (status: ArchiveStatus) => statusFilter === 'all' || status === statusFilter;
   const matchesQuery = (fields: Array<string | undefined>) =>
     normalizedQuery === '' ||
@@ -587,8 +683,27 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 >
                   <Send className="mr-2 h-4 w-4" /> {canSendEmail ? 'Kirim ke Email' : 'Email Belum Tersedia'}
                 </Button>
+                {isObservation && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditTarget(observationItem)}
+                    disabled={isProcessing}
+                    className="w-full justify-center border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit Data Surat
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => openDeleteSingle(item.id, isObservation ? 'observation' : 'active', item.name)}
+                  disabled={isProcessing}
+                  className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Hapus Arsip Ini
+                </Button>
               </CardContent>
             </Card>
+
 
             <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
               <CardHeader className="border-b border-slate-100 dark:border-gray-700">
@@ -795,6 +910,23 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
           <Tabs value={activeListTab}>
             <TabsContent value="active" className="mt-0">
+              {/* Batch Delete Toolbar */}
+              {selectedActiveIds.size > 0 && (
+                <div className="mb-4 flex items-center justify-between rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-3">
+                  <span className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {selectedActiveIds.size} surat dipilih
+                  </span>
+                  <Button
+                    variant="outline" size="sm"
+                    className="border-red-300 text-red-600 hover:bg-red-100 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/40"
+                    onClick={() => openBatchDelete('active')}
+                    disabled={isProcessing}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Hapus Terpilih
+                  </Button>
+                </div>
+              )}
+
               {loading ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
                   Memuat arsip surat aktif kuliah...
@@ -813,6 +945,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                          <TableHead className="w-10">
+                            <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                              checked={selectedActiveIds.size === filteredActiveRequests.length && filteredActiveRequests.length > 0}
+                              onChange={toggleAllActive} />
+                          </TableHead>
                           <TableHead>Tanggal</TableHead>
                           <TableHead>Mahasiswa</TableHead>
                           <TableHead>Program Studi</TableHead>
@@ -823,7 +960,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       </TableHeader>
                       <TableBody>
                         {filteredActiveRequests.map((item) => (
-                          <TableRow key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-800/50">
+                          <TableRow key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-gray-800/50 ${selectedActiveIds.has(item.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                            <TableCell>
+                              <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                                checked={selectedActiveIds.has(item.id)}
+                                onChange={() => toggleActiveId(item.id)} />
+                            </TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{formatArchiveDate(item.createdAt)}</TableCell>
                             <TableCell>
                               <div>
@@ -835,9 +977,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             <TableCell className="text-sm text-slate-500 dark:text-gray-400">{item.letterNumber || 'Belum dibuat'}</TableCell>
                             <TableCell>{getStatusBadge(item.status)}</TableCell>
                             <TableCell className="text-right">
-                              <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'active', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
-                                <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                              </Button>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'active', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
+                                  <Eye className="mr-2 h-4 w-4" /> Detail
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'active', item.name)} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -880,6 +1027,23 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             </TabsContent>
 
             <TabsContent value="observation" className="mt-0">
+              {/* Batch Delete Toolbar */}
+              {selectedObsIds.size > 0 && (
+                <div className="mb-4 flex items-center justify-between rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-3">
+                  <span className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {selectedObsIds.size} surat dipilih
+                  </span>
+                  <Button
+                    variant="outline" size="sm"
+                    className="border-red-300 text-red-600 hover:bg-red-100 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/40"
+                    onClick={() => openBatchDelete('observation')}
+                    disabled={isProcessing}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Hapus Terpilih
+                  </Button>
+                </div>
+              )}
+
               {loading ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
                   Memuat arsip surat observasi...
@@ -898,6 +1062,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                          <TableHead className="w-10">
+                            <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                              checked={selectedObsIds.size === filteredObservationRequests.length && filteredObservationRequests.length > 0}
+                              onChange={toggleAllObs} />
+                          </TableHead>
                           <TableHead>Tanggal</TableHead>
                           <TableHead>Tujuan</TableHead>
                           <TableHead>Instansi</TableHead>
@@ -908,7 +1077,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       </TableHeader>
                       <TableBody>
                         {filteredObservationRequests.map((item) => (
-                          <TableRow key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-800/50">
+                          <TableRow key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-gray-800/50 ${selectedObsIds.has(item.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                            <TableCell>
+                              <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                                checked={selectedObsIds.has(item.id)}
+                                onChange={() => toggleObsId(item.id)} />
+                            </TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{formatArchiveDate(item.createdAt)}</TableCell>
                             <TableCell>
                               <div>
@@ -920,9 +1094,17 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{item.students.length} mahasiswa</TableCell>
                             <TableCell>{getStatusBadge(item.status)}</TableCell>
                             <TableCell className="text-right">
-                              <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'observation', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
-                                <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                              </Button>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'observation', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
+                                  <Eye className="mr-2 h-4 w-4" /> Detail
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setEditTarget(item)} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'observation', item.name + ' — ' + (item.company || ''))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -973,6 +1155,190 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* ── Double Confirm Delete Dialog ───────────────────────────────────── */}
+      {confirmPhase === 1 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Hapus Arsip?</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Langkah 1 dari 2 — tinjau data</p>
+              </div>
+            </div>
+            <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-4 mb-5 space-y-1 max-h-40 overflow-y-auto">
+              {deleteTarget ? (
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">{deleteTarget.label}</p>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">{batchDeleteTargets.length} arsip akan dihapus</p>
+                  {batchDeleteTargets.map(r => (
+                    <p key={r.id} className="text-xs text-slate-600 dark:text-slate-400">• {r.label}</p>
+                  ))}
+                </>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 dark:border-gray-600" onClick={closeConfirm}>Batal</Button>
+              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => setConfirmPhase(2)}>Lanjutkan →</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmPhase === 2 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Konfirmasi Penghapusan</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tindakan ini tidak dapat dibatalkan</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+              Ketik <strong className="text-red-600 dark:text-red-400">HAPUS</strong> untuk menghapus permanen.
+            </p>
+            <Input
+              placeholder="Ketik HAPUS"
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              className="mb-4 border-red-300 focus:ring-red-400 dark:border-red-800 dark:bg-gray-700"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && confirmText === 'HAPUS' && executeDelete()}
+            />
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 dark:border-gray-600" onClick={() => setConfirmPhase(1)}>← Kembali</Button>
+              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white disabled:opacity-50" onClick={executeDelete} disabled={confirmText !== 'HAPUS' || isProcessing}>
+                <Trash2 className="w-4 h-4 mr-2" /> Hapus
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Observation Modal ─────────────────────────────────────────── */}
+      {editTarget && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 shrink-0">
+                  <Pencil className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit Data Observasi</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Nomor surat tidak akan berubah.</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setEditTarget(null)} className="rounded-full">
+                <X className="w-5 h-5 text-slate-400" />
+              </Button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Tujuan Surat</label>
+                  <Input 
+                    value={editTarget.recipientName || ''} 
+                    onChange={e => setEditTarget({...editTarget, recipientName: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Instansi</label>
+                  <Input 
+                    value={editTarget.company || ''} 
+                    onChange={e => setEditTarget({...editTarget, company: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Alamat Instansi</label>
+                  <Input 
+                    value={editTarget.companyAddress || ''} 
+                    onChange={e => setEditTarget({...editTarget, companyAddress: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Mata Kuliah</label>
+                  <Input 
+                    value={editTarget.courseName || ''} 
+                    onChange={e => setEditTarget({...editTarget, courseName: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Dosen Pengampu</label>
+                  <Input 
+                    value={editTarget.lecturerName || ''} 
+                    onChange={e => setEditTarget({...editTarget, lecturerName: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 border-t border-slate-100 dark:border-gray-700 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Daftar Mahasiswa ({editTarget.students.length})</label>
+                  <Button 
+                    type="button" variant="outline" size="sm" 
+                    onClick={() => setEditTarget({...editTarget, students: [...editTarget.students, {name: '', nim: ''}]})}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Tambah Mahasiswa
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {editTarget.students.map((stu, i) => (
+                    <div key={i} className="flex gap-2">
+                      <Input 
+                        placeholder="NIM" className="w-1/3" value={stu.nim} 
+                        onChange={e => {
+                          const newStudents = [...editTarget.students];
+                          newStudents[i].nim = e.target.value;
+                          setEditTarget({...editTarget, students: newStudents});
+                        }} 
+                      />
+                      <Input 
+                        placeholder="Nama Lengkap" className="flex-1" value={stu.name} 
+                        onChange={e => {
+                          const newStudents = [...editTarget.students];
+                          newStudents[i].name = e.target.value;
+                          setEditTarget({...editTarget, students: newStudents});
+                        }} 
+                      />
+                      <Button 
+                        type="button" variant="outline" size="icon" className="shrink-0 border-red-200 text-red-500 hover:bg-red-50"
+                        onClick={() => {
+                          const newStudents = [...editTarget.students];
+                          newStudents.splice(i, 1);
+                          setEditTarget({...editTarget, students: newStudents});
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 flex justify-end gap-3 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setEditTarget(null)}>Batal</Button>
+              <Button 
+                onClick={() => handleSaveObservationEdit(editTarget)} 
+                disabled={isProcessing || editTarget.students.length === 0}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                <Pencil className="w-4 h-4 mr-2" /> Simpan Perubahan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
