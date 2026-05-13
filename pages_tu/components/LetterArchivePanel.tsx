@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { EmailActionOverlay } from './EmailActionOverlay';
+import { EmailSuccessDialog } from './EmailSuccessDialog';
 import {
   ArrowLeft,
   Building2,
@@ -22,6 +24,7 @@ import {
   FileText,
   GraduationCap,
   Mail,
+  Loader2,
   Pencil,
   Plus,
   Printer,
@@ -121,7 +124,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; title: string } | null>(null);
   const [activeListTab, setActiveListTab] = useState<'active' | 'observation'>('active');
   const [selectedLetter, setSelectedLetter] = useState<ArchiveSelection>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,8 +266,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   const handleSendEmail = async (type: 'active-student' | 'observation', id: string) => {
     setIsProcessing(true);
+    setIsSendingEmail(true);
     setFeedback(null);
     try {
+      const selectedItem =
+        type === 'active-student'
+          ? activeRequests.find((item: ActiveStudentRequest) => item.id === id)
+          : observationRequests.find((item: ObservationRequest) => item.id === id);
       const res = await api(`/api/tu/requests/${type}/${id}/send-email`, { method: 'POST' });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -270,11 +280,17 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       }
 
       await fetchArchiveData({ showError: false });
-      setFeedback({ type: 'success', message: 'Surat berhasil dikirim ulang ke email.' });
+      setFeedback({ type: 'success', message: 'Surat berhasil dikirim ulang. Jika belum masuk ke inbox, cek juga folder spam.' });
+      setEmailSuccessState({
+        email: selectedItem?.email || '',
+        letterNumber: json?.letterNumber || selectedItem?.letterNumber || null,
+        title: type === 'observation' ? 'Surat observasi berhasil dikirim' : 'Surat aktif kuliah berhasil dikirim'
+      });
     } catch (error) {
       console.error('Failed to send letter email:', error);
       setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengirim email surat.' });
     } finally {
+      setIsSendingEmail(false);
       setIsProcessing(false);
     }
   };
@@ -541,6 +557,22 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   ).length;
   const currentResultsCount = activeListTab === 'active' ? filteredActiveRequests.length : filteredObservationRequests.length;
   const currentTotalCount = activeListTab === 'active' ? activeRequests.length : observationRequests.length;
+  const emailUx = (
+    <>
+      <EmailActionOverlay
+        open={isSendingEmail}
+        title="Mengirim surat dari arsip..."
+        description="Sistem sedang membuat ulang file surat terbaru dan mengirimkannya ke email tujuan."
+      />
+      <EmailSuccessDialog
+        open={Boolean(emailSuccessState)}
+        onClose={() => setEmailSuccessState(null)}
+        recipientEmail={emailSuccessState?.email}
+        letterNumber={emailSuccessState?.letterNumber}
+        title={emailSuccessState?.title}
+      />
+    </>
+  );
 
   if (selectedLetter) {
     const semesterMeta = getSemesterMeta(currentSemesterCode);
@@ -678,10 +710,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 </Button>
                 <Button
                   onClick={() => handleSendEmail(isObservation ? 'observation' : 'active-student', item.id)}
-                  disabled={!canSendEmail || isProcessing}
+                  disabled={!canSendEmail || isProcessing || isSendingEmail}
                   className="w-full justify-center"
                 >
-                  <Send className="mr-2 h-4 w-4" /> {canSendEmail ? 'Kirim ke Email' : 'Email Belum Tersedia'}
+                  {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  {isSendingEmail ? 'Mengirim Email...' : canSendEmail ? 'Kirim ke Email' : 'Email Belum Tersedia'}
                 </Button>
                 {isObservation && (
                   <Button
@@ -745,6 +778,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             </Card>
           </div>
         </div>
+        {emailUx}
       </div>
     );
   }
@@ -1339,6 +1373,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         </div>
       )}
 
+      {emailUx}
     </div>
   );
 }

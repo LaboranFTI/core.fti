@@ -21,6 +21,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '../../components/ui/alert-dialog';
+import { EmailActionOverlay } from './EmailActionOverlay';
+import { EmailSuccessDialog } from './EmailSuccessDialog';
 
 interface ObservationFormProps {
   onDataChange: (data: ObservationData) => void;
@@ -43,6 +45,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
+  const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null } | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Program Studi & Dosen data
@@ -166,7 +169,11 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       });
       const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
       if (!res.ok) throw new Error(json.error);
-      setFormFeedback({ type: 'success', message: `Surat berhasil dikirim ke ${targetEmail}. Nomor surat: ${json.letterNumber || '-'}.` });
+      setFormFeedback({
+        type: 'success',
+        message: `Surat berhasil dikirim ke ${targetEmail}. Jika belum masuk ke inbox, cek juga folder spam.`
+      });
+      setEmailSuccessState({ email: targetEmail, letterNumber: json.letterNumber || null });
       setTargetEmail('');
     } catch (error) {
       setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengirim email.' });
@@ -283,7 +290,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   }, [studyPrograms]);
 
   return (
-    <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-visible">
+    <>
+      <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-visible">
       <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
         <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">Formulir Pengisian</CardTitle>
         <CardDescription className="text-slate-500 dark:text-gray-400">Lengkapi data di bawah ini. Preview surat di sebelah kanan akan diperbarui otomatis.</CardDescription>
@@ -641,6 +649,20 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           </div>
         </div>
       )}
-    </Card>
+      </Card>
+
+      <EmailActionOverlay
+        open={isSendingEmail}
+        title="Mengirim surat observasi..."
+        description="Sistem sedang membuat PDF final lalu mengirimkannya ke email tujuan."
+      />
+      <EmailSuccessDialog
+        open={Boolean(emailSuccessState)}
+        onClose={() => setEmailSuccessState(null)}
+        recipientEmail={emailSuccessState?.email}
+        letterNumber={emailSuccessState?.letterNumber}
+        title="Surat observasi berhasil dikirim"
+      />
+    </>
   );
 }

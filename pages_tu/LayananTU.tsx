@@ -6,7 +6,7 @@ import { LetterArchivePanel } from './components/LetterArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
 import { LetterPreview } from './components/LetterPreview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Archive, FileText, Shield, LayoutPanelTop, PenSquare } from 'lucide-react';
+import { Archive, FileText, LayoutPanelTop, PenSquare, Shield } from 'lucide-react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
 
@@ -95,6 +95,30 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
   const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
   const lastSavedObservationSignatureRef = useRef<string | null>(null);
+  const activeTabMeta: Record<string, { title: string; description: string; icon: React.ElementType }> = {
+    aktif: {
+      title: 'Surat Aktif Kuliah',
+      description: 'Alur singkat untuk cek KST, upload transkrip, lalu ajukan permohonan surat aktif kuliah.',
+      icon: FileText
+    },
+    observasi: {
+      title: 'Surat Ijin Observasi',
+      description: isMahasiswa
+        ? 'Role Mahasiswa hanya dapat melihat template dan preview surat observasi pada halaman ini.'
+        : 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.',
+      icon: observationView === 'form' ? PenSquare : LayoutPanelTop
+    },
+    'arsip-surat': {
+      title: 'Arsip Surat',
+      description: 'Lihat data surat aktif kuliah dan observasi yang tersimpan, lalu cetak ulang atau kirim email kembali saat diperlukan.',
+      icon: Archive
+    },
+    'panel-admin': {
+      title: 'Panel Admin TU',
+      description: 'Kelola pengajuan, atur semester berjalan, dan siapkan pengesahan surat dari satu tempat.',
+      icon: Shield
+    }
+  };
 
   // State untuk Preview Surat Observasi
   const [obsData, setObsData] = useState<ObservationData>({
@@ -203,40 +227,15 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  const tabDescriptions: Record<string, { title: string; description: string }> = {
-    aktif: {
-      title: 'Surat Aktif Kuliah',
-      description: 'Alur singkat untuk cek KST, upload transkrip, lalu ajukan permohonan surat aktif kuliah.'
-    },
-    observasi: {
-      title: 'Surat Ijin Observasi',
-      description: isMahasiswa
-        ? 'Role Mahasiswa hanya dapat melihat template dan preview surat observasi pada halaman ini.'
-        : 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.'
-    },
-    "arsip-surat": {
-      title: 'Arsip Surat',
-      description: 'Lihat data surat aktif kuliah dan observasi yang tersimpan, lalu cetak ulang atau kirim email kembali saat diperlukan.'
-    },
-    "panel-admin": {
-      title: 'Panel Admin TU',
-      description: 'Kelola pengajuan, atur semester berjalan, dan siapkan pengesahan surat dari satu tempat.'
-    }
-  };
+  const ActiveTabIcon = activeTabMeta[activeTab]?.icon || FileText;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header Halaman */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
-            Layanan Tata Usaha
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {isTUAdmin 
-              ? 'Kelola permohonan surat dan administrasi mahasiswa Fakultas Teknologi Informasi.' 
-              : 'Pusat layanan administrasi dan pengajuan surat mahasiswa Fakultas Teknologi Informasi.'}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Layanan Tata Usaha</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Layanan pengajuan Surat Keterangan Aktif Kuliah dan Surat Observasi
           </p>
         </div>
       </div>
@@ -245,37 +244,46 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       <div className="pt-2 print:p-0">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="flex w-full flex-col">
           <TabsList
-            className="mb-4 flex flex-wrap gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit print:hidden"
+            className="mb-4 flex w-full flex-wrap gap-2 rounded-3xl bg-transparent p-0 print:hidden"
           >
             {!isMahasiswa && (
-              <TabsTrigger value="aktif" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
+              <TabsTrigger value="aktif" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
+                <FileText className="mr-2 h-4 w-4" />
                 Surat Aktif Kuliah
               </TabsTrigger>
             )}
-            <TabsTrigger value="observasi" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
+            <TabsTrigger value="observasi" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
+              <PenSquare className="mr-2 h-4 w-4" />
               Surat Ijin Observasi
             </TabsTrigger>
             {isTUAdmin && (
-              <TabsTrigger value="arsip-surat" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
+              <TabsTrigger value="arsip-surat" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
                 <Archive className="w-4 h-4 mr-2" />
                 Arsip Surat
               </TabsTrigger>
             )}
             {isTUAdmin && (
-              <TabsTrigger value="panel-admin" className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center">
+              <TabsTrigger value="panel-admin" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
                 <Shield className="w-4 h-4 mr-2" />
                 Panel Admin
               </TabsTrigger>
             )}
           </TabsList>
 
-          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/70 print:hidden">
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">
-              {tabDescriptions[activeTab]?.title}
-            </p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {tabDescriptions[activeTab]?.description}
-            </p>
+          <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/70 print:hidden">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-blue-100 p-3 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                <ActiveTabIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {activeTabMeta[activeTab]?.title}
+                </p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {activeTabMeta[activeTab]?.description}
+                </p>
+              </div>
+            </div>
           </div>
           
           <TabsContent value="aktif" className="print:m-0 focus:outline-none">

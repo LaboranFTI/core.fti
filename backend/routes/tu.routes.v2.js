@@ -562,7 +562,7 @@ const initTransporter = async () => {
   const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
   const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
   const emailPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587', 10);
-  const emailTls  = process.env.EMAIL_TLS !== 'false'; // true by default
+  const emailTls = process.env.EMAIL_TLS !== 'false'; // true by default
 
   if (!emailHost || !emailUser || !emailPass) {
     console.warn('[Mailer] ⚠ Konfigurasi EMAIL tidak lengkap di .env. Menggunakan Mock Server (Ethereal).');
@@ -581,6 +581,7 @@ const initTransporter = async () => {
     port: emailPort,
     secure: emailPort === 465,   // port 465 = SSL, 587 = STARTTLS
     requireTLS: emailPort !== 465 && emailTls,
+    name: process.env.EMAIL_HOSTNAME || emailHost, // Fix HELO/EHLO A Record warning
     auth: { user: emailUser, pass: emailPass }
   });
   console.log(`[Mailer] Transporter siap → ${emailHost}:${emailPort} (user: ${emailUser})`);
@@ -635,8 +636,8 @@ const letterConfig = {
     subject: 'Surat Pengantar Observasi',
     pdfFilename: 'Surat_Pengantar_Observasi',
     emailBody: `
-      <p>Permohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha.</p>
-      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
+      <p>Permohonan Surat Pengantar Observasi Anda telah diproses oleh Tata Usaha.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF.</p>
     `,
     getPlaceholders: ({ data, letterNumber }) => {
       const derivedProdi = deriveStudyProgramFromNim(data.nim);
@@ -690,6 +691,57 @@ const ensureLetterNumber = async (client, type, requestData) => {
   );
 
   return updateResult.rows[0];
+};
+
+const upsertObservationRequest = async (client, data, targetStatus) => {
+  const recentDuplicate = await client.query(
+    `SELECT * FROM observation_requests 
+     WHERE nim = $1 
+       AND company IS NOT DISTINCT FROM $2 
+       AND course_name IS NOT DISTINCT FROM $3 
+       AND created_at > NOW() - INTERVAL '1 day'
+     ORDER BY created_at DESC LIMIT 1`,
+    [data.nim, data.company, data.course_name]
+  );
+
+  if (recentDuplicate.rows.length > 0) {
+    const existing = recentDuplicate.rows[0];
+    const statusPriority = { 'pending': 1, 'verified': 2, 'sent': 3 };
+    const currentStatusLevel = statusPriority[existing.status] || 0;
+    const targetStatusLevel = statusPriority[targetStatus] || 0;
+    const newStatus = targetStatusLevel > currentStatusLevel ? targetStatus : existing.status;
+
+    const updateResult = await client.query(
+      `UPDATE observation_requests SET 
+         name = $1, email = $2, recipient_name = $3, company_address = $4,
+         purpose = $5, lecturer_name = $6, head_of_program_name = $7, study_program_level = $8,
+         study_program_name = $9, student_members = $10::jsonb, status = $11, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $12 RETURNING *`,
+      [
+        data.name, data.email, data.recipient_name, data.company_address, data.purpose || null,
+        data.lecturer_name, data.head_of_program_name, data.study_program_level, 
+        data.study_program_name, JSON.stringify(data.student_members || []), newStatus, 
+        existing.id
+      ]
+    );
+    return updateResult.rows[0];
+  } else {
+    const id = `OBS-${Date.now()}`;
+    const insertResult = await client.query(
+      `INSERT INTO observation_requests (
+          id, name, nim, email, recipient_name, company_address, company,
+          purpose, course_name, lecturer_name, head_of_program_name, study_program_level, study_program_name, student_members, status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)
+      RETURNING *`,
+      [
+        id, data.name, data.nim, data.email, data.recipient_name, data.company_address, data.company, 
+        data.purpose || null, data.course_name, data.lecturer_name, data.head_of_program_name, data.study_program_level, 
+        data.study_program_name, JSON.stringify(data.student_members || []), targetStatus
+      ]
+    );
+    return insertResult.rows[0];
+  }
 };
 
 router.get('/tu/letter-numbering', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
@@ -800,14 +852,25 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
   }
 });
 
-// Hapus satu surat aktif kuliah
 router.delete('/tu/requests/active-student/:id', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
   try {
     await ensureTuInfrastructure();
-    const result = await pool.query(`DELETE FROM active_student_requests WHERE id = $1 RETURNING id, name, nim`, [id]);
+    const result = await pool.query(`DELETE FROM active_student_requests WHERE id = $1 RETURNING id, name, nim, letter_generated_at`, [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
-    res.json({ success: true, deleted: result.rows[0] });
+    
+    const deletedRow = result.rows[0];
+    if (deletedRow.letter_generated_at) {
+      const date = new Date(deletedRow.letter_generated_at);
+      await pool.query(
+        `UPDATE tu_letter_number_counters
+         SET last_sequence = GREATEST(last_sequence - 1, 0)
+         WHERE letter_type = 'active-student' AND year = $1 AND month = $2`,
+        [date.getFullYear(), date.getMonth() + 1]
+      );
+    }
+    
+    res.json({ success: true, deleted: deletedRow });
   } catch (err) {
     console.error('Delete active student error:', err);
     res.status(500).json({ error: 'Gagal menghapus pengajuan.' });
@@ -823,9 +886,22 @@ router.post('/tu/requests/active-student/batch-delete', verifyRole(TU_ADMIN_ROLE
   try {
     await ensureTuInfrastructure();
     const result = await pool.query(
-      `DELETE FROM active_student_requests WHERE id = ANY($1::text[]) RETURNING id, name, nim`,
+      `DELETE FROM active_student_requests WHERE id = ANY($1::text[]) RETURNING id, name, nim, letter_generated_at`,
       [ids]
     );
+    
+    for (const row of result.rows) {
+      if (row.letter_generated_at) {
+        const date = new Date(row.letter_generated_at);
+        await pool.query(
+          `UPDATE tu_letter_number_counters
+           SET last_sequence = GREATEST(last_sequence - 1, 0)
+           WHERE letter_type = 'active-student' AND year = $1 AND month = $2`,
+          [date.getFullYear(), date.getMonth() + 1]
+        );
+      }
+    }
+    
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
   } catch (err) {
     console.error('Batch delete active student error:', err);
@@ -903,45 +979,34 @@ router.post('/observation-requests', verifyRole(TU_SUBMIT_ROLES), async (req, re
 
   try {
     await ensureTuInfrastructure();
-    const id = `OBS-${Date.now()}`;
+    const fallbackId = `OBS-${Date.now()}`;
     const normalizedStudents = normalizeObservationStudents(students);
     const primaryStudent = normalizedStudents[0] || { name: '', nim: '' };
     const resolvedName = formatStudentName(name || primaryStudent.name || 'Mahasiswa Observasi');
-    const resolvedNim = String(nim || primaryStudent.nim || id).trim();
+    const resolvedNim = String(nim || primaryStudent.nim || fallbackId).trim();
     const resolvedEmail = String(email || req.user?.email || '').trim() || 'arsip-observasi@core.fti';
-    await pool.query(
-      `INSERT INTO observation_requests (
-         id,
-         name,
-         nim,
-         email,
-         recipient_name,
-         company_address,
-         purpose,
-         company,
-         course_name,
-         lecturer_name,
-         head_of_program_name,
-         student_members,
-         status
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, 'pending')`,
-      [
-        id,
-        resolvedName,
-        resolvedNim,
-        resolvedEmail,
-        recipientName || null,
-        companyAddress || null,
-        purpose || null,
-        company || companyName || null,
-        courseName || null,
-        lecturerName || null,
-        headOfProgramName || null,
-        JSON.stringify(normalizedStudents)
-      ]
-    );
-    res.json({ success: true, id });
+    
+    const client = await pool.connect();
+    try {
+      const requestData = await upsertObservationRequest(client, {
+        name: resolvedName,
+        nim: resolvedNim,
+        email: resolvedEmail,
+        recipient_name: recipientName || null,
+        company_address: companyAddress || null,
+        purpose: purpose || null,
+        company: company || companyName || null,
+        course_name: courseName || null,
+        lecturer_name: lecturerName || null,
+        head_of_program_name: headOfProgramName || null,
+        study_program_level: null,
+        study_program_name: null,
+        student_members: normalizedStudents
+      }, 'pending');
+      res.json({ success: true, id: requestData.id });
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error('Insert observation request error:', err);
     res.status(500).json({ error: 'Gagal menyimpan pengajuan observasi.' });
@@ -1054,9 +1119,21 @@ router.delete('/tu/requests/observation/:id', verifyRole(TU_ADMIN_ROLES), async 
   const { id } = req.params;
   try {
     await ensureTuInfrastructure();
-    const result = await pool.query(`DELETE FROM observation_requests WHERE id = $1 RETURNING id, name, nim, company`, [id]);
+    const result = await pool.query(`DELETE FROM observation_requests WHERE id = $1 RETURNING id, name, nim, company, letter_generated_at`, [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
-    res.json({ success: true, deleted: result.rows[0] });
+    
+    const deletedRow = result.rows[0];
+    if (deletedRow.letter_generated_at) {
+      const date = new Date(deletedRow.letter_generated_at);
+      await pool.query(
+        `UPDATE tu_letter_number_counters
+         SET last_sequence = GREATEST(last_sequence - 1, 0)
+         WHERE letter_type = 'observation' AND year = $1 AND month = $2`,
+        [date.getFullYear(), date.getMonth() + 1]
+      );
+    }
+    
+    res.json({ success: true, deleted: deletedRow });
   } catch (err) {
     console.error('Delete observation error:', err);
     res.status(500).json({ error: 'Gagal menghapus surat observasi.' });
@@ -1072,9 +1149,22 @@ router.post('/tu/requests/observation/batch-delete', verifyRole(TU_ADMIN_ROLES),
   try {
     await ensureTuInfrastructure();
     const result = await pool.query(
-      `DELETE FROM observation_requests WHERE id = ANY($1::text[]) RETURNING id, name, nim, company`,
+      `DELETE FROM observation_requests WHERE id = ANY($1::text[]) RETURNING id, name, nim, company, letter_generated_at`,
       [ids]
     );
+    
+    for (const row of result.rows) {
+      if (row.letter_generated_at) {
+        const date = new Date(row.letter_generated_at);
+        await pool.query(
+          `UPDATE tu_letter_number_counters
+           SET last_sequence = GREATEST(last_sequence - 1, 0)
+           WHERE letter_type = 'observation' AND year = $1 AND month = $2`,
+          [date.getFullYear(), date.getMonth() + 1]
+        );
+      }
+    }
+    
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
   } catch (err) {
     console.error('Batch delete observation error:', err);
@@ -1196,7 +1286,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
 
     const pdfBuffer = await generatePdfBuffer(htmlContent);
 
-    const fromName  = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME || 'TU FTI UKSW';
+    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
     const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
     const mailOptions = {
       from: `"${fromName}" <${fromEmail}>`,
@@ -1216,7 +1306,13 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
           content: pdfBuffer,
           contentType: 'application/pdf'
         }
-      ]
+      ],
+      list: {
+        unsubscribe: {
+          url: `mailto:${fromEmail}?subject=unsubscribe`,
+          comment: 'Unsubscribe'
+        }
+      }
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -1260,23 +1356,22 @@ router.post('/tu/observation-letter/finalize', verifyRole(TU_SUBMIT_ROLES), asyn
     await ensureTuInfrastructure();
     await client.query('BEGIN');
 
-    const id = `OBS-${Date.now()}`;
     const resolvedCompanyName = companyName || req.body.company;
 
-    const insertResult = await client.query(
-      `INSERT INTO observation_requests (
-          id, name, nim, email, recipient_name, company_address, company,
-          course_name, lecturer_name, head_of_program_name, study_program_level, study_program_name, student_members, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'verified')
-      RETURNING *`,
-      [
-        id, resolvedName, resolvedNim, resolvedEmail, recipientName || null, companyAddress || null,
-        resolvedCompanyName || null, courseName || null, lecturerName || null,
-        headOfProgramName || null, studyProgramLevel || null, studyProgramName || null, JSON.stringify(normalizeObservationStudents(students))
-      ]
-    );
-    let requestData = insertResult.rows[0];
+    let requestData = await upsertObservationRequest(client, {
+        name: resolvedName,
+        nim: resolvedNim,
+        email: resolvedEmail,
+        recipient_name: recipientName || null,
+        company_address: companyAddress || null,
+        company: resolvedCompanyName || null,
+        course_name: courseName || null,
+        lecturer_name: lecturerName || null,
+        head_of_program_name: headOfProgramName || null,
+        study_program_level: studyProgramLevel || null,
+        study_program_name: studyProgramName || null,
+        student_members: normalizeObservationStudents(students)
+    }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
 
     await client.query('COMMIT');
@@ -1314,23 +1409,22 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
     await ensureTuInfrastructure();
     await client.query('BEGIN');
 
-    const id = `OBS-${Date.now()}`;
     const resolvedCompanyName = companyName || req.body.company;
 
-    const insertResult = await client.query(
-      `INSERT INTO observation_requests (
-          id, name, nim, email, recipient_name, company_address, company,
-          course_name, lecturer_name, head_of_program_name, study_program_level, study_program_name, student_members, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'verified')
-      RETURNING *`,
-      [
-        id, resolvedName, resolvedNim, resolvedEmail, recipientName || null, companyAddress || null,
-        resolvedCompanyName || null, courseName || null, lecturerName || null,
-        headOfProgramName || null, studyProgramLevel || null, studyProgramName || null, JSON.stringify(normalizeObservationStudents(students))
-      ]
-    );
-    let requestData = insertResult.rows[0];
+    let requestData = await upsertObservationRequest(client, {
+        name: resolvedName,
+        nim: resolvedNim,
+        email: resolvedEmail,
+        recipient_name: recipientName || null,
+        company_address: companyAddress || null,
+        company: resolvedCompanyName || null,
+        course_name: courseName || null,
+        lecturer_name: lecturerName || null,
+        head_of_program_name: headOfProgramName || null,
+        study_program_level: studyProgramLevel || null,
+        study_program_name: studyProgramName || null,
+        student_members: normalizeObservationStudents(students)
+    }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
 
     const config = letterConfig.observation;
@@ -1398,23 +1492,22 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     await ensureTuInfrastructure();
     await client.query('BEGIN');
 
-    const id = `OBS-${Date.now()}`;
     const resolvedCompanyName = companyName || req.body.company;
 
-    const insertResult = await client.query(
-      `INSERT INTO observation_requests (
-          id, name, nim, email, recipient_name, company_address, company,
-          course_name, lecturer_name, head_of_program_name, study_program_level, study_program_name, student_members, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'verified')
-      RETURNING *`,
-      [
-        id, resolvedName, resolvedNim, resolvedEmail, recipientName || null, companyAddress || null,
-        resolvedCompanyName || null, courseName || null, lecturerName || null,
-        headOfProgramName || null, studyProgramLevel || null, studyProgramName || null, JSON.stringify(normalizeObservationStudents(students))
-      ]
-    );
-    let requestData = insertResult.rows[0];
+    let requestData = await upsertObservationRequest(client, {
+        name: resolvedName,
+        nim: resolvedNim,
+        email: resolvedEmail,
+        recipient_name: recipientName || null,
+        company_address: companyAddress || null,
+        company: resolvedCompanyName || null,
+        course_name: courseName || null,
+        lecturer_name: lecturerName || null,
+        head_of_program_name: headOfProgramName || null,
+        study_program_level: studyProgramLevel || null,
+        study_program_name: studyProgramName || null,
+        student_members: normalizeObservationStudents(students)
+    }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
 
     const config = letterConfig.observation;
@@ -1452,10 +1545,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const filename = `SuratObservasi_${safeCompanyName}.pdf`;
 
-    const token = `QR-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-    qrDownloadSessions.set(token, { buffer: pdfBuffer, filename });
-    setTimeout(() => qrDownloadSessions.delete(token), 10 * 60 * 1000); // 10 Menit timeout
-
+    const token = requestData.id;
     const qrPath = `/api/tu/public/qr-download/${token}`;
     res.json({ success: true, qrUrl: qrPath, token });
   } catch (err) {
@@ -1487,32 +1577,31 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
   }
 
   const primaryStudent = normalizeObservationStudents(students)[0] || {};
-  const resolvedName    = formatStudentName(req.body.name || primaryStudent.name || req.user?.nama || 'Mahasiswa');
-  const resolvedNim     = String(req.body.nim || primaryStudent.nim || req.user?.identifier || '000000000').trim();
-  const resolvedEmail   = String(req.body.email || req.user?.email || '').trim() || `arsip-${resolvedNim}@core.fti`;
+  const resolvedName = formatStudentName(req.body.name || primaryStudent.name || req.user?.nama || 'Mahasiswa');
+  const resolvedNim = String(req.body.nim || primaryStudent.nim || req.user?.identifier || '000000000').trim();
+  const resolvedEmail = String(req.body.email || req.user?.email || '').trim() || `arsip-${resolvedNim}@core.fti`;
 
   const client = await pool.connect();
   try {
     await ensureTuInfrastructure();
     await client.query('BEGIN');
 
-    const id = `OBS-${Date.now()}`;
     const resolvedCompanyName = companyName || req.body.company;
 
-    const insertResult = await client.query(
-      `INSERT INTO observation_requests (
-          id, name, nim, email, recipient_name, company_address, company,
-          course_name, lecturer_name, head_of_program_name, study_program_level, study_program_name, student_members, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, 'sent')
-      RETURNING *`,
-      [
-        id, resolvedName, resolvedNim, resolvedEmail, recipientName || null, companyAddress || null,
-        resolvedCompanyName || null, courseName || null, lecturerName || null,
-        headOfProgramName || null, studyProgramLevel || null, studyProgramName || null, JSON.stringify(normalizeObservationStudents(students))
-      ]
-    );
-    let requestData = insertResult.rows[0];
+    let requestData = await upsertObservationRequest(client, {
+        name: resolvedName,
+        nim: resolvedNim,
+        email: resolvedEmail,
+        recipient_name: recipientName || null,
+        company_address: companyAddress || null,
+        company: resolvedCompanyName || null,
+        course_name: courseName || null,
+        lecturer_name: lecturerName || null,
+        head_of_program_name: headOfProgramName || null,
+        study_program_level: studyProgramLevel || null,
+        study_program_name: studyProgramName || null,
+        student_members: normalizeObservationStudents(students)
+    }, 'sent');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
 
     const config = letterConfig.observation;
@@ -1547,13 +1636,14 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const pdfFilename = `SuratObservasi_${safeCompanyName}_${requestData.letter_number?.replace(/\//g, '_') || requestData.nim}.pdf`;
 
-    const fromName  = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME || 'TU FTI UKSW';
+    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
     const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
 
     const info = await transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
       to: targetEmail,
       subject: `${config.subject} - ${resolvedCompanyName || 'Observasi'}`,
+      text: `Halo, ${resolvedName} (${resolvedNim})\n\nPermohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha. Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.\n\nSalam,\nBagian Tata Usaha\nFakultas Teknologi Informasi UKSW`,
       html: `
         <div style="font-family: sans-serif; color: #333;">
           <h2>Halo, ${resolvedName} (${resolvedNim})</h2>
@@ -1562,7 +1652,13 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
           <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
         </div>
       `,
-      attachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }]
+      attachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
+      list: {
+        unsubscribe: {
+          url: `mailto:${fromEmail}?subject=unsubscribe`,
+          comment: 'Unsubscribe'
+        }
+      }
     });
 
     const previewUrl = nodemailer.getTestMessageUrl(info);
@@ -1575,7 +1671,7 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
       letterNumber: requestData.letter_number
     });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => { });
     console.error('[Mailer] Observation send-email error:', err);
     res.status(500).json({ error: 'Gagal mengirim email surat observasi. Pastikan konfigurasi EMAIL di .env sudah benar.' });
   } finally {
@@ -1583,15 +1679,74 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
   }
 });
 
-router.get('/tu/public/qr-download/:token', (req, res) => {
-  const session = qrDownloadSessions.get(req.params.token);
-  if (!session) {
-    return res.status(404).send('Link download tidak valid atau sudah kadaluarsa (maksimal 10 menit).');
+router.get('/tu/public/qr-download/:token', async (req, res) => {
+  const token = req.params.token;
+  if (token.startsWith('QR-')) {
+    const session = qrDownloadSessions.get(token);
+    if (!session) {
+      return res.status(404).send('Link download tidak valid atau sudah kadaluarsa (maksimal 10 menit).');
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', session.buffer.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${session.filename}"`);
+    return res.send(session.buffer);
   }
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Length', session.buffer.length);
-  res.setHeader('Content-Disposition', `attachment; filename="${session.filename}"`);
-  res.send(session.buffer);
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`SELECT * FROM observation_requests WHERE id = $1`, [token]);
+    if (result.rows.length === 0) {
+      return res.status(404).send('Dokumen tidak ditemukan.');
+    }
+
+    const requestData = result.rows[0];
+    const config = letterConfig.observation;
+    const tuSettings = await getTuSettingsPayload();
+    const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
+    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
+    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
+    let htmlContent = await fs.readFile(templatePath, 'utf-8');
+
+    const tanggalSurat = requestData.letter_generated_at 
+      ? new Date(requestData.letter_generated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date(requestData.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    htmlContent = htmlContent
+      .replace(/{{name}}/g, requestData.name || '')
+      .replace(/{{nim}}/g, requestData.nim || '')
+      .replace(/{{tanggalSurat}}/g, tanggalSurat)
+      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
+      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+      .replace(/{{backgroundImage}}/g, backgroundImage)
+      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
+      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
+      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
+      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
+
+    const placeholders = config.getPlaceholders({
+      data: requestData,
+      letterNumber: requestData.letter_number || '-',
+    });
+
+    for (const key in placeholders) {
+      htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
+    }
+
+    const pdfBuffer = await generatePdfBuffer(htmlContent);
+    const safeCompanyName = (requestData.company || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `SuratObservasi_${safeCompanyName}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('QR download generation error:', err);
+    res.status(500).send('Gagal menghasilkan dokumen.');
+  } finally {
+    client.release();
+  }
 });
 
 router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async (req, res) => {

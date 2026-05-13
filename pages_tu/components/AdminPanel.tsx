@@ -21,6 +21,8 @@ import { id } from 'date-fns/locale';
 import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download, Trash2 } from 'lucide-react';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { api } from '../../services/api';
+import { EmailActionOverlay } from './EmailActionOverlay';
+import { EmailSuccessDialog } from './EmailSuccessDialog';
 
 const createEmptyLetterAsset = (): LetterAsset => ({
   imageBase64: '',
@@ -65,6 +67,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const [selectedRequest, setSelectedRequest] = useState<ActiveStudentRequest | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<ActiveStudentRequest | null>(null);
   const [batchDeleteTargets, setBatchDeleteTargets] = useState<ActiveStudentRequest[]>([]);
@@ -285,14 +288,22 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     setPanelFeedback(null);
     try {
       const res = await api(`/api/tu/requests/active-student/${reqId}/send-email`, { method: 'POST' });
+      const json = await res.json().catch(() => null);
       if (res.ok) {
         await fetchRequests();
         if (selectedRequest?.id === reqId) {
           setSelectedRequest(prev => prev ? { ...prev, status: 'sent' } : null);
         }
-        setPanelFeedback({ type: 'success', message: 'Surat berhasil dikirim ke email mahasiswa.' });
+        const requestEmail =
+          selectedRequest?.id === reqId
+            ? selectedRequest.email
+            : requests.find((request) => request.id === reqId)?.email || '';
+        setPanelFeedback({ type: 'success', message: 'Surat berhasil dikirim. Jika belum masuk ke inbox, cek juga folder spam.' });
+        setEmailSuccessState({
+          email: requestEmail,
+          letterNumber: json?.letterNumber || selectedRequest?.letterNumber || null
+        });
       } else {
-        const json = await res.json().catch(() => null);
         setPanelFeedback({ type: 'error', message: json?.error || 'Gagal mengirim surat ke email mahasiswa.' });
       }
     } catch (error) {
@@ -459,6 +470,22 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         return <Badge>{status}</Badge>;
     }
   };
+  const emailUx = (
+    <>
+      <EmailActionOverlay
+        open={isSendingEmail}
+        title="Mengirim surat aktif kuliah..."
+        description="Dokumen final sedang diproses lalu dikirimkan ke email mahasiswa."
+      />
+      <EmailSuccessDialog
+        open={Boolean(emailSuccessState)}
+        onClose={() => setEmailSuccessState(null)}
+        recipientEmail={emailSuccessState?.email}
+        letterNumber={emailSuccessState?.letterNumber}
+        title="Surat aktif kuliah berhasil dikirim"
+      />
+    </>
+  );
 
   if (selectedRequest) {
     const semesterMeta = getSemesterMeta(currentSemesterCode);
@@ -598,6 +625,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {emailUx}
       </div>
     );
   }
@@ -975,7 +1003,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         </div>
       )}
 
+      {emailUx}
     </div>
   );
 }
-
