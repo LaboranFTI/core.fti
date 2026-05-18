@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Printer, Download, Edit, Trash2, X, Check, FileSpreadsheet, Users, Eye } from 'lucide-react';
+import { Plus, Printer, Download, Edit, Trash2, X, Check, FileSpreadsheet, Users, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
 import { api } from '../services/api';
 import { Room } from '../types';
 import ConfirmModal from '../components/ConfirmModal';
+import SearchBar from '../components/SearchBar';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
+import PrintableReportHeader from '../components/PrintableReportHeader';
 import { Button, buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
 
@@ -187,53 +191,35 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
 
   return (
     <div className="space-y-6">
-      {/* Print Report Header - Only visible when printing */}
-      <div className="hidden print:block mb-8 border-b-2 border-black pb-4">
-        <div className="flex items-center justify-between mb-4">
-           <div className="flex items-center space-x-4">
-               <img src={nocLogo} alt="Logo FTI" className="w-24 h-24 object-contain" />
-               <div>
-                   <h1 className="text-2xl font-bold uppercase">Fakultas Teknologi Informasi</h1>
-                   <h2 className="text-xl">Universitas Kristen Satya Wacana</h2>
-                   <p className="text-sm">Jl. Dr. O. Notohamidjojo No.1 - 10, Blotongan, Kec. Sidorejo, Kota Salatiga, Jawa Tengah 50715</p>
-               </div>
-           </div>
-           <div className="text-right">
-               <h3 className="text-xl font-bold">DATA LABORAN</h3>
-               <p className="text-sm">Dicetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-           </div>
-        </div>
-      </div>
+      <PrintableReportHeader title="Data Laboran" logoSrc={nocLogo} />
 
-      {/* Header & Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Manajemen Laboran</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Kelola data teknisi dan admin laboran</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-           <Button onClick={handleExportCSV} variant="secondary" size="sm">
+      <PageHeader
+        title="Manajemen Laboran"
+        description="Kelola data teknisi dan admin laboran"
+        className="print:hidden"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleExportCSV} variant="secondary" size="sm">
               <FileSpreadsheet className="w-4 h-4 mr-2" /> Export CSV
-           </Button>
-           <Button onClick={handlePrint} variant="secondary" size="sm">
+            </Button>
+            <Button onClick={handlePrint} variant="secondary" size="sm">
               <Printer className="w-4 h-4 mr-2" /> Print Data
-           </Button>
-           <Button onClick={() => handleOpenModal()} variant="primary" size="sm">
+            </Button>
+            <Button onClick={() => handleOpenModal()} variant="primary" size="sm">
               <Plus className="w-4 h-4 mr-2" /> Tambah Laboran
-           </Button>
-        </div>
-      </div>
+            </Button>
+          </div>
+        }
+      />
 
       {/* Filter Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-4 justify-between items-center print:border-none print:shadow-none print:p-0">
-         <div className="relative w-full sm:w-64 print:hidden">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Cari nama atau NIM..." 
+      <PageCard className="flex flex-col items-center justify-between gap-4 print:border-none print:p-0 print:shadow-none sm:flex-row">
+         <div className="w-full sm:w-64 print:hidden">
+            <SearchBar 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm w-full dark:text-white focus:ring-2 focus:ring-blue-500"
+              onChange={setSearchTerm}
+              placeholder="Cari nama atau NIM..."
+              className="w-full"
             />
          </div>
          <div className="flex gap-2 w-full sm:w-auto print:hidden">
@@ -251,10 +237,10 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                 </button>
              ))}
          </div>
-      </div>
+      </PageCard>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden print:shadow-none print:border-black print:border-2">
+      <PageCard padding="none" className="overflow-hidden print:border-2 print:border-black print:shadow-none">
          <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-200 dark:border-gray-700 print:bg-gray-200 print:text-black">
@@ -315,7 +301,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                </tbody>
             </table>
          </div>
-      </div>
+      </PageCard>
 
       {/* Modal Form */}
       {isModalOpen && (

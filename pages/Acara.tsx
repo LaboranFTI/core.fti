@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Booking, BookingStatus, Room } from '../types';
-import { Search, Calendar, Clock, MapPin, User, Share2, Download, X, Wrench, Info, CalendarDays, Layers } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Share2, Download, X, Wrench, Info, CalendarDays, Layers } from 'lucide-react';
 import { api } from '../services/api';
 import * as htmlToImage from 'html-to-image';
 import nocLogo from "../src/assets/noc.png";
 import { formatDateID } from '../src/utils/formatters';
+import SearchBar from '../components/SearchBar';
+import PageHeader from '../components/PageHeader';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 interface EventsProps {
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
@@ -30,8 +33,7 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
   const [events, setEvents] = useState<BookingWithTech[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
   const [filterStatus, setFilterStatus] = useState<'All' | 'Mendatang' | 'Berlangsung' | 'Selesai'>('All');
   const [filterRoom, setFilterRoom] = useState<string>('All');
@@ -72,19 +74,6 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
   const getRoomName = (roomId: string) => {
     return rooms.find(r => r.id === roomId)?.name || 'Unknown Room';
   };
-
-  const debouncedSearch = (value: string) => {
-    setSearchTerm(value);
-    if (searchTimeout) clearTimeout(searchTimeout);
-    const timeout = setTimeout(() => {
-      setDebouncedSearchTerm(value);
-    }, 300);
-    setSearchTimeout(timeout);
-  };
-
-  useEffect(() => {
-    return () => { if (searchTimeout) clearTimeout(searchTimeout); };
-  }, [searchTimeout]);
 
   const groupedEvents = useMemo(() => {
     const map = new Map<string, BookingWithTech[]>();
@@ -215,44 +204,41 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
 
   return (
     <div className="space-y-6">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Daftar Acara</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Jadwal kegiatan dan acara di Fakultas Teknologi Informasi</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input 
-                    type="text" 
-                    placeholder="Cari acara..." 
-                    value={searchTerm}
-                onChange={(e) => debouncedSearch(e.target.value)}
-                    className="pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 w-full dark:text-white"
-                />
-            </div>
+      <PageHeader
+        title="Daftar Acara"
+        description="Jadwal kegiatan dan acara di Fakultas Teknologi Informasi"
+        actionsClassName="w-full md:w-auto"
+        actions={
+          <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
+            <SearchBar
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Cari acara..."
+              className="w-full sm:w-64"
+            />
             <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as any)}
-                className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer outline-none w-full sm:w-auto"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white sm:w-auto"
             >
-                <option value="All">Semua Status</option>
-                <option value="Mendatang">Mendatang</option>
-                <option value="Berlangsung">Berlangsung</option>
-                <option value="Selesai">Selesai</option>
+              <option value="All">Semua Status</option>
+              <option value="Mendatang">Mendatang</option>
+              <option value="Berlangsung">Berlangsung</option>
+              <option value="Selesai">Selesai</option>
             </select>
             <select
-                value={filterRoom}
-                onChange={(e) => setFilterRoom(e.target.value)}
-                className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer outline-none w-full sm:w-auto"
+              value={filterRoom}
+              onChange={(e) => setFilterRoom(e.target.value)}
+              className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white sm:w-auto"
             >
-                <option value="All">Semua Ruangan</option>
-                {rooms.map(room => (
-                    <option key={room.id} value={room.id}>{room.name}</option>
-                ))}
+              <option value="All">Semua Ruangan</option>
+              {rooms.map(room => (
+                <option key={room.id} value={room.id}>{room.name}</option>
+              ))}
             </select>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayedEvents.map(group => {

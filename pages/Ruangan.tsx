@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { Room, Role, BookingStatus, Booking, RoomComputer, Software } from '../types';
-import { Search, MapPin, Users, Wifi, Edit2, Trash2, Calendar, Eye, Check, Plus, Upload, Loader2, ArrowUpDown, ExternalLink, FileText, User, LogIn, RefreshCw, Clock, ChevronRight, ChevronDown, X, Monitor, Cpu, HardDrive, Keyboard, Mouse, Download, FileSpreadsheet, ChevronLeft, Package, Filter, Info } from 'lucide-react';
+import { MapPin, Users, Wifi, Edit2, Trash2, Calendar, Eye, Check, Plus, Upload, Loader2, ArrowUpDown, ExternalLink, FileText, User, LogIn, RefreshCw, Clock, ChevronRight, ChevronDown, X, Monitor, Cpu, HardDrive, Keyboard, Mouse, Download, FileSpreadsheet, ChevronLeft, Package, Filter, Info } from 'lucide-react';
 import { api } from '../services/api';
 import SoftwareForm from '../components/SoftwareForm';
 import RoomForm from '../components/RoomForm';
@@ -9,6 +9,9 @@ import { Skeleton } from '../components/Skeleton';
 import { useRooms } from '../hooks/useRooms';
 import RoomList from '../components/RoomList';
 import { CLIENT_ID, API_KEY, DISCOVERY_DOCS, SCOPES } from '../src/config/google';
+import SearchBar from '../components/SearchBar';
+import PageHeader from '../components/PageHeader';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 // Declare Pannellum for TypeScript
 declare global {
@@ -77,56 +80,18 @@ const Ruangan: React.FC<RoomsProps> = ({ role, isDarkMode, onNavigate, showToast
   const canRequestBooking = !isMahasiswa;
 
   // Menggunakan custom hook useRooms (autoFetch dimatikan agar kontrol loading awal tetap dipegang Promise.all)
-const { rooms, fetchRooms: fetchRoomsApi } = useRooms({ autoFetch: false, excludeImage: true });
+  const { rooms, fetchRooms: fetchRoomsApi } = useRooms({ autoFetch: false, excludeImage: true });
   const [availableFacilities, setAvailableFacilities] = useState<string[]>([]);
   const [newFacilityInput, setNewFacilityInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
 
   const [filterCategory, setFilterCategory] = useState<string>('All');
-  const [debouncedFilterCategory, setDebouncedFilterCategory] = useState('All');
+  const debouncedFilterCategory = useDebouncedValue(filterCategory, 500);
   const [filterStatus, setFilterStatus] = useState<'All' | 'Tersedia' | 'Digunakan'>('All');
-  const [debouncedFilterStatus, setDebouncedFilterStatus] = useState<'All' | 'Tersedia' | 'Digunakan'>('All');
+  const debouncedFilterStatus = useDebouncedValue(filterStatus, 500);
   const [sortBy, setSortBy] = useState<'name' | 'capacity'>('name');
-  const [debouncedSortBy, setDebouncedSortBy] = useState<'name' | 'capacity'>('name');
-
-  const [filterCategoryTimeout, setFilterCategoryTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [filterStatusTimeout, setFilterStatusTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [sortByTimeout, setSortByTimeout] = useState<NodeJS.Timeout | null>(null);
-
-  // Debounced search
-  const debouncedSearch = useCallback((value: string) => {
-    if (searchTimeout) clearTimeout(searchTimeout);
-    const timeout = setTimeout(() => {
-      setSearchTerm(value);
-      setDebouncedSearchTerm(value);
-    }, 300);
-    setSearchTimeout(timeout);
-  }, [searchTimeout]);
-
-  const handleFilterChange = useCallback((key: 'category' | 'status' | 'sort', value: string) => {
-    switch (key) {
-      case 'category':
-        setFilterCategory(value);
-        if (filterCategoryTimeout) clearTimeout(filterCategoryTimeout);
-        const catTimeout = setTimeout(() => setDebouncedFilterCategory(value), 500);
-        setFilterCategoryTimeout(catTimeout);
-        break;
-      case 'status':
-        (setFilterStatus as any)(value);
-        if (filterStatusTimeout) clearTimeout(filterStatusTimeout);
-        const statTimeout = setTimeout(() => setDebouncedFilterStatus(value as any), 500);
-        setFilterStatusTimeout(statTimeout);
-        break;
-      case 'sort':
-        (setSortBy as any)(value);
-        if (sortByTimeout) clearTimeout(sortByTimeout);
-        const sortTimeout = setTimeout(() => setDebouncedSortBy(value as any), 200);
-        setSortByTimeout(sortTimeout);
-        break;
-    }
-  }, [filterCategoryTimeout, filterStatusTimeout, sortByTimeout]);
+  const debouncedSortBy = useDebouncedValue(sortBy, 200);
   
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'detail' | 'booking' | 'form' | 'computers'>('list');
@@ -237,11 +202,6 @@ const { rooms, fetchRooms: fetchRoomsApi } = useRooms({ autoFetch: false, exclud
       rooms: groups[floor]
     }));
   }, [filteredRooms]);
-
-  // Cleanup debounce on unmount
-  useEffect(() => () => {
-    if (searchTimeout) clearTimeout(searchTimeout);
-  }, [searchTimeout]);
 
   // Initialize Pannellum when viewing details
 useEffect(() => {
@@ -1270,70 +1230,66 @@ const handleEdit = async (room: Room) => {
   // LIST VIEW - Replaced with RoomList component
   return (
         <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Daftar Ruangan</h1>
-           <p className="text-gray-500 dark:text-gray-400 text-sm">Ruang Laboratorium/Praktek dan Teori FTI UKSW</p>
-        </div>
-        
-        <div className="flex w-full flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 md:w-auto">
+      <PageHeader
+        title="Daftar Ruangan"
+        description="Ruang Laboratorium/Praktek dan Teori FTI UKSW"
+        actionsClassName="w-full md:w-auto"
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:w-auto">
+            <SearchBar
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Cari Ruangan..."
+              className="w-full sm:w-64"
+            />
+
             <div className="relative">
-                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input 
-                    type="text" 
-                    placeholder="Cari Ruangan..." 
-                    value={searchTerm}
-                    onChange={(e) => debouncedSearch(e.target.value)}
-                    className="pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white w-full sm:w-64"
-                />
-            </div>
-            
-            <div className="relative">
-                <select 
-                   value={filterStatus} 
-                   onChange={(e) => handleFilterChange('status', e.target.value)}
-                   className="pl-3 pr-8 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 dark:text-white appearance-none cursor-pointer"
-                >
-                   <option value="All">Semua Status</option>
-                   <option value="Tersedia">Tersedia</option>
-                   <option value="Digunakan">Digunakan</option>
-                </select>
-                <Filter className="w-4 h-4 absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"/>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as 'All' | 'Tersedia' | 'Digunakan')}
+                className="cursor-pointer appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-8 shadow-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="All">Semua Status</option>
+                <option value="Tersedia">Tersedia</option>
+                <option value="Digunakan">Digunakan</option>
+              </select>
+              <Filter className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             </div>
 
             <div className="relative">
-                <select 
-                   value={filterCategory} 
-                   onChange={(e) => handleFilterChange('category', e.target.value)}
-                   className="pl-3 pr-8 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 dark:text-white appearance-none cursor-pointer"
-                >
-                   <option value="All">Semua Kategori</option>
-                   {categories.map(cat => (
-                     <option key={cat} value={cat}>{cat}</option>
-                   ))}
-                </select>
-                <Filter className="w-4 h-4 absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"/>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="cursor-pointer appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-8 shadow-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="All">Semua Kategori</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <Filter className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             </div>
 
             <div className="relative">
-                <select 
-                   value={sortBy} 
-                   onChange={(e) => handleFilterChange('sort', e.target.value)}
-                   className="pl-3 pr-8 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 dark:text-white appearance-none cursor-pointer"
-                >
-                   <option value="name">Nama (A-Z)</option>
-                   <option value="capacity">Kapasitas</option>
-                </select>
-                <ArrowUpDown className="w-4 h-4 absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"/>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'capacity')}
+                className="cursor-pointer appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-8 shadow-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="name">Nama (A-Z)</option>
+                <option value="capacity">Kapasitas</option>
+              </select>
+              <ArrowUpDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             </div>
 
-            {(canManage) && (
-                <button onClick={handleAddNew} className="justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center shadow-sm">
-                    <Plus className="w-4 h-4 mr-2" /> Tambah
-                </button>
+            {canManage && (
+              <button onClick={handleAddNew} className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+                <Plus className="mr-2 h-4 w-4" /> Tambah
+              </button>
             )}
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <RoomList
         filteredRooms={filteredRooms}

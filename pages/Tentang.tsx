@@ -5,6 +5,7 @@ import nocLogo from "../src/assets/NOC.svg";
 import ftiLogo from "../src/assets/FTI.svg";
 import ukswLogo from "../src/assets/UKSW.svg";
 import confetti from 'canvas-confetti';
+import PageHeader from '../components/PageHeader';
 
 const Tentang: React.FC = () => {
   // State untuk Easter Egg NOC
@@ -41,11 +42,13 @@ const Tentang: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Page Header */}
-      <div className="text-center py-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Tentang</h1>
-        <p className="text-gray-500 dark:text-gray-400">Kenal lebih dekat dengan {APP_NAME} dan tim di baliknya</p>
-      </div>
+      <PageHeader
+        title="Tentang"
+        description={`Kenal lebih dekat dengan ${APP_NAME} dan tim di baliknya`}
+        centered
+        className="py-8"
+        titleClassName="text-3xl font-bold text-gray-900 dark:text-white"
+      />
 
       {/* Section 1: About the Project */}
       <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -292,7 +295,7 @@ const Tentang: React.FC = () => {
               </div>
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  Membantu hosting dan deployment.
+                  Membantu hosting, deployment dan optimasi web server.
                 </p>
                 <div className="flex space-x-3">
                   <a

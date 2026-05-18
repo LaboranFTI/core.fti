@@ -11,6 +11,8 @@ import { useInventory } from '../hooks/useInventory';
 import { usePagination } from '../hooks/usePagination';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 import { Button, buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
 
@@ -820,15 +822,11 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
       {/* Print Report Header */}
 
-<div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-center gap-4 lg:gap-6 print:hidden">
-
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Inventaris Barang</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {canManageInventory ? 'Kelola daftar aset dan barang FTI' : 'Lihat daftar aset dan barang FTI'}
-          </p>
-        </div>
-        {canManageInventory && (
+      <PageHeader
+        title="Inventaris Barang"
+        description={canManageInventory ? 'Kelola daftar aset dan barang FTI' : 'Lihat daftar aset dan barang FTI'}
+        className="print:hidden"
+        actions={canManageInventory ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
             <div className="relative lg:col-span-1">
 
@@ -864,10 +862,10 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                 <Plus className="w-4 h-4 mr-2" /> Tambah Barang
             </Button>
         </div>
-        )}
-      </div>
+        ) : undefined}
+      />
 
-<div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 print:hidden">
+      <PageCard className="print:hidden" padding="md">
 
          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-center mb-6">
 
@@ -910,9 +908,10 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
            </div>
         </div>
       </div>
+      </PageCard>
 
 
-<div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col print:shadow-none print:border-black print:border-2 max-w-full mx-auto">
+      <PageCard padding="none" className="max-w-full mx-auto flex flex-col overflow-hidden print:border-2 print:border-black print:shadow-none">
             <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
 
@@ -1025,7 +1024,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                 onItemsPerPageChange={setItemsPerPage}
               />
             </div>
-      </div>
+      </PageCard>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
@@ -1435,7 +1434,6 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
         </div>
       )}
     </div>
-  </div>
   );
 };
 

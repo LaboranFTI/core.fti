@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Printer, Download, Edit, Trash2, X, Check, FileText, Upload, Users, File, Eye } from 'lucide-react';
+import { Plus, Printer, Download, Edit, Trash2, X, Check, FileText, Upload, Users, File, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
 import { api } from '../services/api';
 import { PKLStudent } from '../types';
@@ -7,6 +7,10 @@ import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
 import { formatDateID } from '../src/utils/formatters';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
+import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
+import PrintableReportHeader from '../components/PrintableReportHeader';
 import { usePagination } from '../hooks/usePagination';
 import { Button, buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -37,6 +41,8 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [editingPKL, setEditingPKL] = useState<PKLStudent | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Form State
   const [formSekolah, setFormSekolah] = useState('');
@@ -268,19 +274,27 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
   };
 
   // Delete PKL
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus data PKL ini?")) {
-      try {
-        const res = await api(`/api/pkl/${id}`, { method: 'DELETE' });
-        if (res.ok) {
-          showToast("Data PKL berhasil dihapus", 'success');
-          fetchPKL();
-        } else {
-          showToast("Gagal menghapus data PKL", 'error');
-        }
-      } catch (error) {
-        showToast("Terjadi kesalahan saat menghapus", 'error');
+  const handleDeleteClick = (id: string) => {
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await api(`/api/pkl/${deleteTargetId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast("Data PKL berhasil dihapus", 'success');
+        fetchPKL();
+      } else {
+        showToast("Gagal menghapus data PKL", 'error');
       }
+    } catch (error) {
+      showToast("Terjadi kesalahan saat menghapus", 'error');
+    } finally {
+      setIsDeleting(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -346,48 +360,32 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
 
   return (
     <div className="space-y-6">
-      {/* Print Report Header */}
-      <div className="hidden print:block mb-8 border-b-2 border-black pb-4">
-        <div className="flex items-center justify-between mb-4">
-           <div className="flex items-center space-x-4">
-               <img src={nocLogo} alt="Logo FTI" className="w-24 h-24 object-contain" />
-               <div>
-                   <h1 className="text-2xl font-bold uppercase">Fakultas Teknologi Informasi</h1>
-                   <h2 className="text-xl">Universitas Kristen Satya Wacana</h2>
-                   <p className="text-sm">Jl. Dr. O. Notohamidjojo No.1 - 10, Blotongan, Kec. Sidorejo, Kota Salatiga, Jawa Tengah 50715</p>
-               </div>
-           </div>
-           <div className="text-right">
-               <h3 className="text-xl font-bold">DATA PKL</h3>
-               <p className="text-sm">Dicetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-           </div>
-        </div>
-      </div>
+      <PrintableReportHeader title="Data PKL" logoSrc={nocLogo} />
 
-      {/* Header & Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Manajemen PKL</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Kelola data siswa magang (PKL) dari berbagai sekolah</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-           <Button onClick={handleExportCSV} variant="secondary" size="sm">
+      <PageHeader
+        title="Manajemen PKL"
+        description="Kelola data siswa magang (PKL) dari berbagai sekolah"
+        className="print:hidden"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleExportCSV} variant="secondary" size="sm">
               <Download className="w-4 h-4 mr-2" /> Export CSV
-           </Button>
-           <Button onClick={() => window.print()} variant="secondary" size="sm">
+            </Button>
+            <Button onClick={() => window.print()} variant="secondary" size="sm">
               <Printer className="w-4 h-4 mr-2" /> Print Data
-           </Button>
-           <Button onClick={handleOpenBatchModal} variant="secondary" size="sm">
+            </Button>
+            <Button onClick={handleOpenBatchModal} variant="secondary" size="sm">
               <Users className="w-4 h-4 mr-2" /> Tambah Batch
-           </Button>
-           <Button onClick={handleOpenSingleModal} variant="primary" size="sm">
+            </Button>
+            <Button onClick={handleOpenSingleModal} variant="primary" size="sm">
               <Plus className="w-4 h-4 mr-2" /> Tambah PKL
-           </Button>
-        </div>
-      </div>
+            </Button>
+          </div>
+        }
+      />
 
       {/* Filter Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-4 justify-between items-center print:border-none print:shadow-none print:p-0">
+      <PageCard className="flex flex-col items-center justify-between gap-4 print:border-none print:p-0 print:shadow-none sm:flex-row">
          <div className="w-full sm:w-auto print:hidden">
            <SearchBar 
               value={searchTerm}
@@ -417,10 +415,10 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
               ))}
            </select>
          </div>
-      </div>
+      </PageCard>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden print:shadow-none print:border-black print:border-2">
+      <PageCard padding="none" className="overflow-hidden print:border-2 print:border-black print:shadow-none">
          <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-200 dark:border-gray-700 print:bg-gray-200 print:text-black">
@@ -484,7 +482,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
                               <button onClick={() => handleOpenEditModal(pkl)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')} title="Edit">
                                  <Edit className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleDelete(pkl.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')} title="Hapus">
+                              <button onClick={() => handleDeleteClick(pkl.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')} title="Hapus">
                                  <Trash2 className="w-4 h-4" />
                               </button>
                            </div>
@@ -513,7 +511,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
              onItemsPerPageChange={setItemsPerPage}
            />
          </div>
-      </div>
+      </PageCard>
 
       {/* Modal Form */}
       {isModalOpen && (
@@ -687,6 +685,16 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
            </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={deleteTargetId !== null}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={confirmDelete}
+        title="Hapus Data PKL"
+        message="Apakah Anda yakin ingin menghapus data PKL ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus"
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

@@ -6,6 +6,10 @@ import { TableSkeleton } from '../components/Skeleton';
 import ConfirmModal from '../components/ConfirmModal';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
+import { Button } from '../components/ui/button';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 
 // Extend AppUser type locally to include phone
 type AppUser = BaseAppUser & { phone?: string };
@@ -21,9 +25,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
   const [filterStatus, setFilterStatus] = useState<'All' | 'Aktif' | 'Non-Aktif' | 'Reset'>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'internal' | 'sso'>('internal');
-  
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,16 +74,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
     });
   }, [users, searchTerm, filterRole, filterStatus]);
 
+  const {
+    currentPage,
+    setCurrentPage,
+    itemsPerPage,
+    setItemsPerPage,
+    paginatedData: currentUsers,
+    totalPages,
+  } = usePagination(filteredUsers, 10);
+
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterRole, filterStatus, itemsPerPage, activeTab]);
-
-  // Pagination calculations
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
   const handleOpenModal = (user?: AppUser) => {
     if (user) {
@@ -216,17 +220,17 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Manajemen User</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Kelola data mahasiswa, dosen, dan pengguna sistem lainnya</p>
-        </div>
-        <button onClick={() => handleOpenModal()} className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center shadow-sm transition-all hover:scale-105">
-           <Plus className="w-4 h-4 mr-2" /> Tambah User
-        </button>
-      </div>
+      <PageHeader
+        title="Manajemen User"
+        description="Kelola data mahasiswa, dosen, dan pengguna sistem lainnya"
+        actions={
+          <Button onClick={() => handleOpenModal()} variant="primary" size="sm">
+            <Plus className="w-4 h-4 mr-2" /> Tambah User
+          </Button>
+        }
+      />
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-4 justify-between items-center">
+      <PageCard className="flex flex-col items-center justify-between gap-4 sm:flex-row">
          {/* Tab Navigation */}
          <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
             <button
@@ -297,9 +301,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                 </select>
              </div>
          </div>
-      </div>
+      </PageCard>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <PageCard padding="none" className="overflow-hidden">
          <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-200 dark:border-gray-700">
@@ -376,7 +380,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                </tbody>
             </table>
          </div>
-      </div>
 
       {/* Pagination Controls */}
       <div className="-mt-6 relative z-10">
@@ -389,6 +392,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           onItemsPerPageChange={setItemsPerPage}
         />
       </div>
+      </PageCard>
 
       {/* Modal Form */}
       {isModalOpen && (

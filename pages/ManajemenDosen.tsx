@@ -8,6 +8,8 @@ import { api } from '../services/api';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 import { Button, buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
 
@@ -392,16 +394,17 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast, role
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Manajemen Dosen</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      <PageHeader
+        title="Manajemen Dosen"
+        description={
+          <>
             Kelola data referensi dosen pengampu mata kuliah beserta jabatan struktural.
-          {!canEdit && <span className="block text-xs text-amber-600 dark:text-amber-400 mt-0.5">Anda memiliki akses baca saja.</span>}
-        </p>
-        </div>
-        {canEdit && (
+            {!canEdit && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">Anda memiliki akses baca saja.</span>}
+          </>
+        }
+        titleClassName="text-2xl font-bold text-slate-800 dark:text-white"
+        descriptionClassName="mt-1 text-sm text-slate-500 dark:text-slate-400"
+        actions={canEdit ? (
           <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={handleDownloadTemplate} variant="secondary" size="sm" disabled={isImporting || isExporting}>
               <Download className="w-4 h-4 mr-2" /> Template
@@ -429,11 +432,11 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast, role
               Tambah Dosen
             </Button>
           </div>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {/* Table Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200 dark:border-gray-700 overflow-hidden">
+      <PageCard padding="none" className="overflow-hidden rounded-2xl border-slate-200 dark:border-gray-700">
         {/* Toolbar */}
         <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/50 dark:bg-gray-800/50">
           <div className="w-full sm:w-auto">
@@ -544,7 +547,7 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast, role
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
-      </div>
+      </PageCard>
 
       {/* Modal Form Create/Edit */}
       {isFormModalOpen && (
