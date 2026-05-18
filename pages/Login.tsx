@@ -37,6 +37,12 @@ interface LoginProps {
 }
 
 type ViewState = "login" | "register" | "forgot-password" | "set-password";
+type PasswordVisibilityField =
+  | "login"
+  | "register"
+  | "registerConfirm"
+  | "setPassword"
+  | "setPasswordConfirm";
 
 const Login: React.FC<LoginProps> = ({
   onLogin,
@@ -44,10 +50,16 @@ const Login: React.FC<LoginProps> = ({
   isDarkMode,
   toggleDarkMode,
 }) => {
+  const defaultPasswordVisibility = {
+    login: false,
+    register: false,
+    registerConfirm: false,
+    setPassword: false,
+    setPasswordConfirm: false,
+  };
   const [view, setView] = useState<ViewState>("login");
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordVisibility, setPasswordVisibility] = useState(defaultPasswordVisibility);
   const [rememberMe, setRememberMe] = useState(false);
   const [ssoEnabled, setSsoEnabled] = useState(true);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -121,7 +133,28 @@ const Login: React.FC<LoginProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    const nextValue = name === "resetToken" ? value.toUpperCase().replace(/\s+/g, "") : value;
+    setFormData({ ...formData, [name]: nextValue });
+  };
+
+  const changeView = (nextView: ViewState, overrides?: Partial<typeof formData>) => {
+    setPasswordVisibility(defaultPasswordVisibility);
+    setFormData((prev) => ({
+      ...prev,
+      password: "",
+      confirmPassword: "",
+      resetToken: "",
+      ...overrides,
+    }));
+    setView(nextView);
+  };
+
+  const togglePasswordVisibility = (field: PasswordVisibilityField) => {
+    setPasswordVisibility((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
   };
 
   const getPasswordStrength = (password: string) => {
@@ -145,7 +178,7 @@ const Login: React.FC<LoginProps> = ({
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email) {
-      showToast("Mohon isi email.", "error");
+      showToast("Mohon isi email atau username.", "error");
       return;
     }
 
@@ -172,8 +205,7 @@ const Login: React.FC<LoginProps> = ({
           `Halo ${data.name}, masukkan token reset dari admin untuk membuat password baru.`,
           "info",
         );
-        setFormData((prev) => ({ ...prev, email: data.email, password: "", confirmPassword: "", resetToken: "" }));
-        setView("set-password");
+        changeView("set-password", { email: data.email });
         return;
       }
 
@@ -255,8 +287,7 @@ const Login: React.FC<LoginProps> = ({
           "Akun berhasil dibuat! Menunggu persetujuan Admin.",
           "success",
         );
-        setView("login");
-        setFormData({ ...formData, password: "", confirmPassword: "", resetToken: "" });
+        changeView("login");
       } else {
         showToast(data.error || "Registrasi gagal.", "error");
       }
@@ -278,11 +309,6 @@ const Login: React.FC<LoginProps> = ({
 
     if (!formData.email) {
       showToast("Mohon masukkan alamat email anda.", "warning");
-      return;
-    }
-
-    if (!formData.email.includes("@")) {
-      showToast("Mohon masukkan alamat email yang valid.", "warning");
       return;
     }
 
@@ -310,7 +336,7 @@ const Login: React.FC<LoginProps> = ({
           "info",
           true,
         );
-        setView("login");
+        changeView("login");
       } else {
         showToast("Email atau Username tidak terdaftar dalam sistem.", "error");
       }
@@ -348,8 +374,7 @@ const Login: React.FC<LoginProps> = ({
       const data = await response.json();
       if (response.ok) {
         showToast(data.message, "success");
-        setView("login");
-        setFormData((prev) => ({ ...prev, password: "", confirmPassword: "", resetToken: "" }));
+        changeView("login");
       } else {
         showToast(data.error || "Gagal mengatur password.", "error");
       }
@@ -359,6 +384,17 @@ const Login: React.FC<LoginProps> = ({
       setIsLoading(false);
     }
   };
+
+  const setPasswordStrength = getPasswordStrength(formData.password);
+  const setPasswordMismatch =
+    formData.confirmPassword.length > 0 &&
+    formData.password !== formData.confirmPassword;
+  const isSetPasswordSubmitDisabled =
+    isLoading ||
+    !formData.resetToken.trim() ||
+    formData.password.length < 8 ||
+    !formData.confirmPassword ||
+    setPasswordMismatch;
 
   const handleGoogleLogin = () => {
     if (!window.google) {
@@ -524,7 +560,7 @@ const Login: React.FC<LoginProps> = ({
                     </div>
                     <input
                       name="password"
-                      type={showPassword ? "text" : "password"}
+                      type={passwordVisibility.login ? "text" : "password"}
                       // required -> Dihapus agar user bisa submit kosong saat mode reset
                       value={formData.password}
                       onChange={handleChange}
@@ -533,10 +569,11 @@ const Login: React.FC<LoginProps> = ({
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => togglePasswordVisibility("login")}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      aria-label={passwordVisibility.login ? "Sembunyikan password" : "Tampilkan password"}
                     >
-                      {showPassword ? (
+                      {passwordVisibility.login ? (
                         <EyeOff className="h-4 w-4" />
                       ) : (
                         <Eye className="h-4 w-4" />
@@ -566,7 +603,7 @@ const Login: React.FC<LoginProps> = ({
                   <div className="text-sm">
                     <button
                       type="button"
-                      onClick={() => setView("forgot-password")}
+                      onClick={() => changeView("forgot-password")}
                       className="font-medium text-blue-600 hover:text-blue-500"
                     >
                       Lupa Password?
@@ -639,7 +676,7 @@ const Login: React.FC<LoginProps> = ({
               <p className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
                 Belum punya akun?{" "}
                 <button
-                  onClick={() => setView("register")}
+                  onClick={() => changeView("register")}
                   className="font-medium text-blue-600 hover:text-blue-500"
                 >
                   Buat akun baru
@@ -651,7 +688,7 @@ const Login: React.FC<LoginProps> = ({
           {view === "register" && (
             <div className="animate-fade-in-up">
               <button
-                onClick={() => setView("login")}
+                onClick={() => changeView("login")}
                 className="flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 mb-6 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Login
@@ -732,7 +769,7 @@ const Login: React.FC<LoginProps> = ({
                     <div className="relative">
                       <input
                         name="password"
-                        type={showPassword ? "text" : "password"}
+                        type={passwordVisibility.register ? "text" : "password"}
                         required
                         onChange={handleChange}
                         className="block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm pr-10 placeholder-gray-400 dark:placeholder-gray-400"
@@ -740,10 +777,11 @@ const Login: React.FC<LoginProps> = ({
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={() => togglePasswordVisibility("register")}
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        aria-label={passwordVisibility.register ? "Sembunyikan password" : "Tampilkan password"}
                       >
-                        {showPassword ? (
+                        {passwordVisibility.register ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />
@@ -768,7 +806,7 @@ const Login: React.FC<LoginProps> = ({
                     <div className="relative">
                       <input
                         name="confirmPassword"
-                        type={showConfirmPassword ? "text" : "password"}
+                        type={passwordVisibility.registerConfirm ? "text" : "password"}
                         required
                         onChange={handleChange}
                         className={`block w-full px-3 py-2.5 border ${formData.confirmPassword && formData.password !== formData.confirmPassword ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500"} rounded-lg dark:bg-gray-700 dark:text-white sm:text-sm pr-10 placeholder-gray-400 dark:placeholder-gray-400`}
@@ -776,12 +814,11 @@ const Login: React.FC<LoginProps> = ({
                       />
                       <button
                         type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
+                        onClick={() => togglePasswordVisibility("registerConfirm")}
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        aria-label={passwordVisibility.registerConfirm ? "Sembunyikan password" : "Tampilkan password"}
                       >
-                        {showConfirmPassword ? (
+                        {passwordVisibility.registerConfirm ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />
@@ -817,7 +854,7 @@ const Login: React.FC<LoginProps> = ({
           {view === "forgot-password" && (
             <div className="animate-fade-in-up">
               <button
-                onClick={() => setView("login")}
+                onClick={() => changeView("login")}
                 className="flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 mb-6 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Login
@@ -896,6 +933,13 @@ const Login: React.FC<LoginProps> = ({
 
           {view === "set-password" && (
             <div className="animate-fade-in-up">
+              <button
+                onClick={() => changeView("login")}
+                className="mb-6 flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Login
+              </button>
+
               <div className="mb-8">
                 <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
                   Buat Password Baru
@@ -912,6 +956,9 @@ const Login: React.FC<LoginProps> = ({
               </div>
 
               <form onSubmit={handleSetNewPassword} className="space-y-5">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+                  Masukkan token reset dari admin, lalu buat password minimal 8 karakter agar akun bisa dipakai login lagi.
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Token Reset
@@ -936,23 +983,36 @@ const Login: React.FC<LoginProps> = ({
                     </div>
                     <input
                       name="password"
-                      type="password"
+                      type={passwordVisibility.setPassword ? "text" : "password"}
                       required
+                      value={formData.password}
                       onChange={handleChange}
-                      className="block w-full pl-10 px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-400"
+                      className="block w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-11 text-sm focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-400"
                       placeholder="••••••••"
                     />
-                    {formData.password && (
-                      <div className="mt-1 text-xs text-right">
-                        Strength:{" "}
-                        <span
-                          className={`font-bold ${getPasswordStrength(formData.password).color}`}
-                        >
-                          {getPasswordStrength(formData.password).label}
-                        </span>
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility("setPassword")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      aria-label={passwordVisibility.setPassword ? "Sembunyikan password baru" : "Tampilkan password baru"}
+                    >
+                      {passwordVisibility.setPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
+                  {formData.password && (
+                    <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+                      <span className="text-gray-500 dark:text-gray-400">
+                        Gunakan kombinasi huruf besar, angka, dan simbol agar lebih aman.
+                      </span>
+                      <span className={`shrink-0 font-bold ${setPasswordStrength.color}`}>
+                        {setPasswordStrength.label}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -964,18 +1024,44 @@ const Login: React.FC<LoginProps> = ({
                     </div>
                     <input
                       name="confirmPassword"
-                      type="password"
+                      type={passwordVisibility.setPasswordConfirm ? "text" : "password"}
                       required
+                      value={formData.confirmPassword}
                       onChange={handleChange}
-                      className="block w-full pl-10 px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-400"
+                      className={`block w-full rounded-lg py-2.5 pl-10 pr-11 text-sm dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 ${
+                        setPasswordMismatch
+                          ? "border border-red-500 focus:ring-red-500 focus:border-red-500"
+                          : "border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:border-gray-600"
+                      }`}
                       placeholder="••••••••"
                     />
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility("setPasswordConfirm")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      aria-label={passwordVisibility.setPasswordConfirm ? "Sembunyikan konfirmasi password" : "Tampilkan konfirmasi password"}
+                    >
+                      {passwordVisibility.setPasswordConfirm ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
+                  {setPasswordMismatch ? (
+                    <p className="mt-1 text-xs font-medium text-red-500">
+                      Konfirmasi password belum sama dengan password baru.
+                    </p>
+                  ) : formData.confirmPassword ? (
+                    <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">
+                      Konfirmasi password sudah cocok.
+                    </p>
+                  ) : null}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isSetPasswordSubmitDisabled}
                   className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 transition-colors"
                 >
                   {isLoading ? (

@@ -56,15 +56,15 @@ router.post('/login', apiLimiter, async (req, res) => {
     let user = null;
     for (const candidate of result.rows) {
       // 2a. Akun tanpa password hanya boleh lanjut lewat flow reset yang valid
-      if (candidate.password === null) {
-        if (candidate.password_reset_token_hash && !isResetTokenExpired(candidate.password_reset_expires_at)) {
-          return res.status(403).json({
-            success: false,
-            resetRequired: true,
-            email: candidate.email,
-            name: candidate.nama,
-            message: 'Akun ini menunggu pembuatan password dengan token reset dari admin.'
-          });
+        if (candidate.password === null) {
+          if (candidate.password_reset_token_hash && !isResetTokenExpired(candidate.password_reset_expires_at)) {
+            return res.status(403).json({
+              success: false,
+              resetRequired: true,
+              email: candidate.email,
+              name: candidate.nama,
+              message: 'Akun ini menunggu pembuatan password dengan token reset dari admin.'
+            });
         }
 
         return res.status(403).json({
@@ -316,8 +316,9 @@ router.post('/register', apiLimiter,
 // Endpoint Set Password Baru (Setelah Reset Admin)
 router.post('/set-password', apiLimiter, async (req, res) => {
   const { email, newPassword, resetToken } = req.body;
+  const normalizedEmail = String(email || '').trim();
 
-  if (!email || !newPassword || !resetToken) {
+  if (!normalizedEmail || !newPassword || !resetToken) {
     return res.status(400).json({ error: 'Email, password baru, dan token reset wajib diisi.' });
   }
 
@@ -330,7 +331,7 @@ router.post('/set-password', apiLimiter, async (req, res) => {
       `SELECT id, status, password_reset_token_hash, password_reset_expires_at
        FROM users
        WHERE email = $1`,
-      [email]
+      [normalizedEmail]
     );
 
     if (userResult.rows.length === 0) {

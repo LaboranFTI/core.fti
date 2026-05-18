@@ -65,9 +65,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            user.identifier.includes(searchTerm) ||
+                            (user.identifier || '').includes(searchTerm) ||
                             (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                            user.email.toLowerCase().includes(searchTerm.toLowerCase());
+                            (user.email || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesRole = filterRole === 'All' || user.role === filterRole;
       const matchesStatus = filterStatus === 'All' || user.status === filterStatus;
       return matchesSearch && matchesRole && matchesStatus;
@@ -101,12 +101,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedFormData = {
+      ...formData,
+      name: formData.name?.trim() || '',
+      email: formData.email?.trim() || '',
+      username: formData.username?.trim() || '',
+      identifier: formData.identifier?.trim() || '',
+      phone: formData.phone?.trim() || '',
+    };
+
     try {
       if (editingUser) {
         // Update
         const res = await api(`/api/users/${editingUser.id}`, {
           method: 'PUT',
-          data: formData
+          data: normalizedFormData
         });
         if (res.ok) {
           await res.json();
@@ -121,7 +130,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
         // Create
         const res = await api('/api/users', {
           method: 'POST',
-          data: formData
+          data: normalizedFormData
         });
         if (res.ok) {
           const data = await res.json();
@@ -458,8 +467,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email UKSW</label>
                     <input 
-                        type="email" required 
-                        value={formData.email} 
+                        type="email" required
+                        value={formData.email || ''} 
                         onChange={e => setFormData({...formData, email: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         placeholder="nama@student.uksw.edu"

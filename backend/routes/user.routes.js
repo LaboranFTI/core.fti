@@ -84,12 +84,18 @@ router.get('/users', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req,
 // Endpoint membuat user baru dari Manajemen User
 router.post('/users', verifyRole(['Admin']), async (req, res) => {
   const { name, email, username, role, identifier, phone, status } = req.body;
+  const normalizedName = String(name || '').trim();
+  const normalizedEmail = String(email || '').trim();
+  const normalizedUsername = String(username || '').trim();
+  const normalizedRole = String(role || '').trim();
+  const normalizedIdentifier = String(identifier || '').trim() || null;
+  const normalizedPhone = String(phone || '').trim() || null;
 
-  if (!name || !email || !username || !role) {
+  if (!normalizedName || !normalizedEmail || !normalizedUsername || !normalizedRole) {
     return res.status(400).json({ error: 'Nama, email, username, dan role wajib diisi.' });
   }
 
-  if (!ASSIGNABLE_ROLES.includes(role)) {
+  if (!ASSIGNABLE_ROLES.includes(normalizedRole)) {
     return res.status(400).json({ error: 'Role user tidak valid.' });
   }
 
@@ -100,7 +106,7 @@ router.post('/users', verifyRole(['Admin']), async (req, res) => {
   try {
     const existing = await pool.query(
       'SELECT id FROM users WHERE email = $1 OR username = $2',
-      [email, username]
+      [normalizedEmail, normalizedUsername]
     );
 
     if (existing.rows.length > 0) {
@@ -120,12 +126,12 @@ router.post('/users', verifyRole(['Admin']), async (req, res) => {
        VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
       [
         id,
-        name,
-        email,
-        username,
-        role,
-        identifier || null,
-        phone || null,
+        normalizedName,
+        normalizedEmail,
+        normalizedUsername,
+        normalizedRole,
+        normalizedIdentifier,
+        normalizedPhone,
         resolvedStatus,
         resetTokenPayload?.resetTokenHash || null,
         resetTokenPayload?.resetTokenExpiresAt || null,
@@ -148,6 +154,12 @@ router.post('/users', verifyRole(['Admin']), async (req, res) => {
 router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
   const { name, email, username, role, identifier, phone, status, avatar } = req.body;
   const { id } = req.params;
+  const normalizedName = String(name || '').trim();
+  const normalizedEmail = String(email || '').trim();
+  const normalizedUsername = String(username || '').trim();
+  const normalizedRole = role ? String(role).trim() : '';
+  const normalizedIdentifier = String(identifier || '').trim() || null;
+  const normalizedPhone = String(phone || '').trim() || null;
 
   try {
     const targetUser = await pool.query(
@@ -166,13 +178,13 @@ router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
         return res.status(403).json({ error: 'Role Anda tidak diizinkan mengubah profil sendiri.' });
       }
 
-      if (!name || !email || !username) {
+      if (!normalizedName || !normalizedEmail || !normalizedUsername) {
         return res.status(400).json({ error: 'Nama, email, dan username wajib diisi.' });
       }
 
       const existing = await pool.query(
         'SELECT id FROM users WHERE (email = $1 OR username = $2) AND id <> $3',
-        [email, username, id]
+        [normalizedEmail, normalizedUsername, id]
       );
 
       if (existing.rows.length > 0) {
@@ -180,7 +192,7 @@ router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
       }
 
       const avatarImageBuffer = parseAvatarImageBuffer(avatar);
-      const params = [name, email, username, identifier || null, phone || null, id];
+      const params = [normalizedName, normalizedEmail, normalizedUsername, normalizedIdentifier, normalizedPhone, id];
       let query = `
         UPDATE users
         SET nama = $1,
@@ -210,11 +222,11 @@ router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
       return res.status(403).json({ error: 'Akun admin hanya dapat dikelola langsung dari database.' });
     }
 
-    if (!name || !email || !username || !role) {
+    if (!normalizedName || !normalizedEmail || !normalizedUsername || !normalizedRole) {
       return res.status(400).json({ error: 'Nama, email, username, dan role wajib diisi.' });
     }
 
-    if (!ASSIGNABLE_ROLES.includes(role)) {
+    if (!ASSIGNABLE_ROLES.includes(normalizedRole)) {
       return res.status(400).json({ error: 'Role user tidak valid.' });
     }
 
@@ -232,7 +244,7 @@ router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
 
     const existing = await pool.query(
       'SELECT id FROM users WHERE (email = $1 OR username = $2) AND id <> $3',
-      [email, username, id]
+      [normalizedEmail, normalizedUsername, id]
     );
 
     if (existing.rows.length > 0) {
@@ -251,7 +263,7 @@ router.put('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
            updated_at = NOW()
        WHERE id = $8
        RETURNING id`,
-      [name, email, username, role, identifier || null, phone || null, status || currentUser.status, id]
+      [normalizedName, normalizedEmail, normalizedUsername, normalizedRole, normalizedIdentifier, normalizedPhone, status || currentUser.status, id]
     );
 
     res.json({ success: true });
