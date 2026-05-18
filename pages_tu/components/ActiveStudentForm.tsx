@@ -197,7 +197,7 @@ export function ActiveStudentForm() {
           </div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Permohonan Berhasil Dikirim!</h2>
           <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-            Permohonan Surat Keterangan Aktif Kuliah Anda telah masuk ke sistem. 
+            Permohonan Surat Keterangan Aktif Kuliah Anda telah masuk ke sistem.
             Admin akan melakukan verifikasi dan surat akan dikirimkan ke email Anda.
           </p>
           <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
@@ -232,15 +232,14 @@ export function ActiveStudentForm() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {formFeedback && (
-              <div className={`rounded-2xl border px-4 py-3 text-sm ${
-                formFeedback.type === 'success'
+              <div className={`rounded-2xl border px-4 py-3 text-sm ${formFeedback.type === 'success'
                   ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
                   : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
-              }`}>
+                }`}>
                 {formFeedback.message}
               </div>
             )}
@@ -265,25 +264,25 @@ export function ActiveStudentForm() {
 
             <div className="space-y-4">
 
-              
+
               <div className="space-y-1.5">
                 <Label htmlFor="nim" className="text-slate-700 dark:text-slate-300 font-medium">NIM</Label>
                 <div className="flex gap-3">
-                <Input
-                  id="nim"
-                  placeholder="Contoh: 672019000"
-                  {...register("nim", { required: true })}
-                  readOnly={isVerified}
-                  className={isVerified ? "bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400" : ""}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (!isVerified && !isVerifying && nimValue) {
-                        handleVerifyKST();
+                  <Input
+                    id="nim"
+                    placeholder="Contoh: 672019000"
+                    {...register("nim", { required: true })}
+                    readOnly={isVerified}
+                    className={isVerified ? "bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400" : ""}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (!isVerified && !isVerifying && nimValue) {
+                          handleVerifyKST();
+                        }
                       }
-                    }
-                  }}
-                />
+                    }}
+                  />
                   {!isVerified && (
                     <Button type="button" onClick={handleVerifyKST} disabled={isVerifying || !nimValue} className="shrink-0 bg-blue-600 hover:bg-blue-700">
                       {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
@@ -309,7 +308,7 @@ export function ActiveStudentForm() {
                   <input type="hidden" {...register("birthPlace")} />
                   <input type="hidden" {...register("birthDate")} />
                   <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
-                    Data surat di bawah ini diambil dari SIASAT dan pemetaan kode NIM FTI.
+                    Data surat di bawah ini diambil dari SIASAT, jika menemukan ketidaksesuaian data mohon mengurus ke GAP Universitas terlebih dahulu.
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-1.5">

@@ -631,7 +631,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   }
 
   return (
-    <div className="space-y-6 print:hidden">
+    <div className="flex flex-col gap-6 print:hidden">
       {settingsFeedback && (
         <div className={`rounded-2xl border px-4 py-3 text-sm ${
           settingsFeedback.type === 'success'
@@ -642,7 +642,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="order-2 grid grid-cols-1 xl:grid-cols-3 gap-6">
       <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-1">
         <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
           <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
@@ -831,7 +831,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
       </Card>
       </div>
 
-      <Card className="shadow-sm border-slate-200 dark:border-gray-700">
+      <Card className="order-1 shadow-sm border-slate-200 dark:border-gray-700">
         <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
