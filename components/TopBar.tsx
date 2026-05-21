@@ -2,7 +2,8 @@ import React, { startTransition, useDeferredValue, useEffect, useState } from 'r
 import { Menu, Moon, Sun, Bell, Search, LogOut, User, ChevronDown, Check, Box, MapPin, CheckCheck, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { Role, Notification } from '../types';
 import { api } from '../services/api';
-import { APP_FULL_NAME, APP_NAME } from '../config';
+import { APP_NAME } from '../config';
+import nocLogo from "../src/assets/NOC.svg";
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -127,7 +128,7 @@ const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className={`mobile-safe-x fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 bg-white/92 px-3 backdrop-blur-xl transition-transform duration-200 print:hidden dark:border-gray-800 dark:bg-gray-900/92 md:sticky md:h-18 md:px-6 ${
+    <header className={`mobile-safe-x fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-gray-200 bg-white/92 px-3 backdrop-blur-xl transition-transform duration-200 print:hidden dark:border-gray-800 dark:bg-gray-900/92 md:sticky md:h-18 md:px-6 ${
       isVisible ? "translate-y-0" : "-translate-y-full md:translate-y-0"
     }`}>
       <div className="flex min-w-0 items-center gap-2 md:gap-4">
@@ -141,10 +142,23 @@ const TopBar: React.FC<TopBarProps> = ({
           </button>
         )}
 
-        <div className="min-w-0 md:hidden">
-          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-            {pageLabel}
-          </p>
+        <div className="flex min-w-0 items-center gap-3 rounded-2xl px-1 py-1">
+          <img
+            src={nocLogo}
+            alt="NOC Logo"
+            className="h-9 w-9 shrink-0 object-contain md:h-10 md:w-10"
+          />
+          <div className="min-w-0">
+            <p className="font-brand truncate text-sm font-bold leading-none text-gray-900 dark:text-white md:text-base">
+              {APP_NAME}
+            </p>
+            <p className="truncate text-[0.68rem] font-medium text-gray-500 dark:text-gray-400 md:hidden">
+              {pageLabel}
+            </p>
+            <p className="hidden truncate text-[0.68rem] font-medium uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 md:block">
+              Sarana dan Prasarana
+            </p>
+          </div>
         </div>
         
         {/* Global Search */}

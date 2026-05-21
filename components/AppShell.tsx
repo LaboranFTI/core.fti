@@ -76,10 +76,30 @@ const AppShell: React.FC<AppShellProps> = ({
 }) => {
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark' : ''} bg-gray-50 font-sans transition-colors duration-200 dark:bg-gray-950 print:bg-white`}>
-      <div className="flex h-screen overflow-hidden print:block print:h-auto print:overflow-visible">
+      <TopBar
+        onToggleSidebar={onToggleSidebar}
+        showSidebarToggle={hasSidebarNavigation}
+        isVisible={isMobileTopBarVisible}
+        isDarkMode={isDarkMode}
+        toggleDarkMode={toggleDarkMode}
+        currentRole={currentRole}
+        pageLabel={pageLabel}
+        userName={userName}
+        userEmail={userEmail}
+        onOpenAi={onOpenAi}
+        onLogout={onLogout}
+        notifications={notifications}
+        onMarkAsRead={onMarkAsRead}
+        onMarkAllAsRead={onMarkAllAsRead}
+        onClearAllNotifications={onClearAllNotifications}
+        onNavigate={onNavigate}
+        isMaintenanceMode={isMaintenanceMode}
+      />
+
+      <div className="flex h-[calc(100dvh-3.5rem)] overflow-hidden pt-14 md:h-[calc(100vh-4.5rem)] md:pt-0 print:block print:h-auto print:overflow-visible">
         {isSidebarOpen && hasSidebarNavigation && (
           <div
-            className="fixed inset-0 z-30 bg-slate-950/55 backdrop-blur-sm md:hidden print:hidden"
+            className="fixed inset-x-0 bottom-0 top-14 z-40 bg-slate-950/55 backdrop-blur-sm md:hidden print:hidden"
             onClick={onCloseSidebar}
           />
         )}
@@ -100,31 +120,11 @@ const AppShell: React.FC<AppShellProps> = ({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
-          <TopBar
-            onToggleSidebar={onToggleSidebar}
-            showSidebarToggle={hasSidebarNavigation}
-            isVisible={isMobileTopBarVisible}
-            isDarkMode={isDarkMode}
-            toggleDarkMode={toggleDarkMode}
-            currentRole={currentRole}
-            pageLabel={pageLabel}
-            userName={userName}
-            userEmail={userEmail}
-            onOpenAi={onOpenAi}
-            onLogout={onLogout}
-            notifications={notifications}
-            onMarkAsRead={onMarkAsRead}
-            onMarkAllAsRead={onMarkAllAsRead}
-            onClearAllNotifications={onClearAllNotifications}
-            onNavigate={onNavigate}
-            isMaintenanceMode={isMaintenanceMode}
-          />
-
           <main
             onScroll={onMainScroll}
             className="flex flex-1 overflow-y-auto overflow-x-hidden print:block print:h-auto print:overflow-visible"
           >
-            <div className="mx-auto flex w-full max-w-400 flex-1 flex-col px-4 pb-24 pt-16 sm:px-6 md:px-8 md:pb-10 md:pt-8 lg:px-10 print:max-w-none print:px-0 print:pb-0 print:pt-0">
+            <div className="mx-auto flex w-full max-w-400 flex-1 flex-col px-4 pb-24 pt-4 sm:px-6 md:px-8 md:pb-10 md:pt-6 lg:px-10 print:max-w-none print:px-0 print:pb-0 print:pt-0">
               {announcement?.active && announcement.message && (
                 <div className={`mb-6 flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-sm animate-fade-in-up ${getAnnouncementClasses(announcement.type)}`}>
                   <div className="mt-0.5 rounded-full bg-white/70 p-2 dark:bg-black/10">

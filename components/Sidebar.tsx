@@ -5,7 +5,6 @@ import {
   getVisibleMainItems,
   getVisibleNavigationGroups,
 } from '../lib/navigation';
-import nocLogo from "../src/assets/NOC.svg";
 
 interface SidebarProps {
   currentRole: Role;
@@ -51,33 +50,23 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
     <aside 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex h-screen w-[min(21rem,90vw)] flex-col border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-200 dark:border-gray-700 dark:bg-gray-900/95 md:relative md:translate-x-0 md:shadow-none ${effectiveCollapsed ? 'md:w-24' : 'md:w-72'} print:hidden`}
+      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed bottom-0 left-0 top-14 z-40 flex h-[calc(100dvh-3.5rem)] w-[min(21rem,90vw)] flex-col border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-200 dark:border-gray-700 dark:bg-gray-900/95 md:relative md:top-auto md:h-full md:translate-x-0 md:shadow-none ${effectiveCollapsed ? 'md:w-24' : 'md:w-72'} print:hidden`}
     >
-      <div className={`flex min-h-22 items-center border-b border-gray-200 dark:border-gray-700 ${effectiveCollapsed ? 'justify-center px-4 py-5' : 'gap-3 px-5 py-5 md:px-6'} shrink-0 transition-all duration-200`}>
-        <img
-          src={nocLogo}
-          alt="NOC Logo"
-          className={`${effectiveCollapsed ? 'h-10 w-10' : 'h-12 w-12'} object-contain transition-all duration-200`}
-        />
-        <div className={`transition-opacity duration-200 ${effectiveCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 flex-1'}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <span className="font-brand block whitespace-nowrap text-xl font-bold leading-none text-gray-900 dark:text-white">CORE.FTI</span>
-              <span className="mt-1 block text-[0.7rem] font-medium uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Sarana dan Prasarana</span>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
-              aria-label="Tutup menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700 md:hidden">
+        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+          Navigasi
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+          aria-label="Tutup menu"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-8 pt-5">
+      <div className="flex-1 overflow-y-auto px-4 pb-8 pt-4 md:pt-5">
         {/* Main Items */}
         <div className="mb-8">
           {!effectiveCollapsed && (
@@ -191,7 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
       <button
         onClick={onToggleCollapse}
         title={isCollapsed ? "Expand" : "Collapse"}
-        className="absolute -right-3 top-20 z-50 hidden items-center justify-center rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-md transition-colors hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 md:flex"
+        className="absolute -right-3 top-6 z-50 hidden items-center justify-center rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-md transition-colors hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 md:flex"
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
       </button>

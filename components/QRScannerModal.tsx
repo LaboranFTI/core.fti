@@ -97,6 +97,31 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
     return candidates;
   }, []);
 
+  const syncScannerPresentation = useCallback(() => {
+    const container = document.getElementById('scanner-container');
+    if (!container) return;
+
+    Array.from(container.children).forEach((child) => {
+      if (!(child instanceof HTMLElement)) return;
+      child.style.width = '100%';
+      child.style.height = '100%';
+    });
+
+    const shadedRegion = container.querySelector('#qr-shaded-region');
+    if (shadedRegion instanceof HTMLElement) {
+      shadedRegion.style.display = 'none';
+    }
+
+    const mediaElements = container.querySelectorAll('video, canvas');
+    mediaElements.forEach((element) => {
+      const mediaElement = element as HTMLElement;
+      mediaElement.style.width = '100%';
+      mediaElement.style.height = '100%';
+      mediaElement.style.objectFit = 'cover';
+      mediaElement.style.borderRadius = 'inherit';
+    });
+  }, []);
+
   const getScannerErrorMessage = useCallback((err: any) => {
     const errorName = err?.name || '';
     const errorMessage = err?.message || '';
@@ -168,11 +193,6 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
       const scanConfig = {
         fps: 10,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const boxSize = Math.max(180, Math.min(280, Math.floor(minEdge * 0.7)));
-          return { width: boxSize, height: boxSize };
-        },
         disableFlip: false,
       };
 
@@ -203,6 +223,7 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
           }
 
           setHasCamPermission(true);
+          window.requestAnimationFrame(syncScannerPresentation);
           return;
         } catch (candidateError: any) {
           lastStartError = candidateError;
@@ -219,13 +240,12 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
       setHasCamPermission(false);
       setIsScanning(false);
     }
-  }, [buildCameraCandidates, cleanupScanner, getPreferredCameraId, getScannerErrorMessage, handleClose, selectedCameraId, stopScanner]);
+  }, [buildCameraCandidates, cleanupScanner, getPreferredCameraId, getScannerErrorMessage, handleClose, selectedCameraId, stopScanner, syncScannerPresentation]);
 
   const handleCameraChange = async (cameraId: string) => {
     setSelectedCameraId(cameraId);
     await startScanner(cameraId);
   };
-
 
   // Lifecycle
   useEffect(() => {
@@ -250,103 +270,132 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="mobile-modal-shell fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="mobile-modal-panel bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div className="mobile-modal-shell fixed inset-0 z-1000 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 sm:p-4">
+      <div className="mobile-modal-panel bg-white dark:bg-gray-900 rounded-[28px] shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-white/60 dark:border-gray-700/80">
         
         {/* Header */}
-        <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-linear-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg">
-              <QrCode className="w-6 h-6 text-white" />
+        <div className="relative overflow-hidden border-b border-slate-200/80 dark:border-gray-700/80 bg-linear-to-r from-slate-50 via-white to-blue-50/70 dark:from-gray-900 dark:via-gray-900 dark:to-slate-800">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-linear-to-l from-blue-100/60 to-transparent dark:from-blue-500/10 dark:to-transparent" />
+          <div className="relative flex items-start justify-between gap-4 p-5 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="mt-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 via-sky-500 to-cyan-400 text-white shadow-lg shadow-blue-500/25">
+                <QrCode className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="mb-2 font-bold text-xl text-gray-900 dark:text-white">{title}</h3>
+                <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+                  Posisikan QR code di dalam bingkai. Scanner akan membaca otomatis saat kode terlihat jelas.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-xl text-gray-900 dark:text-white">{title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Arahkan kamera ke QR code
-              </p>
-            </div>
+            <button
+              onClick={handleClose}
+              className="shrink-0 rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-700 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+              aria-label="Close scanner"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
-            aria-label="Close scanner"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
 
         {/* Scanner Area */}
-        <div className="mobile-modal-body relative flex items-center justify-center p-4 sm:p-6 bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-800">
-          
-          <div 
-            id="scanner-container" 
-            className="w-full max-w-md aspect-square rounded-xl shadow-2xl bg-gray-900 overflow-hidden"
-          />
+        <div className="mobile-modal-body overflow-y-auto bg-linear-to-b from-slate-100 via-slate-50 to-white p-4 sm:p-6 dark:from-slate-950 dark:via-gray-900 dark:to-gray-900">
+          <div className="mx-auto w-full max-w-xl space-y-4">
+            <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-3 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.55)] dark:border-gray-700/70 dark:bg-gray-900/90">
+              <div className="relative overflow-hidden rounded-[22px] border border-slate-200/70 bg-slate-950 shadow-inner dark:border-gray-700">
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-slate-950/70 via-slate-950/20 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-linear-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
 
-          {/* Scan overlay */}
-          {!error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-              <div className="w-64 h-64 border-4 border-blue-400/50 rounded-2xl p-4 bg-white/30 dark:bg-black/30 backdrop-blur-sm shadow-2xl animate-pulse">
-                <div className="w-full h-full border-4 border-blue-500 rounded-xl bg-linear-to-b from-blue-400/20 to-transparent" />
+                <div 
+                  id="scanner-container" 
+                  className="aspect-square w-full overflow-hidden bg-slate-950 [&>div]:h-full [&>div]:w-full [&_canvas]:h-full [&_canvas]:w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
+                />
+
+                {/* Scan overlay */}
+                {!error && (
+                  <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center px-6">
+                    <div className="relative h-64 w-64 max-w-[78%] max-h-[78%] rounded-[28px] border border-white/35 bg-white/10 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.08)] backdrop-blur-[2px]">
+                      <div className="absolute left-0 top-0 h-12 w-12 rounded-tl-[28px] border-l-4 border-t-4 border-cyan-300" />
+                      <div className="absolute right-0 top-0 h-12 w-12 rounded-tr-[28px] border-r-4 border-t-4 border-cyan-300" />
+                      <div className="absolute bottom-0 left-0 h-12 w-12 rounded-bl-[28px] border-b-4 border-l-4 border-cyan-300" />
+                      <div className="absolute bottom-0 right-0 h-12 w-12 rounded-br-[28px] border-b-4 border-r-4 border-cyan-300" />
+                      <div className="h-full w-full rounded-[20px] border border-cyan-300/70 bg-linear-to-b from-cyan-300/15 via-transparent to-blue-500/10" />
+                      <div className="absolute left-4 right-4 top-1/2 h-0.5 -translate-y-1/2 bg-linear-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_18px_rgba(103,232,249,0.85)]" />
+                    </div>
+                    <div className="mt-6 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-center backdrop-blur-sm">
+                      <p className="text-sm font-semibold text-white sm:text-base">
+                        Tempatkan QR code di dalam area bingkai
+                      </p>
+                      <p className="mt-1 text-xs text-white/75 sm:text-sm">
+                        Hindari pantulan cahaya dan jaga kamera tetap stabil agar lebih cepat terbaca.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <p className="absolute bottom-12 text-center text-white text-lg font-semibold drop-shadow-2xl">
-                Scan QR Code
-              </p>
-              <p className="absolute bottom-6 text-white/90 text-sm font-medium drop-shadow-lg text-center max-w-xs">
-                Arahkan kamera ke QR code di area biru
-              </p>
             </div>
-          )}
 
-          {/* Error state */}
-          {error ? (
-            <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 rounded-xl">
-              <div className="text-center space-y-4 p-8 max-w-sm">
-                <div className="w-20 h-20 mx-auto bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center">
-                  <AlertCircle className="w-10 h-10 text-red-500 dark:text-red-400" />
+            {/* Error state */}
+            {error ? (
+              <div className="rounded-3xl border border-red-200/80 bg-white p-5 shadow-sm dark:border-red-500/20 dark:bg-gray-900">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-500 dark:bg-red-500/10 dark:text-red-300">
+                    <AlertCircle className="w-7 h-7" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Scanner Error</h4>
+                    <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{error}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Scanner Error</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{error}</p>
-                </div>
-                <div className="flex gap-3 pt-4">
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <button
                     onClick={() => {
                       void startScanner();
                     }}
-                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all text-sm"
+                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 hover:shadow-blue-500/35"
                   >
                     Coba Lagi
                   </button>
                   <button
                     onClick={handleClose}
-                    className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all text-sm"
+                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                   >
                     Input Manual
                   </button>
                 </div>
               </div>
-            </div>
-          ) : !hasCamPermission && !isScanning ? (
-            <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/30 rounded-xl backdrop-blur-sm">
-              <div className="text-center space-y-3 p-8">
-                <Loader2 className="w-16 h-16 text-blue-400 animate-spin mx-auto" />
-                <p className="text-white text-lg font-semibold drop-shadow-lg">Memulai Scanner</p>
-                <p className="text-white/80 text-sm drop-shadow">Menunggu akses kamera...</p>
+            ) : !hasCamPermission && !isScanning ? (
+              <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                  <h4 className="mt-4 text-base font-semibold text-slate-900 dark:text-white">Memulai Scanner</h4>
+                  <p className="mt-1 max-w-md text-sm leading-6 text-slate-600 dark:text-gray-300">
+                    Menunggu akses kamera dari browser dan menyiapkan tampilan scanner di modal ini.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="mobile-modal-actions p-4 border-t border-gray-200 dark:border-gray-700 bg-linear-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900/50 flex items-center gap-3">
+        <div className="mobile-modal-actions border-t border-slate-200/80 bg-white/95 p-4 dark:border-gray-700/80 dark:bg-gray-900/95">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {cameraOptions.length > 1 && (
-            <div className="flex min-w-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
-              <Camera className="w-4 h-4 text-gray-400 shrink-0" />
+              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/80">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+                <Camera className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-gray-400">
+                  Pilih Kamera
+                </p>
               <select
                 value={selectedCameraId}
                 onChange={(e) => handleCameraChange(e.target.value)}
-                className="max-w-[180px] bg-transparent text-sm text-gray-700 outline-none dark:text-gray-200"
+                  className="mt-1 w-full bg-transparent text-sm font-medium text-slate-700 outline-none dark:text-gray-200"
               >
                 {cameraOptions.map((camera, index) => (
                   <option key={camera.id} value={camera.id}>
@@ -354,14 +403,16 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
                   </option>
                 ))}
               </select>
+              </div>
             </div>
           )}
           <button
             onClick={handleClose}
-            className="px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors ml-auto"
+              className="sm:ml-auto rounded-2xl border border-slate-200 bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
             Batal
           </button>
+          </div>
         </div>
       </div>
     </div>
