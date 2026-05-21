@@ -174,6 +174,22 @@ const Login: React.FC<LoginProps> = ({
   };
 
   const getActiveStorage = () => rememberMe ? localStorage : sessionStorage;
+  const clearStoredAuth = () => {
+    const authKeys = [
+      "isAuthenticated",
+      "currentRole",
+      "userName",
+      "userEmail",
+      "authToken",
+      "userId",
+      "refreshToken",
+    ];
+
+    authKeys.forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+  };
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +227,7 @@ const Login: React.FC<LoginProps> = ({
 
       if (response.ok && data.success) {
         const activeStorage = getActiveStorage();
+        clearStoredAuth();
         activeStorage.setItem("authToken", data.token);
         activeStorage.setItem("userId", data.id);
         activeStorage.setItem("userName", data.name);
@@ -418,7 +435,8 @@ const Login: React.FC<LoginProps> = ({
               method: 'POST',
               data: { 
                 accessToken: tokenResponse.access_token,
-                deviceId: deviceId
+                deviceId: deviceId,
+                rememberMe: rememberMe
               }
             });
 
@@ -426,12 +444,27 @@ const Login: React.FC<LoginProps> = ({
 
             if (res.ok && data.success) {
                const activeStorage = getActiveStorage();
+               clearStoredAuth();
                activeStorage.setItem("authToken", data.token);
                activeStorage.setItem("userId", data.id);
                activeStorage.setItem("userName", data.name);
                activeStorage.setItem("userEmail", data.email);
                
-               if (!localStorage.getItem("deviceId")) localStorage.setItem("deviceId", deviceId);
+               if (data.deviceId) {
+                 localStorage.setItem("deviceId", data.deviceId);
+               } else if (!localStorage.getItem("deviceId")) {
+                 localStorage.setItem("deviceId", deviceId);
+               }
+
+               if (data.refreshToken) {
+                 activeStorage.setItem("refreshToken", data.refreshToken);
+               }
+
+               if (rememberMe) {
+                 localStorage.setItem("rememberedEmail", data.email);
+               } else {
+                 localStorage.removeItem("rememberedEmail");
+               }
                
                showToast(`Login berhasil sebagai ${data.name}`, "success");
                onLogin(data.role as Role, data.name, rememberMe, data.email);

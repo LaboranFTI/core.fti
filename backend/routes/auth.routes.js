@@ -9,6 +9,10 @@ const router = express.Router();
 
 const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const isResetTokenExpired = (expiresAt) => expiresAt && new Date(expiresAt) < new Date();
+const ACCESS_TOKEN_HOURS = 8;
+const REMEMBER_ME_DAYS = 30;
+const createSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'));
+const createRefreshToken = () => crypto.randomBytes(48).toString('hex');
 
 // Helper function to generate device name from user agent
 const getDeviceInfo = (userAgent) => {
@@ -37,9 +41,82 @@ const getDeviceInfo = (userAgent) => {
   return { deviceName, deviceType };
 };
 
-// Endpoint Login (Simplified - No token storage in DB)
+const createAccessToken = (user) => {
+  const tokenPayload = {
+    id: user.id,
+    role: user.role,
+    jti: createSessionId()
+  };
+  const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: `${ACCESS_TOKEN_HOURS}h` });
+  const expiresAt = new Date(Date.now() + ACCESS_TOKEN_HOURS * 60 * 60 * 1000);
+
+  return { token, expiresAt };
+};
+
+const persistUserSession = async ({ req, user, token, expiresAt, deviceId, rememberMe }) => {
+  const normalizedDeviceId = typeof deviceId === 'string' && deviceId.trim()
+    ? deviceId.trim()
+    : `device_${createSessionId()}`;
+  const { deviceName, deviceType } = getDeviceInfo(req.headers['user-agent']);
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress = typeof forwardedFor === 'string'
+    ? forwardedFor.split(',')[0].trim()
+    : req.socket?.remoteAddress || null;
+  const refreshToken = rememberMe ? createRefreshToken() : null;
+  const refreshTokenExpiresAt = rememberMe
+    ? new Date(Date.now() + REMEMBER_ME_DAYS * 24 * 60 * 60 * 1000)
+    : null;
+
+  await pool.query(
+    `UPDATE user_tokens
+     SET is_active = FALSE,
+         refresh_token = NULL,
+         refresh_token_expires_at = NULL
+     WHERE user_id = $1 AND device_id = $2 AND is_active = TRUE`,
+    [user.id, normalizedDeviceId]
+  );
+
+  await pool.query(
+    `INSERT INTO user_tokens (
+      user_id,
+      token,
+      device_id,
+      device_name,
+      device_type,
+      user_agent,
+      ip_address,
+      is_remember_me,
+      refresh_token,
+      refresh_token_expires_at,
+      expires_at,
+      last_used_at,
+      is_active
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), TRUE)`,
+    [
+      user.id,
+      token,
+      normalizedDeviceId,
+      deviceName,
+      deviceType,
+      req.headers['user-agent'] || null,
+      ipAddress,
+      rememberMe,
+      refreshToken,
+      refreshTokenExpiresAt,
+      expiresAt
+    ]
+  );
+
+  return {
+    deviceId: normalizedDeviceId,
+    refreshToken,
+    refreshTokenExpiresAt
+  };
+};
+
+// Endpoint Login (Menyimpan sesi per perangkat, opsional dengan Remember Me)
 router.post('/login', apiLimiter, async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, deviceId } = req.body;
 
   try {
     console.log(`Login attempt for: ${email}`); // Debug log
@@ -94,19 +171,16 @@ router.post('/login', apiLimiter, async (req, res) => {
       // Cek kelengkapan profil (Opsional)
       const isProfileIncomplete = !user.telepon;
 
-      // Tentukan expiration token (8 jam untuk regular, 30 hari untuk remember me)
-      // Kita tetap perlu rememberMe dari frontend untuk menentukan expiry
       const isRememberMe = req.body.rememberMe === true;
-      const tokenExpiryHours = isRememberMe ? 30 * 24 : 8;
-
-      // Buat JWT Token (tanpa simpan ke database)
-      const tokenPayload = { 
-        id: user.id, 
-        role: user.role,
-        jti: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex')
-      };
-      const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: `${tokenExpiryHours}h` });
-      const expiresAt = new Date(Date.now() + tokenExpiryHours * 60 * 60 * 1000);
+      const { token, expiresAt } = createAccessToken(user);
+      const session = await persistUserSession({
+        req,
+        user,
+        token,
+        expiresAt,
+        deviceId,
+        rememberMe: isRememberMe
+      });
 
       res.json({ 
         success: true, 
@@ -117,7 +191,10 @@ router.post('/login', apiLimiter, async (req, res) => {
         email: user.email,
         profileIncomplete: isProfileIncomplete,
         isRememberMe: isRememberMe,
-        expiresAt: expiresAt.toISOString()
+        expiresAt: expiresAt.toISOString(),
+        deviceId: session.deviceId,
+        refreshToken: session.refreshToken,
+        refreshTokenExpiresAt: session.refreshTokenExpiresAt?.toISOString() || null
       });
     } else {
       res.status(401).json({ error: 'Password salah.' });
@@ -131,6 +208,8 @@ router.post('/login', apiLimiter, async (req, res) => {
 // **[BARU]** Endpoint Google SSO Login (Updated for Production Security)
 router.post('/auth/google', async (req, res) => {
   const { accessToken, deviceId } = req.body;
+  const isRememberMe = req.body.rememberMe === true;
+  let config;
 
   if (!accessToken) {
     return res.status(400).json({ error: 'Access Token diperlukan.' });
@@ -139,7 +218,7 @@ router.post('/auth/google', async (req, res) => {
   try {
     // 1. Ambil konfigurasi SSO
     const configRes = await pool.query('SELECT * FROM sso_config LIMIT 1');
-    const config = configRes.rows[0];
+    config = configRes.rows[0];
 
     if (!config || !config.enabled) {
       return res.status(403).json({ error: 'SSO Login dinonaktifkan oleh administrator.' });
@@ -235,15 +314,29 @@ router.post('/auth/google', async (req, res) => {
     }
 
     // 6. Generate Token JWT (Sama seperti login biasa)
-    const tokenPayload = { 
-      id: user.id, 
-      role: user.role,
-      jti: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex')
-    };
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
-    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const { token, expiresAt } = createAccessToken(user);
+    const session = await persistUserSession({
+      req,
+      user,
+      token,
+      expiresAt,
+      deviceId,
+      rememberMe: isRememberMe
+    });
 
-    res.json({ success: true, token, id: user.id, role: user.role, name: user.nama, email: user.email, expiresAt: expiresAt.toISOString() });
+    res.json({
+      success: true,
+      token,
+      id: user.id,
+      role: user.role,
+      name: user.nama,
+      email: user.email,
+      expiresAt: expiresAt.toISOString(),
+      isRememberMe,
+      deviceId: session.deviceId,
+      refreshToken: session.refreshToken,
+      refreshTokenExpiresAt: session.refreshTokenExpiresAt?.toISOString() || null
+    });
   } catch (err) {
     console.error('SSO Login Error:', err);
     console.error('Error details:', {
@@ -401,10 +494,36 @@ router.post('/check-user-exists', async (req, res) => {
   }
 });
 
-// Endpoint Logout (Simplified - stateless, no DB operations needed)
+// Endpoint Logout (mencabut sesi aktif pada perangkat ini bila tersedia)
 router.post('/logout', async (req, res) => {
-  // Since we're using stateless JWT, we just return success
-  // The client should discard the token locally
+  const authHeader = req.headers['authorization'];
+  const accessToken = authHeader && authHeader.split(' ')[1];
+  const { refreshToken, deviceId } = req.body || {};
+
+  try {
+    if (refreshToken && deviceId) {
+      await pool.query(
+        `UPDATE user_tokens
+         SET is_active = FALSE,
+             refresh_token = NULL,
+             refresh_token_expires_at = NULL
+         WHERE refresh_token = $1 AND device_id = $2 AND is_active = TRUE`,
+        [refreshToken, deviceId]
+      );
+    } else if (accessToken) {
+      await pool.query(
+        `UPDATE user_tokens
+         SET is_active = FALSE,
+             refresh_token = NULL,
+             refresh_token_expires_at = NULL
+         WHERE token = $1 AND is_active = TRUE`,
+        [accessToken]
+      );
+    }
+  } catch (err) {
+    console.error('Logout revoke error:', err);
+  }
+
   res.json({ success: true, message: 'Logout berhasil.' });
 });
 
@@ -445,7 +564,7 @@ router.post('/auth/refresh', async (req, res) => {
   try {
     // Find the session with this refresh token and device ID
     const result = await pool.query(
-      `SELECT ut.*, u.role, u.nama, u.status 
+      `SELECT ut.*, u.role, u.nama, u.status, u.email
        FROM user_tokens ut 
        JOIN users u ON ut.user_id = u.id 
        WHERE ut.refresh_token = $1 AND ut.device_id = $2 AND ut.is_active = TRUE`,
@@ -470,24 +589,37 @@ router.post('/auth/refresh', async (req, res) => {
     }
 
     // Generate new access token
-    const tokenPayload = { 
-      id: session.user_id, 
-      role: session.role,
-      jti: crypto.randomUUID() ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex')
-    };
-    const newToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
-    const newExpiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const { token: newToken, expiresAt: newExpiresAt } = createAccessToken({
+      id: session.user_id,
+      role: session.role
+    });
+    const newRefreshTokenExpiresAt = session.is_remember_me
+      ? new Date(Date.now() + REMEMBER_ME_DAYS * 24 * 60 * 60 * 1000)
+      : session.refresh_token_expires_at;
 
     // Update token in database
     await pool.query(
-      'UPDATE user_tokens SET token = $1, expires_at = $2, last_used_at = NOW() WHERE id = $3',
-      [newToken, newExpiresAt, session.id]
+      `UPDATE user_tokens
+       SET token = $1,
+           expires_at = $2,
+           refresh_token_expires_at = $3,
+           last_used_at = NOW()
+       WHERE id = $4`,
+      [newToken, newExpiresAt, newRefreshTokenExpiresAt, session.id]
     );
 
     res.json({
       success: true,
       token: newToken,
-      expiresAt: newExpiresAt.toISOString()
+      expiresAt: newExpiresAt.toISOString(),
+      refreshToken,
+      refreshTokenExpiresAt: newRefreshTokenExpiresAt?.toISOString() || null,
+      user: {
+        id: session.user_id,
+        name: session.nama,
+        role: session.role,
+        email: session.email
+      }
     });
   } catch (err) {
     console.error('Token refresh error:', err);

@@ -79,6 +79,7 @@ const AppContent: React.FC = () => {
   
   // Helper fungsi untuk membaca storage (Prioritaskan Session, fallback ke Local)
   const getStorageItem = (key: string) => sessionStorage.getItem(key) || localStorage.getItem(key);
+  const hasRememberedSession = () => Boolean(localStorage.getItem('refreshToken') && localStorage.getItem('deviceId'));
   const isRoleMatch = (role: Role | string, target: Role) => role.toString().toUpperCase() === target.toString().toUpperCase();
   const isTuRole = (role: Role | string) => isRoleMatch(role, Role.USER_TU) || isRoleMatch(role, Role.ADMIN_TU);
   const getDefaultRouteForRole = (role: Role | string) => {
@@ -87,7 +88,7 @@ const AppContent: React.FC = () => {
     return '/dashboard';
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() => getStorageItem('isAuthenticated') === 'true');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => getStorageItem('isAuthenticated') === 'true' || hasRememberedSession());
   const [currentRole, setCurrentRole] = useState<Role>(() => (getStorageItem('currentRole') as Role) || Role.MAHASISWA);
   const currentPage = location.pathname.substring(1) || getDefaultRouteForRole(currentRole).replace('/', '');
   const [userName, setUserName] = useState<string>(() => getStorageItem('userName') || 'User');
@@ -258,6 +259,56 @@ const AppContent: React.FC = () => {
     localStorage.setItem('isSidebarCollapsed', String(newState));
   };
 
+  const restoreSessionFromRefresh = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    const deviceId = localStorage.getItem('deviceId');
+
+    if (!refreshToken || !deviceId) {
+      return false;
+    }
+
+    try {
+      const res = await api('/api/auth/refresh', {
+        method: 'POST',
+        data: { refreshToken, deviceId }
+      });
+
+      if (!res.ok) {
+        return false;
+      }
+
+      const data = await res.json();
+      if (!data.success || !data.token) {
+        return false;
+      }
+
+      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('isAuthenticated', 'true');
+
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
+
+      if (data.user) {
+        const restoredRole = data.user.role as Role;
+        const restoredName = data.user.name || 'User';
+        const restoredEmail = data.user.email || '';
+
+        localStorage.setItem('currentRole', restoredRole);
+        localStorage.setItem('userName', restoredName);
+        localStorage.setItem('userEmail', restoredEmail);
+        setCurrentRole(restoredRole);
+        setUserName(restoredName);
+        setUserEmail(restoredEmail);
+      }
+
+      setIsAuthenticated(true);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const handleLogin = (role: Role, userNameFromLogin?: string, rememberMe: boolean = false, emailFromLogin?: string) => {
     setIsLoading(true);
     setCurrentRole(role);
@@ -288,6 +339,7 @@ const AppContent: React.FC = () => {
     keys.forEach(key => {
       localStorage.removeItem(key);
     });
+    localStorage.removeItem('lastActivity');
     
     // Secara langsung menghapus seluruh data yang ada di sessionStorage
     sessionStorage.clear();
@@ -295,8 +347,13 @@ const AppContent: React.FC = () => {
 
   const handleLogout = async () => {
     setIsLoading(true);
+    const refreshToken = getStorageItem('refreshToken');
+    const deviceId = localStorage.getItem('deviceId');
     try {
-      await api('/api/logout', { method: 'POST' });
+      await api('/api/logout', {
+        method: 'POST',
+        data: { refreshToken, deviceId }
+      });
     } catch (error) {
       // Continue client-side logout
     } finally {
@@ -369,7 +426,16 @@ const AppContent: React.FC = () => {
     const verifySession = async () => {
       if (!isAuthenticated) return;
       
-      const token = getStorageItem('authToken');
+      let token = getStorageItem('authToken');
+      if (!token) {
+        const restored = await restoreSessionFromRefresh();
+        if (!restored) {
+          handleLogout();
+          return;
+        }
+        token = getStorageItem('authToken');
+      }
+
       if (!token) {
         handleLogout();
         return;
@@ -412,6 +478,7 @@ const AppContent: React.FC = () => {
   // --- SESSION TIMEOUT (AUTO LOGOUT) ---
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (localStorage.getItem('refreshToken')) return;
 
     const TIMEOUT_MS = 60 * 60 * 1000; // 60 Menit
     

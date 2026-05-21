@@ -42,7 +42,7 @@ export const verifyToken = (req, res, next) => {
   // Verify JWT token (stateless - no database check needed)
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Token tidak valid atau kadaluarsa.' });
+      return res.status(401).json({ error: 'Token tidak valid atau kadaluarsa.' });
     }
     // Add user payload to request object
     req.user = user;

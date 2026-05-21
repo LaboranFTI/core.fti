@@ -8,6 +8,14 @@ import { API_BASE_URL } from '../config';
 // State untuk mengelola Interceptor dan Queue Request
 let isRefreshing = false;
 let refreshSubscribers: ((token: string | null) => void)[] = [];
+const REFRESH_EXCLUDED_PREFIXES = [
+  '/api/auth/refresh',
+  '/api/login',
+  '/api/register',
+  '/api/auth/google',
+  '/api/check-user-exists',
+  '/api/set-password',
+];
 
 const subscribeTokenRefresh = (cb: (token: string | null) => void) => {
   refreshSubscribers.push(cb);
@@ -56,9 +64,10 @@ export const api = async (endpoint: string, options: ApiRequest = {}) => {
 
   try {
     let response = await fetch(url, config);
+    const shouldSkipRefresh = REFRESH_EXCLUDED_PREFIXES.some(prefix => formattedEndpoint.startsWith(prefix));
 
     // --- INTERCEPTOR: Handle 401 Unauthorized (Token Expired) ---
-    if (response.status === 401 && formattedEndpoint !== '/api/auth/refresh' && formattedEndpoint !== '/api/login') {
+    if (response.status === 401 && !shouldSkipRefresh) {
       const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken');
       const deviceId = localStorage.getItem('deviceId');
 
@@ -76,12 +85,15 @@ export const api = async (endpoint: string, options: ApiRequest = {}) => {
             if (refreshRes.ok) {
               const data = await refreshRes.json();
               if (data.success && data.token) {
-            // Simpan token baru ke storage yang sedang aktif
-            if (sessionStorage.getItem('authToken')) {
-              sessionStorage.setItem('authToken', data.token);
-            } else {
-              localStorage.setItem('authToken', data.token);
-            }
+                // Simpan token baru ke storage yang sedang aktif
+                if (sessionStorage.getItem('authToken')) {
+                  sessionStorage.setItem('authToken', data.token);
+                } else {
+                  localStorage.setItem('authToken', data.token);
+                }
+                if (data.refreshToken) {
+                  localStorage.setItem('refreshToken', data.refreshToken);
+                }
                 onRefreshed(data.token);
               } else {
                 onRefreshed(null); // Gagal refresh, session invalid
