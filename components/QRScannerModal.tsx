@@ -23,12 +23,19 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const [cameraOptions, setCameraOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedCameraId, setSelectedCameraId] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const selectedCameraIdRef = useRef(selectedCameraId);
+  const startScannerRef = useRef<(preferredCameraOverride?: string) => Promise<void>>();
+  const stopScannerRef = useRef<() => Promise<void>>();
 
   // Menyimpan callback terbaru ke dalam ref agar tidak memicu re-render
   const callbacksRef = useRef({ onScanSuccess, onClose, closeOnSuccess });
   useEffect(() => {
     callbacksRef.current = { onScanSuccess, onClose, closeOnSuccess };
   }, [onScanSuccess, onClose, closeOnSuccess]);
+
+  useEffect(() => {
+    selectedCameraIdRef.current = selectedCameraId;
+  }, [selectedCameraId]);
 
   const cleanupScanner = useCallback(async (scanner?: Html5Qrcode | null) => {
     if (!scanner) return;
@@ -186,8 +193,8 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
       setCameraOptions(cameras);
 
-      const preferredCameraId = preferredCameraOverride || selectedCameraId || getPreferredCameraId(cameras);
-      if (preferredCameraId && preferredCameraId !== selectedCameraId) {
+      const preferredCameraId = preferredCameraOverride || selectedCameraIdRef.current || getPreferredCameraId(cameras);
+      if (preferredCameraId && preferredCameraId !== selectedCameraIdRef.current) {
         setSelectedCameraId(preferredCameraId);
       }
 
@@ -240,32 +247,40 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
       setHasCamPermission(false);
       setIsScanning(false);
     }
-  }, [buildCameraCandidates, cleanupScanner, getPreferredCameraId, getScannerErrorMessage, handleClose, selectedCameraId, stopScanner, syncScannerPresentation]);
+  }, [buildCameraCandidates, cleanupScanner, getPreferredCameraId, getScannerErrorMessage, handleClose, stopScanner, syncScannerPresentation]);
+
+  // Sync function refs agar lifecycle effect tidak perlu re-trigger
+  useEffect(() => {
+    startScannerRef.current = startScanner;
+  }, [startScanner]);
+  useEffect(() => {
+    stopScannerRef.current = stopScanner;
+  }, [stopScanner]);
 
   const handleCameraChange = async (cameraId: string) => {
     setSelectedCameraId(cameraId);
     await startScanner(cameraId);
   };
 
-  // Lifecycle
+  // Lifecycle — hanya depend pada isOpen, fungsi diakses via ref
   useEffect(() => {
     if (isOpen) {
       // Delay to ensure modal mounted
-      const timer = setTimeout(startScanner, 300);
+      const timer = setTimeout(() => startScannerRef.current?.(), 300);
       return () => clearTimeout(timer);
     } else {
-      stopScanner();
+      stopScannerRef.current?.();
       setCameraOptions([]);
       setSelectedCameraId('');
     }
-  }, [isOpen, startScanner, stopScanner]);
+  }, [isOpen]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopScanner();
+      stopScannerRef.current?.();
     };
-  }, [stopScanner]);
+  }, []);
 
   if (!isOpen) return null;
 
