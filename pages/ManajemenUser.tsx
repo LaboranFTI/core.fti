@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppUser as BaseAppUser } from '../types';
-import { Search, Plus, Filter, Edit, Trash2, X, Check, MoreHorizontal, UserCheck, UserX, Shield, KeyRound, RefreshCw, Loader2, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, Edit, Trash2, X, Check, Copy, UserCheck, UserX, KeyRound, RefreshCw, Loader2, Users } from 'lucide-react';
 import { api } from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
 import ConfirmModal from '../components/ConfirmModal';
@@ -13,6 +13,13 @@ import PageCard from '../components/PageCard';
 
 // Extend AppUser type locally to include phone
 type AppUser = BaseAppUser & { phone?: string };
+type ResetTokenDialogState = {
+  isOpen: boolean;
+  title: string;
+  description: string;
+  token: string;
+  expiresAt: string;
+};
 
 interface UserManagementProps {
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
@@ -37,6 +44,40 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
     isOpen: false, title: '', message: '', type: 'danger' as 'danger' | 'warning' | 'info', targetId: '', actionType: ''
   });
   const [isConfirming, setIsConfirming] = useState(false);
+  const [resetTokenDialog, setResetTokenDialog] = useState<ResetTokenDialogState>({
+    isOpen: false,
+    title: '',
+    description: '',
+    token: '',
+    expiresAt: '',
+  });
+  const [hasCopiedResetToken, setHasCopiedResetToken] = useState(false);
+
+  const openResetTokenDialog = (title: string, description: string, token: string, expiresAt: string) => {
+    setHasCopiedResetToken(false);
+    setResetTokenDialog({
+      isOpen: true,
+      title,
+      description,
+      token,
+      expiresAt,
+    });
+  };
+
+  const closeResetTokenDialog = () => {
+    setResetTokenDialog(prev => ({ ...prev, isOpen: false }));
+    setHasCopiedResetToken(false);
+  };
+
+  const copyResetToken = async () => {
+    try {
+      await navigator.clipboard.writeText(resetTokenDialog.token);
+      setHasCopiedResetToken(true);
+      showToast('Token reset berhasil disalin.', 'success');
+    } catch (error) {
+      showToast('Gagal menyalin token reset.', 'error');
+    }
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -137,7 +178,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           fetchUsers();
           showToast("User baru berhasil ditambahkan.", "success");
           if (data.resetToken) {
-            showToast(`Token setup password: ${data.resetToken} (berlaku sampai ${new Date(data.resetTokenExpiresAt).toLocaleString('id-ID')}).`, "info");
+            openResetTokenDialog(
+              'Token Setup Password',
+              'Bagikan token ini ke user agar mereka bisa membuat password pertama kali.',
+              data.resetToken,
+              data.resetTokenExpiresAt
+            );
           }
         } else {
           const data = await res.json();
@@ -212,7 +258,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           throw new Error(data.error || "Gagal mereset password.");
         }
         showToast("Token reset password berhasil diterbitkan.", "success");
-        showToast(`Token reset: ${data.resetToken} (berlaku sampai ${new Date(data.resetTokenExpiresAt).toLocaleString('id-ID')}).`, "info");
+        openResetTokenDialog(
+          'Token Reset Password',
+          'Bagikan token ini ke user agar mereka bisa membuat password baru saat login berikutnya.',
+          data.resetToken,
+          data.resetTokenExpiresAt
+        );
       }
       fetchUsers();
     } catch (error) {
@@ -525,6 +576,52 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
         confirmText={confirmModal.actionType === 'delete' ? 'Ya, Hapus' : 'Ya, Reset'}
         isLoading={isConfirming}
       />
+
+      {resetTokenDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 animate-fade-in-up">
+            <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/50">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">{resetTokenDialog.title}</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{resetTokenDialog.description}</p>
+              </div>
+              <button
+                onClick={closeResetTokenDialog}
+                className="rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
+                title="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-4 sm:p-6">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/80 p-4 dark:border-blue-900/40 dark:bg-blue-950/30">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">Token</p>
+                <div className="mt-2 break-all rounded-lg bg-white px-3 py-3 font-mono text-sm text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white">
+                  {resetTokenDialog.token}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Berlaku Sampai</p>
+                <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  {new Date(resetTokenDialog.expiresAt).toLocaleString('id-ID')}
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={closeResetTokenDialog}>
+                  Tutup
+                </Button>
+                <Button type="button" variant={hasCopiedResetToken ? 'secondary' : 'primary'} onClick={copyResetToken}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  {hasCopiedResetToken ? 'Token Tersalin' : 'Copy Token'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
