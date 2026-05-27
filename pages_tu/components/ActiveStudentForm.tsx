@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { GraduationCap, Send, CheckCircle2, Loader2, Search, XCircle } from 'lucide-react';
+import { Eraser, GraduationCap, Send, CheckCircle2, Loader2, Search, XCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import {
   buildBirthPlaceAndDate,
@@ -64,6 +64,14 @@ export function ActiveStudentForm() {
 
   const resetFormState = () => {
     reset(defaultFormValues);
+    resetVerifiedFields();
+    setIsVerified(false);
+    setVerifyError('');
+    setFormFeedback(null);
+  };
+
+  const handleClearNim = () => {
+    setValue('nim', '', { shouldDirty: true, shouldTouch: true, shouldValidate: true });
     resetVerifiedFields();
     setIsVerified(false);
     setVerifyError('');
@@ -267,13 +275,13 @@ export function ActiveStudentForm() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="nim" className="text-slate-700 dark:text-slate-300 font-medium">NIM</Label>
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <Input
                     id="nim"
                     placeholder="Contoh: 672019000"
                     {...register("nim", { required: true })}
                     readOnly={isVerified}
-                    className={isVerified ? "bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400" : ""}
+                    className={isVerified ? "bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 sm:flex-1" : "sm:flex-1"}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -283,12 +291,28 @@ export function ActiveStudentForm() {
                       }
                     }}
                   />
-                  {!isVerified && (
-                    <Button type="button" onClick={handleVerifyKST} disabled={isVerifying || !nimValue} className="shrink-0 bg-blue-600 hover:bg-blue-700">
-                      {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-                      {isVerifying ? 'Memeriksa...' : 'Cek KST'}
-                    </Button>
-                  )}
+                  <div className="flex gap-3 sm:shrink-0">
+                    {nimValue && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={handleClearNim}
+                        disabled={isVerifying}
+                        aria-label="Bersihkan NIM"
+                        title="Bersihkan NIM"
+                        className="border-slate-300 text-slate-600 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:text-white"
+                      >
+                        <Eraser className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {!isVerified && (
+                      <Button type="button" onClick={handleVerifyKST} disabled={isVerifying || !nimValue} className="flex-1 bg-blue-600 hover:bg-blue-700 sm:flex-none">
+                        {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+                        {isVerifying ? 'Memeriksa...' : 'Cek KST'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {!isVerified && !verifyError && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
