@@ -24,6 +24,8 @@ import {
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
 
+const MAX_OBSERVATION_STUDENTS = 7;
+
 interface ObservationFormProps {
   onDataChange: (data: ObservationData) => void;
   onPrint: () => void;
@@ -434,7 +436,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                     <h3 className="font-semibold text-lg">Anggota Kelompok</h3>
                   </div>
                   <span className="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">
-                    {fields.length} / 5
+                    {fields.length} / {MAX_OBSERVATION_STUDENTS}
                   </span>
                 </div>
 
@@ -474,9 +476,9 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                   variant="outline"
                   className="w-full border-dashed border-2 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 text-slate-500 dark:text-slate-400 dark:border-slate-700"
                   onClick={() => {
-                    if (fields.length < 5) append({ name: '', nim: '' });
+                    if (fields.length < MAX_OBSERVATION_STUDENTS) append({ name: '', nim: '' });
                   }}
-                  disabled={readOnly || fields.length >= 5}
+                  disabled={readOnly || fields.length >= MAX_OBSERVATION_STUDENTS}
                 >
                   <Plus className="w-4 h-4 mr-2" /> Tambah Anggota Kelompok
                 </Button>

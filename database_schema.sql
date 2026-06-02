@@ -48,11 +48,6 @@ CREATE TABLE users (
 -- Contoh penerapan trigger pada tabel users
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-INSERT INTO users (id, nama, email, username, password, role, identifier, telepon, status)
-VALUES 
-('ADMIN-001', 'Administrator', 'admin.noc@core.fti', 'admin', '$2a$12$JOgQfS7L8RV4QOMnLpPQdeWeJgFaquVRouBIXml.EM0Lu54InxRAG', 'Admin', 'ADMIN001', '00000000000', 'Aktif');
-
-
 -- Tabel Staff
 -- Menyimpan data staff/laboran yang bisa menjadi PIC ruangan
 CREATE TABLE staff (
