@@ -98,7 +98,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const activeTabMeta: Record<string, { title: string; description: string; icon: React.ElementType }> = {
     aktif: {
       title: 'Surat Aktif Kuliah',
-      description: 'Alur singkat untuk cek KST, upload transkrip, lalu ajukan permohonan surat aktif kuliah.',
+      description: 'Alur singkat untuk cek KST, lalu ajukan permohonan surat aktif kuliah.',
       icon: FileText
     },
     observasi: {

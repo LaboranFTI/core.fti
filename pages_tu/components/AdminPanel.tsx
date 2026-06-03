@@ -549,30 +549,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         </div>
 
         {/* Content */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          {/* Left Column: Transcript & Uploads (Hidden on Print) */}
-          <div className="xl:col-span-5 space-y-6 print:hidden">
-            <Card className="shadow-sm border-slate-200 dark:border-gray-700">
-              <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4">
-                <CardTitle className="text-lg flex items-center gap-2 dark:text-white">
-                  <FileText className="w-5 h-5 text-blue-600" /> Transkrip Nilai
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-150 w-full bg-slate-100 dark:bg-gray-900 relative">
-                  {selectedRequest.transcriptBase64 ? (
-                    <iframe src={selectedRequest.transcriptBase64} className="w-full h-full border-0" title="Transkrip Nilai" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-400">Tidak ada lampiran</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-          </div>
-
-          {/* Right Column: Letter Preview */}
-          <div className="xl:col-span-7 print:block print:w-full print:m-0 print:p-0">
+        <div className="grid grid-cols-1 gap-6">
+          <div className="print:block print:w-full print:m-0 print:p-0">
             <Card className="shadow-sm border-slate-200 dark:border-gray-700 print:border-0 print:shadow-none h-full">
               <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4 print:hidden">
                 <CardTitle className="text-lg flex items-center gap-2 dark:text-white">

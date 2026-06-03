@@ -652,7 +652,7 @@ const letterConfig = {
     subject: 'Surat Pengantar Observasi',
     pdfFilename: 'Surat_Pengantar_Observasi',
     emailBody: `
-      <p>Permohonan Surat Pengantar Observasi Anda telah diproses oleh Tata Usaha.</p>
+      <p>Permohonan Surat Pengantar Observasi Anda telah diproses oleh Sistem CORE.FTI.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF.</p>
     `,
     getPlaceholders: ({ data, letterNumber }) => {

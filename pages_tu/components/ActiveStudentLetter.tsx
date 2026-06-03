@@ -74,7 +74,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
         }}
       >
         <div className="mb-[8mm] text-center">
-          <h3 className="text-[15pt] uppercase">
+          <h3 className="text-[15pt] font-bold uppercase">
             Surat Keterangan
           </h3>
         </div>
