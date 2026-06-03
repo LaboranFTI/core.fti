@@ -12,10 +12,162 @@ const upload = multer({ dest: 'uploads/' });
 
 // --- ENDPOINTS STAFF (Data Internal & PIC) ---
 
+const normalizeLabRoomIds = (value) => {
+  if (!Array.isArray(value)) return null;
+  return [...new Set(
+    value
+      .filter(item => typeof item === 'string' && item.trim())
+      .map(item => item.trim())
+  )];
+};
+
+const normalizeDateValue = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const getTodayDateValue = () => new Date().toISOString().slice(0, 10);
+
+const syncStaffLabAssignments = async (client, staffId, labRoomIds) => {
+  await client.query(
+    `UPDATE rooms
+     SET pic_id = NULL
+     WHERE pic_id = $1
+       AND category = 'Laboratorium Komputer'
+       AND NOT (id = ANY($2::text[]))`,
+    [staffId, labRoomIds]
+  );
+
+  if (labRoomIds.length === 0) return;
+
+  await client.query(
+    `UPDATE rooms
+     SET pic_id = $1
+     WHERE category = 'Laboratorium Komputer'
+       AND id = ANY($2::text[])`,
+    [staffId, labRoomIds]
+  );
+};
+
+const insertStaffPositionPeriod = async (client, staffId, periodNumber, jabatan, startDate, endDate = null) => {
+  const periodId = `SPP-${staffId}-${periodNumber}-${Date.now()}`;
+  await client.query(
+    `INSERT INTO staff_position_periods (id, staff_id, period_number, jabatan, start_date, end_date)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [periodId, staffId, periodNumber, jabatan, startDate, endDate]
+  );
+};
+
+const syncStaffPositionPeriod = async (client, staffId, {
+  jabatan,
+  status,
+  previousStatus,
+  positionStartDate,
+  positionEndDate
+}) => {
+  const requestedStartDate = normalizeDateValue(positionStartDate);
+  const requestedEndDate = normalizeDateValue(positionEndDate);
+  const fallbackDate = getTodayDateValue();
+
+  const latestResult = await client.query(
+    `SELECT id, period_number, start_date, end_date
+     FROM staff_position_periods
+     WHERE staff_id = $1
+     ORDER BY period_number DESC
+     LIMIT 1`,
+    [staffId]
+  );
+  const latestPeriod = latestResult.rows[0] || null;
+
+  const openResult = await client.query(
+    `SELECT id, period_number, start_date
+     FROM staff_position_periods
+     WHERE staff_id = $1 AND end_date IS NULL
+     ORDER BY period_number DESC
+     LIMIT 1`,
+    [staffId]
+  );
+  const openPeriod = openResult.rows[0] || null;
+
+  if (!latestPeriod) {
+    const startDate = requestedStartDate || fallbackDate;
+    const endDate = status === 'Non-Aktif' ? (requestedEndDate || startDate) : null;
+    await insertStaffPositionPeriod(client, staffId, 1, jabatan, startDate, endDate);
+    return;
+  }
+
+  if (status === 'Non-Aktif') {
+    if (!openPeriod) return;
+    await client.query(
+      `UPDATE staff_position_periods
+       SET jabatan = $1,
+           start_date = COALESCE($2::date, start_date),
+           end_date = $3
+       WHERE id = $4`,
+      [jabatan, requestedStartDate, requestedEndDate || fallbackDate, openPeriod.id]
+    );
+    return;
+  }
+
+  if (previousStatus === 'Non-Aktif' || !openPeriod) {
+    await insertStaffPositionPeriod(
+      client,
+      staffId,
+      Number(latestPeriod.period_number || 0) + 1,
+      jabatan,
+      requestedStartDate || fallbackDate,
+      null
+    );
+    return;
+  }
+
+  await client.query(
+    `UPDATE staff_position_periods
+     SET jabatan = $1,
+         start_date = COALESCE($2::date, start_date)
+     WHERE id = $3`,
+    [jabatan, requestedStartDate, openPeriod.id]
+  );
+};
+
 // Get All Staff
 router.get('/staff', async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM staff ORDER BY created_at DESC");
+    const result = await pool.query(`
+      SELECT s.*,
+             (
+               SELECT COALESCE(array_agg(r.id ORDER BY r.name), ARRAY[]::varchar[])
+               FROM rooms r
+               WHERE r.pic_id = s.id
+                 AND r.category = 'Laboratorium Komputer'
+             ) AS assigned_lab_ids,
+             (
+               SELECT COALESCE(array_agg(r.name ORDER BY r.name), ARRAY[]::varchar[])
+               FROM rooms r
+               WHERE r.pic_id = s.id
+                 AND r.category = 'Laboratorium Komputer'
+             ) AS assigned_lab_names,
+             (
+               SELECT COALESCE(
+                 json_agg(
+                   json_build_object(
+                     'id', p.id,
+                     'periodNumber', p.period_number,
+                     'jabatan', p.jabatan,
+                     'startDate', to_char(p.start_date, 'YYYY-MM-DD'),
+                     'endDate', CASE WHEN p.end_date IS NULL THEN NULL ELSE to_char(p.end_date, 'YYYY-MM-DD') END
+                   )
+                   ORDER BY p.period_number
+                 ),
+                 '[]'::json
+               )
+               FROM staff_position_periods p
+               WHERE p.staff_id = s.id
+             ) AS position_periods
+      FROM staff s
+      ORDER BY s.created_at DESC
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error('Get staff error:', err);
@@ -25,35 +177,72 @@ router.get('/staff', async (req, res) => {
 
 // Add New Staff
 router.post('/staff', async (req, res) => {
-  const { name, nim, email, phone, jabatan, status } = req.body;
+  const { name, nim, email, phone, jabatan, status, keterangan, positionStartDate, positionEndDate } = req.body;
+  const labRoomIds = jabatan === 'Teknisi' ? (normalizeLabRoomIds(req.body.labRoomIds) || []) : [];
+  const client = await pool.connect();
   
   try {
+    await client.query('BEGIN');
     const id = `STF-${Date.now()}`;
-    await pool.query(
-      "INSERT INTO staff (id, nama, identifier, email, telepon, jabatan, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-      [id, name, nim, email, phone, jabatan, status]
+    await client.query(
+      "INSERT INTO staff (id, nama, identifier, email, telepon, jabatan, keterangan, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [id, name, nim, email, phone, jabatan, keterangan || null, status]
     );
+    await syncStaffPositionPeriod(client, id, {
+      jabatan,
+      status,
+      previousStatus: null,
+      positionStartDate,
+      positionEndDate
+    });
+    await syncStaffLabAssignments(client, id, labRoomIds);
+    await client.query('COMMIT');
     res.json({ success: true, id });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Add staff error:', err);
     res.status(500).json({ error: 'Gagal menambah staff.' });
+  } finally {
+    client.release();
   }
 });
 
 // Update Staff
 router.put('/staff/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, nim, email, phone, jabatan, status } = req.body;
+  const { name, nim, email, phone, jabatan, status, keterangan, positionStartDate, positionEndDate } = req.body;
+  const normalizedLabRoomIds = normalizeLabRoomIds(req.body.labRoomIds);
+  const shouldSyncLabs = normalizedLabRoomIds !== null || jabatan !== 'Teknisi';
+  const labRoomIds = jabatan === 'Teknisi' ? (normalizedLabRoomIds || []) : [];
+  const client = await pool.connect();
 
   try {
-    await pool.query(
-      "UPDATE staff SET nama=$1, identifier=$2, email=$3, telepon=$4, jabatan=$5, status=$6 WHERE id=$7",
-      [name, nim, email, phone, jabatan, status, id]
+    await client.query('BEGIN');
+    const currentResult = await client.query('SELECT status FROM staff WHERE id = $1', [id]);
+    const previousStatus = currentResult.rows[0]?.status || null;
+
+    await client.query(
+      "UPDATE staff SET nama=$1, identifier=$2, email=$3, telepon=$4, jabatan=$5, keterangan=$6, status=$7 WHERE id=$8",
+      [name, nim, email, phone, jabatan, keterangan || null, status, id]
     );
+    await syncStaffPositionPeriod(client, id, {
+      jabatan,
+      status,
+      previousStatus,
+      positionStartDate,
+      positionEndDate
+    });
+    if (shouldSyncLabs) {
+      await syncStaffLabAssignments(client, id, labRoomIds);
+    }
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Update staff error:', err);
     res.status(500).json({ error: 'Gagal update staff.' });
+  } finally {
+    client.release();
   }
 });
 

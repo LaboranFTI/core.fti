@@ -1,6 +1,7 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,6 +27,7 @@ const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', '
 const TU_ADMIN_ROLES = ['Admin', 'Admin TU'];
 const TU_SUBMIT_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
 const TU_SETTINGS_KEYS = ['tu_dean_signature_base64', 'tu_faculty_stamp_base64', 'tu_current_semester_code'];
+const QR_DOWNLOAD_TOKEN_TTL_HOURS = 24;
 const LETTER_TYPE_TO_CLIENT_KEY = {
   'active-student': 'activeStudent',
   observation: 'observation'
@@ -34,6 +36,10 @@ const LETTER_TYPE_TO_CODE = {
   'active-student': 'S.Ket',
   observation: 'FTI-OBS'
 };
+
+const createQrDownloadToken = () => crypto.randomBytes(32).toString('base64url');
+const hashQrDownloadToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const getQrDownloadExpiry = () => new Date(Date.now() + QR_DOWNLOAD_TOKEN_TTL_HOURS * 60 * 60 * 1000);
 
 const createEmptyLetterBackgrounds = () => ({
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
@@ -90,6 +96,8 @@ const ensureTuInfrastructure = async () => {
         letter_number VARCHAR(100),
         letter_sequence INTEGER,
         letter_generated_at TIMESTAMP,
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -111,6 +119,8 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
       ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
       ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -217,6 +227,12 @@ const ensureTuInfrastructure = async () => {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_letter_number_unique
       ON observation_requests(letter_number)
       WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_observation_requests_qr_download_token_hash
+      ON observation_requests(qr_download_token_hash)
+      WHERE qr_download_token_hash IS NOT NULL
     `);
 
     await pool.query(`
@@ -1509,6 +1525,19 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    const qrDownloadToken = createQrDownloadToken();
+    const qrDownloadTokenHash = hashQrDownloadToken(qrDownloadToken);
+    const qrDownloadTokenExpiresAt = getQrDownloadExpiry();
+
+    requestData = (await client.query(
+      `UPDATE observation_requests
+       SET qr_download_token_hash = $1,
+           qr_download_token_expires_at = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3
+       RETURNING *`,
+      [qrDownloadTokenHash, qrDownloadTokenExpiresAt, requestData.id]
+    )).rows[0];
 
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
@@ -1545,9 +1574,13 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const filename = `SuratObservasi_${safeCompanyName}.pdf`;
 
-    const token = requestData.id;
-    const qrPath = `/api/tu/public/qr-download/${token}`;
-    res.json({ success: true, qrUrl: qrPath, token });
+    const qrPath = `/api/tu/public/qr-download/${qrDownloadToken}`;
+    res.json({
+      success: true,
+      qrUrl: qrPath,
+      token: qrDownloadToken,
+      expiresAt: qrDownloadTokenExpiresAt.toISOString()
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Observation letter QR generate error:', err);
@@ -1694,9 +1727,17 @@ router.get('/tu/public/qr-download/:token', async (req, res) => {
 
   const client = await pool.connect();
   try {
-    const result = await client.query(`SELECT * FROM observation_requests WHERE id = $1`, [token]);
+    await ensureTuInfrastructure();
+    const tokenHash = hashQrDownloadToken(token);
+    const result = await client.query(
+      `SELECT * FROM observation_requests
+       WHERE qr_download_token_hash = $1
+         AND qr_download_token_expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [tokenHash]
+    );
     if (result.rows.length === 0) {
-      return res.status(404).send('Dokumen tidak ditemukan.');
+      return res.status(404).send('Link download tidak valid atau sudah kadaluarsa (maksimal 24 jam).');
     }
 
     const requestData = result.rows[0];

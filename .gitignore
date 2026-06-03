@@ -27,3 +27,6 @@ dist-ssr
 package-lock.json
 TODO.md
 client_secret_828476305239-7hilvfjvadt8ndn9br7n1upmdso38ou8.apps.googleusercontent.com.json
+scripts/staff_keterangan_pic_lab_migration.sql
+scripts/staff_position_periods_migration.sql
+docs/superpowers/plans/2026-06-03-qr-download-token.md

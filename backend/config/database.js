@@ -133,6 +133,40 @@ export const ensureAuthSchema = async () => {
     'ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(50)',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_hash VARCHAR(255)',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ',
+    'ALTER TABLE staff ADD COLUMN IF NOT EXISTS keterangan TEXT',
+    `CREATE TABLE IF NOT EXISTS staff_position_periods (
+      id VARCHAR(50) PRIMARY KEY,
+      staff_id VARCHAR(50) NOT NULL,
+      period_number INT NOT NULL,
+      jabatan VARCHAR(50),
+      start_date DATE NOT NULL,
+      end_date DATE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_staff_position_period_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
+      CONSTRAINT uq_staff_position_period_number UNIQUE (staff_id, period_number)
+    )`,
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_staff_position_periods_updated_at') THEN
+         CREATE TRIGGER update_staff_position_periods_updated_at
+         BEFORE UPDATE ON staff_position_periods
+         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+       END IF;
+     END $$`,
+    'CREATE INDEX IF NOT EXISTS idx_staff_position_periods_staff_id ON staff_position_periods(staff_id)',
+    `INSERT INTO staff_position_periods (id, staff_id, period_number, jabatan, start_date, end_date)
+     SELECT
+       'SPP-' || s.id || '-1',
+       s.id,
+       1,
+       s.jabatan,
+       COALESCE(s.created_at::date, CURRENT_DATE),
+       CASE WHEN s.status = 'Non-Aktif' THEN COALESCE(s.updated_at::date, CURRENT_DATE) ELSE NULL END
+     FROM staff s
+     WHERE NOT EXISTS (
+       SELECT 1 FROM staff_position_periods p WHERE p.staff_id = s.id
+     )`,
   ];
 
   try {

@@ -57,6 +57,7 @@ CREATE TABLE staff (
     email VARCHAR(100),
     telepon VARCHAR(20),
     jabatan VARCHAR(50),
+    keterangan TEXT,
     user_id VARCHAR(50),
     status user_status_enum DEFAULT 'Aktif',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -65,6 +66,24 @@ CREATE TABLE staff (
 );
 
 CREATE TRIGGER update_staff_updated_at BEFORE UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Tabel Riwayat Periode Jabatan Staff
+-- Menyimpan periode ke-1, ke-2, dst saat staff aktif/non-aktif lalu aktif kembali
+CREATE TABLE staff_position_periods (
+    id VARCHAR(50) PRIMARY KEY,
+    staff_id VARCHAR(50) NOT NULL,
+    period_number INT NOT NULL,
+    jabatan VARCHAR(50),
+    start_date DATE NOT NULL,
+    end_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_staff_position_period_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
+    CONSTRAINT uq_staff_position_period_number UNIQUE (staff_id, period_number)
+);
+
+CREATE TRIGGER update_staff_position_periods_updated_at BEFORE UPDATE ON staff_position_periods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE INDEX idx_staff_position_periods_staff_id ON staff_position_periods(staff_id);
 
 -- Tabel Program Studi
 -- ID menggunakan kode awal NIM (2 digit), misal '67' = S1 Teknik Informatika
@@ -514,6 +533,8 @@ CREATE TABLE observation_requests (
     letter_number VARCHAR(100),
     letter_sequence INTEGER,
     letter_generated_at TIMESTAMP,
+    qr_download_token_hash VARCHAR(64),
+    qr_download_token_expires_at TIMESTAMPTZ,
     status VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -572,6 +593,10 @@ WHERE letter_number IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_letter_number_unique
 ON observation_requests(letter_number)
 WHERE letter_number IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_observation_requests_qr_download_token_hash
+ON observation_requests(qr_download_token_hash)
+WHERE qr_download_token_hash IS NOT NULL;
 
 -- Pengaturan default untuk Layanan TU
 INSERT INTO system_settings (key, value) VALUES ('tu_dean_signature_base64', '') ON CONFLICT (key) DO NOTHING;

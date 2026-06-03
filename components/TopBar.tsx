@@ -1,7 +1,6 @@
-import React, { startTransition, useDeferredValue, useEffect, useState } from 'react';
-import { Menu, Moon, Sun, Bell, Search, LogOut, User, ChevronDown, Check, Box, MapPin, CheckCheck, Loader2, Trash2, AlertTriangle } from 'lucide-react';
-import { Role, Notification } from '../types';
-import { api } from '../services/api';
+import React, { useEffect, useState } from 'react';
+import { Menu, Moon, Sun, Bell, LogOut, User, ChevronDown, Check, CheckCheck, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Notification } from '../types';
 import { APP_NAME } from '../config';
 import nocLogo from "../src/assets/NOC.svg";
 
@@ -11,11 +10,9 @@ interface TopBarProps {
   isVisible?: boolean;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
-  currentRole: Role;
   pageLabel: string;
   userName: string;
   userEmail: string;
-  onOpenAi: () => void;
   onLogout: () => void;
   notifications: Notification[];
   onMarkAsRead: (id: string) => void;
@@ -25,82 +22,14 @@ interface TopBarProps {
   isMaintenanceMode?: boolean;
 }
 
-// 1. Definisikan interface untuk hasil pencarian
-interface SearchResult {
-  name: string;
-  page: string;
-  icon: string;
-  status?: string;
-  type: string;
-}
-
-// 2. Pindahkan iconMap keluar komponen (Static lookup)
-const iconMap: Record<string, React.ElementType> = {
-  User: User,
-  Room: MapPin, // Backend sends 'Room', map to MapPin icon
-  MapPin: MapPin,
-  Inventory: Box,
-  Box: Box
-};
-
 const TopBar: React.FC<TopBarProps> = ({ 
-  onToggleSidebar, showSidebarToggle, isVisible = true, isDarkMode, toggleDarkMode, currentRole, pageLabel, userName, userEmail, onOpenAi, onLogout, notifications, onMarkAsRead, onMarkAllAsRead, onClearAllNotifications, onNavigate, isMaintenanceMode
+  onToggleSidebar, showSidebarToggle, isVisible = true, isDarkMode, toggleDarkMode, pageLabel, userName, userEmail, onLogout, notifications, onMarkAsRead, onMarkAllAsRead, onClearAllNotifications, onNavigate, isMaintenanceMode
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const [visibleNotifCount, setVisibleNotifCount] = useState(10);
-  // Search State
-  const [searchQuery, setSearchQuery] = useState('');
-  // 3. Gunakan tipe data yang eksplisit
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const deferredSearchQuery = useDeferredValue(searchQuery.trim());
-
-  // Debounce Search
-  useEffect(() => {
-    if (deferredSearchQuery.length < 2) {
-      setSearchResults([]);
-      setIsSearchOpen(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-    const delayDebounceFn = setTimeout(async () => {
-      try {
-        const res = await api(`/api/search?q=${encodeURIComponent(deferredSearchQuery)}`, { signal: abortController.signal });
-        if (res.ok) {
-          const results = await res.json();
-          startTransition(() => {
-            setSearchResults(results);
-            setIsSearchOpen(true);
-          });
-        }
-      } catch (e: any) {
-        if (e?.name !== 'AbortError') {
-          console.error("Search error", e);
-        }
-      }
-    }, 250);
-
-    return () => {
-      abortController.abort();
-      clearTimeout(delayDebounceFn);
-    };
-  }, [deferredSearchQuery]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
-
-  // (Deleted internal iconMap)
-
-  const handleResultClick = (page: string) => {
-    onNavigate(page);
-    setIsSearchOpen(false);
-    setSearchQuery('');
-  };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -159,56 +88,6 @@ const TopBar: React.FC<TopBarProps> = ({
               Sarana dan Prasarana
             </p>
           </div>
-        </div>
-        
-        {/* Global Search */}
-        <div className="relative ml-2 hidden items-center md:flex">
-          <Search className="absolute left-3 h-4 w-4 text-gray-400" />
-          <input 
-            type="text"
-            placeholder="Cari User, Ruangan, Barang..." 
-            value={searchQuery}
-            onChange={handleSearch}
-            onFocus={() => searchQuery.length > 1 && setIsSearchOpen(true)}
-            className="h-11 w-64 rounded-full border border-gray-200 bg-gray-50 pl-10 pr-4 text-sm text-gray-900 transition-all focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-500/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-blue-500 dark:focus:bg-gray-900 lg:w-80 xl:w-96"
-          />
-          
-          {/* Search Results Dropdown */}
-          {isSearchOpen && searchResults.length > 0 && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsSearchOpen(false)}></div>
-              <div className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl animate-fade-in-up dark:border-gray-700 dark:bg-gray-800">
-                 <div className="py-2">
-                    <p className="bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:bg-gray-700/50">Hasil Pencarian</p>
-                    {searchResults.map((result, idx) => {
-                      const IconComponent = iconMap[result.icon] || Search;
-                      return (
-                      <button 
-                        key={idx}
-                        onClick={() => handleResultClick(result.page)}
-                        className="group flex w-full items-center border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700 last:border-0"
-                      >
-                         <IconComponent className="mr-3 h-4 w-4 text-gray-400 group-hover:text-blue-500" />
-                         <div className="flex-1">
-                            <div className="flex justify-between items-center">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600">{result.name}</p>
-                                {result.status && (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                                        result.status === 'Tersedia' || result.status === 'Aktif' 
-                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                    }`}>{result.status}</span>
-                                )}
-                            </div>
-                            <p className="text-xs text-gray-500">{result.type}</p>
-                         </div>
-                      </button>
-                    );
-                    })}
-                 </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
 

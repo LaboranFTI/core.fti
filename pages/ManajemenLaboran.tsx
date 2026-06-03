@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Printer, Download, Edit, Trash2, X, Check, FileSpreadsheet, Users, Eye } from 'lucide-react';
+import { Plus, Printer, Edit, Trash2, X, Check, FileSpreadsheet, Users, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
 import { api } from '../services/api';
 import { Room } from '../types';
@@ -7,8 +7,10 @@ import ConfirmModal from '../components/ConfirmModal';
 import SearchBar from '../components/SearchBar';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
+import Pagination from '../components/Pagination';
 import PrintableReportHeader from '../components/PrintableReportHeader';
 import { Button, buttonVariants } from '../components/ui/button';
+import { usePagination } from '../hooks/usePagination';
 import { cn } from '../lib/utils';
 
 interface LabStaff {
@@ -18,7 +20,21 @@ interface LabStaff {
   email: string;
   phone: string;
   jabatan: 'Admin' | 'Teknisi' | 'Supervisor' | 'Kepala Sarpras';
+  keterangan?: string;
+  assignedLabIds?: string[];
+  assignedLabNames?: string[];
+  positionStartDate?: string;
+  positionEndDate?: string | null;
+  positionPeriods?: StaffPositionPeriod[];
   status: 'Aktif' | 'Non-Aktif';
+}
+
+interface StaffPositionPeriod {
+  id: string;
+  periodNumber: number;
+  jabatan: string;
+  startDate: string;
+  endDate: string | null;
 }
 
 interface LaboranManagementProps {
@@ -26,10 +42,26 @@ interface LaboranManagementProps {
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
+
+const getCurrentPositionPeriod = (staff?: Partial<LabStaff>) => {
+  const periods = staff?.positionPeriods || [];
+  return periods.find(period => !period.endDate) || periods[periods.length - 1] || null;
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '-';
+  return new Date(`${value}T00:00:00`).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
 const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showToast }) => {
   const [staffList, setStaffList] = useState<LabStaff[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'All' | 'Aktif' | 'Non-Aktif'>('All');
+  const [filterStatus, setFilterStatus] = useState<'All' | 'Aktif' | 'Non-Aktif'>('Aktif');
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,8 +71,10 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showStopDateModal, setShowStopDateModal] = useState(false);
+  const [stopDate, setStopDate] = useState(getTodayDate());
   const [formData, setFormData] = useState<Partial<LabStaff>>({
-    name: '', nim: '', email: '', phone: '', jabatan: 'Teknisi', status: 'Aktif'
+    name: '', nim: '', email: '', phone: '', jabatan: 'Teknisi', keterangan: '', assignedLabIds: [], positionStartDate: getTodayDate(), positionEndDate: null, positionPeriods: [], status: 'Aktif'
   });
 
   useEffect(() => {
@@ -65,15 +99,25 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
       if (res.ok) {
         const data = await res.json();
         // Mapping data dari DB (staff) ke Frontend (LabStaff)
-        const mappedData = data.map((s: any) => ({
+        const mappedData = data.map((s: any) => {
+          const positionPeriods = s.position_periods || [];
+          const currentPeriod = getCurrentPositionPeriod({ positionPeriods });
+          return {
             id: s.id,
             name: s.nama,
             nim: s.identifier,
             email: s.email,
             phone: s.telepon,
             jabatan: s.jabatan,
+            keterangan: s.keterangan || '',
+            assignedLabIds: s.assigned_lab_ids || [],
+            assignedLabNames: s.assigned_lab_names || [],
+            positionStartDate: currentPeriod?.startDate || getTodayDate(),
+            positionEndDate: currentPeriod?.endDate || null,
+            positionPeriods,
             status: s.status
-        }));
+          };
+        });
         setStaffList(mappedData);
       }
     } catch (error) {
@@ -94,15 +138,46 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
   // Filter Data
   const filteredStaff = staffList.filter(staff => {
     const matchesSearch = staff.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          staff.nim.includes(searchTerm);
+                          (staff.nim || '').includes(searchTerm);
     const matchesStatus = filterStatus === 'All' || staff.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
+  const {
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    itemsPerPage,
+    setItemsPerPage,
+    paginatedData: currentStaff,
+  } = usePagination(filteredStaff, 10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, itemsPerPage, setCurrentPage]);
+
+  const labRooms = rooms.filter(room => room.category === 'Laboratorium Komputer');
+  const getAssignedLabRooms = (staff: LabStaff) => labRooms.filter(room => room.pic_id === staff.id);
+
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ["ID", "Nama", "NIM", "Email", "No HP", "Jabatan", "Status"];
-    const rows = filteredStaff.map(s => [s.id, s.name, s.nim, s.email, s.phone, s.jabatan, s.status]);
+    const headers = ["ID", "Nama", "NIM", "Email", "No HP", "Jabatan", "Mulai Menjabat", "Berhenti Menjabat", "PIC Lab", "Keterangan", "Status"];
+    const rows = filteredStaff.map(s => {
+      const currentPeriod = getCurrentPositionPeriod(s);
+      return [
+      s.id,
+      s.name,
+      s.nim,
+      s.email,
+      s.phone,
+      s.jabatan,
+      currentPeriod?.startDate || '',
+      currentPeriod?.endDate || '',
+      getAssignedLabRooms(s).map(room => room.name).join(' | '),
+      s.keterangan || '',
+      s.status
+      ];
+    });
     
     const csvContent = "data:text/csv;charset=utf-8," 
       + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -125,13 +200,59 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
   const handleOpenModal = (staff?: LabStaff) => {
     if (staff) {
       setEditingStaff(staff);
-      setFormData(staff);
+      const assignedLabIds = getAssignedLabRooms(staff).map(room => room.id);
+      setFormData({ ...staff, assignedLabIds });
     } else {
       setEditingStaff(null);
-      setFormData({ name: '', nim: '', email: '', phone: '', jabatan: 'Teknisi', status: 'Aktif' });
+      setFormData({ name: '', nim: '', email: '', phone: '', jabatan: 'Teknisi', keterangan: '', assignedLabIds: [], positionStartDate: getTodayDate(), positionEndDate: null, positionPeriods: [], status: 'Aktif' });
     }
+    setShowStopDateModal(false);
+    setStopDate(getTodayDate());
     setIsModalOpen(true);
   };
+
+  const toggleAssignedLab = (roomId: string) => {
+    const currentIds = formData.assignedLabIds || [];
+    const nextIds = currentIds.includes(roomId)
+      ? currentIds.filter(id => id !== roomId)
+      : [...currentIds, roomId];
+    setFormData({ ...formData, assignedLabIds: nextIds });
+  };
+
+  const buildStaffPayload = () => ({
+    ...formData,
+    positionStartDate: formData.positionStartDate || getTodayDate(),
+    positionEndDate: formData.status === 'Non-Aktif' ? (formData.positionEndDate || stopDate || getTodayDate()) : null,
+    labRoomIds: formData.jabatan === 'Teknisi' ? (formData.assignedLabIds || []) : []
+  });
+
+  const handleStatusChange = (nextStatus: LabStaff['status']) => {
+    if (nextStatus === 'Non-Aktif' && formData.status !== 'Non-Aktif') {
+      setStopDate(formData.positionEndDate || getTodayDate());
+      setShowStopDateModal(true);
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      status: nextStatus,
+      positionEndDate: nextStatus === 'Aktif' ? null : formData.positionEndDate,
+      positionStartDate: editingStaff?.status === 'Non-Aktif' && nextStatus === 'Aktif'
+        ? getTodayDate()
+        : formData.positionStartDate
+    });
+  };
+
+  const confirmStopDate = () => {
+    setFormData({
+      ...formData,
+      status: 'Non-Aktif',
+      positionEndDate: stopDate || getTodayDate()
+    });
+    setShowStopDateModal(false);
+  };
+
+  const viewingCurrentPeriod = getCurrentPositionPeriod(viewingStaff || undefined);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,24 +262,25 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
         // Update
         const res = await api(`/api/staff/${editingStaff.id}`, {
           method: 'PUT',
-          data: formData
+          data: buildStaffPayload()
         });
         
         if (res.ok) {
-          setStaffList(prev => prev.map(s => s.id === editingStaff.id ? { ...s, ...formData } as LabStaff : s));
+          await fetchStaff();
+          await fetchRooms();
           showToast("Data laboran berhasil diperbarui.", "success");
         }
       } else {
         // Create
         const res = await api('/api/staff', {
           method: 'POST',
-          data: formData
+          data: buildStaffPayload()
         });
 
         if (res.ok) {
-          const result = await res.json();
-          const newStaff = { ...formData, id: result.id } as LabStaff;
-          setStaffList(prev => [newStaff, ...prev]);
+          await res.json();
+          await fetchStaff();
+          await fetchRooms();
           showToast("Data laboran berhasil ditambahkan.", "success");
         }
       }
@@ -248,12 +370,16 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                      <th className="px-6 py-4">Nama & NIM</th>
                      <th className="px-6 py-4">Kontak</th>
                      <th className="px-6 py-4">Jabatan</th>
+                     <th className="px-6 py-4">Periode Jabatan</th>
+                     <th className="px-6 py-4">PIC Lab</th>
                      <th className="px-6 py-4">Status</th>
                      <th className="px-6 py-4 print:hidden">Aksi</th>
                   </tr>
                </thead>
                <tbody className="divide-y divide-gray-200 dark:divide-gray-700 print:divide-gray-400">
-                  {filteredStaff.length > 0 ? filteredStaff.map((staff) => (
+                  {filteredStaff.length > 0 ? currentStaff.map((staff) => {
+                    const currentPeriod = getCurrentPositionPeriod(staff);
+                    return (
                      <tr key={staff.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td className="px-6 py-4">
                            <div className="font-bold text-gray-900 dark:text-white">{staff.name}</div>
@@ -264,9 +390,26 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                            <div className="text-xs text-gray-500">{staff.phone}</div>
                         </td>
                         <td className="px-6 py-4">
-                           <span className={`px-2 py-1 rounded-md text-xs font-medium print:border print:border-gray-300 ${staff.jabatan === 'Teknisi' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'}`}>
+                           <span className={`inline-flex whitespace-nowrap px-2 py-1 rounded-md text-xs font-medium print:border print:border-gray-300 ${staff.jabatan === 'Teknisi' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'}`}>
                               {staff.jabatan}
                            </span>
+                        </td>
+                        <td className="px-6 py-4">
+                           <div className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(currentPeriod?.startDate)}</div>
+                           <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {currentPeriod?.endDate ? `s.d. ${formatDate(currentPeriod.endDate)}` : 's.d. sekarang'}
+                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                           {staff.jabatan === 'Teknisi' ? (
+                             <div className="max-w-[220px] text-xs text-gray-600 dark:text-gray-300">
+                                {getAssignedLabRooms(staff).length > 0
+                                  ? getAssignedLabRooms(staff).map(room => room.name).join(', ')
+                                  : <span className="italic text-gray-400">Belum ada</span>}
+                             </div>
+                           ) : (
+                             <span className="text-xs text-gray-400">-</span>
+                           )}
                         </td>
                         <td className="px-6 py-4">
                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium print:border print:border-gray-300 ${staff.status === 'Aktif' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
@@ -288,9 +431,10 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                            </div>
                         </td>
                      </tr>
-                  )) : (
+                    );
+                  }) : (
                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                            <div className="flex flex-col items-center justify-center">
                               <Users className="w-12 h-12 text-gray-300 mb-3" />
                               <p>Tidak ada data laboran yang ditemukan.</p>
@@ -300,6 +444,16 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                   )}
                </tbody>
             </table>
+         </div>
+         <div className="print:hidden">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredStaff.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
          </div>
       </PageCard>
 
@@ -328,13 +482,13 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                        />
                     </div>
                     <div>
-                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">NIM</label>
+                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Identifier (NIM/NIP)</label>
                        <input 
                          type="text" required 
                          value={formData.nim} 
                          onChange={e => setFormData({...formData, nim: e.target.value})}
                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 transition-shadow"
-                         placeholder="Contoh: 672019xxx"
+                         placeholder="Contoh: 672019xxx / 1987xxxx"
                        />
                     </div>
                     <div>
@@ -366,7 +520,14 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jabatan</label>
                        <select 
                           value={formData.jabatan}
-                          onChange={e => setFormData({...formData, jabatan: e.target.value as any})}
+                          onChange={e => {
+                            const nextJabatan = e.target.value as LabStaff['jabatan'];
+                            setFormData({
+                              ...formData,
+                              jabatan: nextJabatan,
+                              assignedLabIds: nextJabatan === 'Teknisi' ? (formData.assignedLabIds || []) : []
+                            });
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                        >
                           <option value="Admin">Admin</option>
@@ -379,13 +540,84 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
                        <select 
                           value={formData.status}
-                          onChange={e => setFormData({...formData, status: e.target.value as any})}
+                          onChange={e => handleStatusChange(e.target.value as LabStaff['status'])}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                        >
                           <option value="Aktif">Aktif</option>
                           <option value="Non-Aktif">Non-Aktif</option>
                        </select>
                     </div>
+                    <div className="col-span-2">
+                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                         {editingStaff?.status === 'Non-Aktif' && formData.status === 'Aktif' ? 'Tanggal Mulai Periode Baru' : 'Tanggal Mulai Menjabat'}
+                       </label>
+                       <input
+                         type="date"
+                         required
+                         value={formData.positionStartDate || ''}
+                         onChange={e => setFormData({...formData, positionStartDate: e.target.value})}
+                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 transition-shadow"
+                       />
+                    </div>
+                    {formData.status === 'Non-Aktif' && (
+                      <div className="col-span-2">
+                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal Berhenti Menjabat</label>
+                         <input
+                           type="date"
+                           required
+                           value={formData.positionEndDate || ''}
+                           onChange={e => setFormData({...formData, positionEndDate: e.target.value})}
+                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 transition-shadow"
+                         />
+                      </div>
+                    )}
+                    <div className="col-span-2">
+                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Keterangan</label>
+                       <textarea
+                         rows={3}
+                         value={formData.keterangan || ''}
+                         onChange={e => setFormData({...formData, keterangan: e.target.value})}
+                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 transition-shadow"
+                         placeholder="Catatan internal, keahlian, shift, atau informasi tambahan lain..."
+                       />
+                    </div>
+                    {formData.jabatan === 'Teknisi' && (
+                      <div className="col-span-2">
+                         <div className="flex items-center justify-between gap-3 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Lab Komputer yang Diampu</label>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{formData.assignedLabIds?.length || 0} dipilih</span>
+                         </div>
+                         <div className="rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/30 p-3 max-h-48 overflow-y-auto">
+                            {labRooms.length > 0 ? (
+                              <div className="grid grid-cols-1 gap-2">
+                                {labRooms.map(room => {
+                                  const isChecked = (formData.assignedLabIds || []).includes(room.id);
+                                  const isOwnedByOther = !!room.pic_id && room.pic_id !== editingStaff?.id;
+                                  return (
+                                    <label key={room.id} className="flex items-start gap-3 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm cursor-pointer hover:border-blue-300 dark:hover:border-blue-700">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => toggleAssignedLab(room.id)}
+                                        className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      />
+                                      <span className="min-w-0">
+                                        <span className="block font-medium text-gray-900 dark:text-white">{room.name}</span>
+                                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                                          {room.floor || 'Tanpa lantai'}{isOwnedByOther ? ` - PIC saat ini: ${room.pic}` : ''}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-3">Belum ada ruangan dengan tipe Laboratorium Komputer.</p>
+                            )}
+                         </div>
+                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Boleh dikosongkan jika teknisi belum memiliki lab tanggung jawab.</p>
+                      </div>
+                    )}
                  </div>
                  <div className="pt-4 flex justify-end space-x-3 border-t border-gray-200 dark:border-gray-700 mt-2">
                     <Button type="button" onClick={() => setIsModalOpen(false)} variant="secondary">Batal</Button>
@@ -398,11 +630,46 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
         </div>
       )}
 
+      {/* Stop Date Modal */}
+      {showStopDateModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
+           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
+                 <h3 className="font-bold text-gray-900 dark:text-white text-sm">Tanggal Berhenti Menjabat</h3>
+                 <button onClick={() => setShowStopDateModal(false)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-gray-500 dark:text-gray-300')}>
+                    <X className="w-5 h-5" />
+                 </button>
+              </div>
+              <div className="p-5 space-y-4">
+                 <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Tentukan tanggal akhir periode jabatan untuk staff ini sebelum status disimpan sebagai Non-Aktif.
+                 </p>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal Berhenti Menjabat</label>
+                    <input
+                      type="date"
+                      required
+                      value={stopDate}
+                      onChange={e => setStopDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 transition-shadow"
+                    />
+                 </div>
+              </div>
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-end gap-3">
+                 <Button type="button" onClick={() => setShowStopDateModal(false)} variant="secondary">Batal</Button>
+                 <Button type="button" onClick={confirmStopDate} variant="primary">
+                    <Check className="w-4 h-4 mr-2" /> Simpan Tanggal
+                 </Button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Detail Modal */}
       {viewingStaff && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
-           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
+           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up max-h-[90vh] flex flex-col">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 shrink-0">
                  <h3 className="font-bold text-gray-900 dark:text-white flex items-center">
                     <Users className="w-5 h-5 mr-2 text-blue-600" />
                     Detail Laboran
@@ -411,7 +678,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                     <X className="w-5 h-5" />
                  </button>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 overflow-y-auto">
                  <div className="text-center mb-4">
                      <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-3">
                          {viewingStaff.name.charAt(0)}
@@ -439,13 +706,58 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                              {viewingStaff.status}
                          </span>
                      </div>
+                     <div className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2 gap-4">
+                         <span className="text-gray-500 dark:text-gray-400">Mulai Menjabat</span>
+                         <span className="font-medium text-right text-gray-900 dark:text-white">{formatDate(viewingCurrentPeriod?.startDate)}</span>
+                     </div>
+                     <div className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2 gap-4">
+                         <span className="text-gray-500 dark:text-gray-400">Berhenti Menjabat</span>
+                         <span className="font-medium text-right text-gray-900 dark:text-white">
+                           {viewingCurrentPeriod?.endDate ? formatDate(viewingCurrentPeriod.endDate) : 'Masih menjabat'}
+                         </span>
+                     </div>
+                     <div className="border-b border-gray-100 dark:border-gray-700 pb-2">
+                         <span className="block text-gray-500 dark:text-gray-400 mb-1">Keterangan</span>
+                         <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{viewingStaff.keterangan || '-'}</p>
+                     </div>
                  </div>
 
                  <div className="mt-6">
-                     <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Penanggung Jawab (PIC) Ruangan:</h4>
+                     <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Riwayat Periode Jabatan</h4>
+                     <div className="space-y-2">
+                         {(viewingStaff.positionPeriods || []).length > 0 ? (
+                           (viewingStaff.positionPeriods || []).map(period => {
+                             const hasMultiplePeriods = (viewingStaff.positionPeriods || []).length > 1;
+                             return (
+                               <div key={period.id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 p-3">
+                                 <div className="flex items-center justify-between gap-3">
+                                   <span className="font-medium text-gray-900 dark:text-white">
+                                     {hasMultiplePeriods ? `Periode ke-${period.periodNumber}` : (period.jabatan || viewingStaff.jabatan || '-')}
+                                   </span>
+                                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${period.endDate ? 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'}`}>
+                                     {period.endDate ? 'Selesai' : 'Aktif'}
+                                   </span>
+                                 </div>
+                                 {hasMultiplePeriods && (
+                                   <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{period.jabatan || '-'}</div>
+                                 )}
+                                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                   {formatDate(period.startDate)} - {period.endDate ? formatDate(period.endDate) : 'Sekarang'}
+                                 </div>
+                               </div>
+                             );
+                           })
+                         ) : (
+                           <p className="text-sm text-gray-500 italic bg-gray-50 dark:bg-gray-700/30 p-3 rounded-lg text-center border border-dashed border-gray-200 dark:border-gray-600">Belum ada riwayat periode jabatan.</p>
+                         )}
+                     </div>
+                 </div>
+
+                 <div className="mt-6">
+                     <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Lab Komputer yang Diampu:</h4>
                      <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
-                         {rooms.filter(r => r.pic_id === viewingStaff.id).length > 0 ? (
-                             rooms.filter(r => r.pic_id === viewingStaff.id).map(room => (
+                         {getAssignedLabRooms(viewingStaff).length > 0 ? (
+                             getAssignedLabRooms(viewingStaff).map(room => (
                                  <div 
                                      key={room.id} 
                                      onClick={() => {
@@ -461,12 +773,12 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                                  </div>
                              ))
                          ) : (
-                             <p className="text-sm text-gray-500 italic bg-gray-50 dark:bg-gray-700/30 p-3 rounded-lg text-center border border-dashed border-gray-200 dark:border-gray-600">Belum ditugaskan sebagai PIC ruangan mana pun.</p>
+                             <p className="text-sm text-gray-500 italic bg-gray-50 dark:bg-gray-700/30 p-3 rounded-lg text-center border border-dashed border-gray-200 dark:border-gray-600">Belum ditugaskan sebagai PIC Lab Komputer.</p>
                          )}
                      </div>
                  </div>
               </div>
-              <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-end">
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-end shrink-0">
                   <Button onClick={() => setViewingStaff(null)} variant="secondary">
                       Tutup
                   </Button>

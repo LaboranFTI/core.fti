@@ -26,6 +26,27 @@ const buildResetTokenPayload = () => {
 
 const canViewAnyProfile = (role) => ['Admin', 'Laboran', 'Supervisor'].includes(role);
 const canEditOwnProfile = (role) => PROFILE_ACCESS_ROLES.includes(role);
+const canAccessSystemNotifications = (role) => role === 'Admin' || role === 'Laboran';
+const formatNotificationTimestamp = (value) => {
+  if (!value) return '';
+  return new Date(value).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const mapNotificationRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  message: row.message,
+  type: row.type || 'info',
+  timestamp: formatNotificationTimestamp(row.created_at),
+  isRead: row.is_read,
+});
+
 const parseAvatarImageBuffer = (avatar) => {
   if (typeof avatar !== 'string' || !avatar.startsWith('data:image') || !avatar.includes(',')) {
     return undefined;
@@ -514,12 +535,12 @@ router.get('/notifications', async (req, res) => {
     let params = [userId];
     
     // Admin dan Laboran juga melihat notifikasi sistem (user_id IS NULL)
-    if (userRole === 'Admin' || userRole === 'Laboran') {
+    if (canAccessSystemNotifications(userRole)) {
       query = 'SELECT * FROM notifications WHERE user_id = $1 OR user_id IS NULL ORDER BY created_at DESC LIMIT 50';
     }
     
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json(result.rows.map(mapNotificationRow));
   } catch (err) {
     console.error('Error fetching notifications:', err);
     res.status(500).json({ error: 'Gagal mengambil notifikasi' });
@@ -534,7 +555,7 @@ router.put('/notifications/read-all', async (req, res) => {
     
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (userRole === 'Admin' || userRole === 'Laboran') {
+    if (canAccessSystemNotifications(userRole)) {
       await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 OR user_id IS NULL', [userId]);
     } else {
       await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', [userId]);
@@ -547,10 +568,41 @@ router.put('/notifications/read-all', async (req, res) => {
   }
 });
 
+// Endpoint untuk menghapus semua notifikasi yang terlihat user
+router.delete('/notifications', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (canAccessSystemNotifications(userRole)) {
+      await pool.query('DELETE FROM notifications WHERE user_id = $1 OR user_id IS NULL', [userId]);
+    } else {
+      await pool.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting notifications:', err);
+    res.status(500).json({ error: 'Gagal menghapus notifikasi' });
+  }
+});
+
 // Endpoint untuk menandai notifikasi sudah dibaca
 router.put('/notifications/:id/read', async (req, res) => {
   try {
-    await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = $1', [req.params.id]);
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (canAccessSystemNotifications(userRole)) {
+      await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)', [req.params.id, userId]);
+    } else {
+      await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating notification:', err);

@@ -382,10 +382,10 @@ const AppContent: React.FC = () => {
 
   const markNotificationAsRead = async (id: string) => {
     try {
-      await api(`/api/notifications/${id}/read`, { method: 'PUT' });
+      const res = await api(`/api/notifications/${id}/read`, { method: 'PUT' });
+      if (!res.ok) throw new Error('Failed to mark notification as read');
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     } catch (e) { console.error(e); }
-    
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   };
 
   const markAllNotificationsAsRead = async () => {
@@ -393,15 +393,16 @@ const AppContent: React.FC = () => {
       // Optimistic update di UI
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       // Hit endpoint (asumsi backend mendukung)
-      await api(`/api/notifications/read-all`, { method: 'PUT' });
+      const res = await api(`/api/notifications/read-all`, { method: 'PUT' });
+      if (!res.ok) throw new Error('Failed to mark all notifications as read');
     } catch (e) { console.error("Gagal mark all read", e); }
   };
 
   const clearAllNotifications = async () => {
     try {
-      // Optimistic update
+      const res = await api('/api/notifications', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to clear notifications');
       setNotifications([]);
-      await api('/api/notifications', { method: 'DELETE' });
       showToast('Semua notifikasi berhasil dihapus.', 'success');
     } catch (e) { console.error("Gagal hapus notifikasi", e); }
   };
@@ -665,7 +666,6 @@ const AppContent: React.FC = () => {
               onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
               onToggleSidebarCollapse={toggleSidebarCollapse}
               toggleDarkMode={toggleDarkMode}
-              onOpenAi={() => showToast("Fitur AI dinonaktifkan.", "info")}
               onLogout={handleLogout}
               onMarkAsRead={markNotificationAsRead}
               onMarkAllAsRead={markAllNotificationsAsRead}

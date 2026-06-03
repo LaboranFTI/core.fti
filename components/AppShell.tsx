@@ -25,7 +25,6 @@ interface AppShellProps {
   onToggleSidebar: () => void;
   onToggleSidebarCollapse: () => void;
   toggleDarkMode: () => void;
-  onOpenAi: () => void;
   onLogout: () => void;
   onMarkAsRead: (id: string) => void;
   onMarkAllAsRead: () => void;
@@ -65,7 +64,6 @@ const AppShell: React.FC<AppShellProps> = ({
   onToggleSidebar,
   onToggleSidebarCollapse,
   toggleDarkMode,
-  onOpenAi,
   onLogout,
   onMarkAsRead,
   onMarkAllAsRead,
@@ -82,11 +80,9 @@ const AppShell: React.FC<AppShellProps> = ({
         isVisible={isMobileTopBarVisible}
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}
-        currentRole={currentRole}
         pageLabel={pageLabel}
         userName={userName}
         userEmail={userEmail}
-        onOpenAi={onOpenAi}
         onLogout={onLogout}
         notifications={notifications}
         onMarkAsRead={onMarkAsRead}
