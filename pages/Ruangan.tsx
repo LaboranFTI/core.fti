@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
-import { Room, Role, BookingStatus, Booking, RoomComputer, Software } from '../types';
-import { MapPin, Users, Wifi, Edit2, Trash2, Calendar, Eye, Check, Plus, Upload, Loader2, ArrowUpDown, ExternalLink, FileText, User, LogIn, RefreshCw, Clock, ChevronRight, ChevronDown, X, Monitor, Cpu, HardDrive, Keyboard, Mouse, Download, FileSpreadsheet, ChevronLeft, Package, Filter, Info } from 'lucide-react';
+import { Room, Role, BookingStatus, Booking, Software } from '../types';
+import { MapPin, Users, Wifi, Edit2, Trash2, Calendar, Eye, Check, Plus, Upload, Loader2, ArrowUpDown, ExternalLink, FileText, User, LogIn, RefreshCw, Clock, ChevronRight, ChevronDown, X, Monitor, Cpu, HardDrive, Keyboard, Mouse, ChevronLeft, Package, Filter, Info } from 'lucide-react';
 import { api } from '../services/api';
 import SoftwareForm from '../components/SoftwareForm';
 import RoomForm from '../components/RoomForm';
@@ -94,7 +94,7 @@ const Ruangan: React.FC<RoomsProps> = ({ role, isDarkMode, onNavigate, showToast
   const debouncedSortBy = useDebouncedValue(sortBy, 200);
   
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'detail' | 'booking' | 'form' | 'computers'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'detail' | 'booking' | 'form'>('list');
 
   // CRUD & Form State
   const [isEditing, setIsEditing] = useState(false);
@@ -140,9 +140,7 @@ const Ruangan: React.FC<RoomsProps> = ({ role, isDarkMode, onNavigate, showToast
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
 
   // Computer Specs State (Summary Only)
-  const [roomComputers, setRoomComputers] = useState<RoomComputer[]>([]);
   const [dominantSpec, setDominantSpec] = useState<any>(null);
-  const [editingComputer, setEditingComputer] = useState<Partial<RoomComputer> | null>(null);
 
   // Software State
   const [roomSoftware, setRoomSoftware] = useState<Software[]>([]);
@@ -150,7 +148,6 @@ const Ruangan: React.FC<RoomsProps> = ({ role, isDarkMode, onNavigate, showToast
 
   // Loading States for CRUD operations
   const [isSavingRoom, setIsSavingRoom] = useState(false);
-  const [isSavingComputer, setIsSavingComputer] = useState(false);
   const [isSavingSoftware, setIsSavingSoftware] = useState(false);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
 
@@ -388,13 +385,7 @@ room.facilities.forEach((fac: string) => allFacs.add(fac));
     }
   };
 
-  const fetchRoomComputers = async () => {
-      if (!selectedRoom) return;
-      try {
-          const res = await api(`/api/rooms/${selectedRoom.id}/computers`);
-          if (res.ok) setRoomComputers(await res.json());
-      } catch (e) { console.error(e); }
-  };
+
 
   const fetchDominantSpec = async () => {
       if (!selectedRoom) return;
@@ -424,7 +415,6 @@ room.facilities.forEach((fac: string) => allFacs.add(fac));
               fetchRoomSoftware();
           }
       }
-      if (viewMode === 'computers' && selectedRoom) fetchRoomComputers();
   }, [viewMode, selectedRoom]);
 
   const getCalendarId = (input: string) => {
@@ -623,49 +613,7 @@ const handleEdit = async (room: Room) => {
     }
   };
 
-  // Computer management functions
-  const handleDeleteComputer = async (id: string) => {
-    if (!selectedRoom) return;
-    if (confirm("Hapus data komputer ini?")) {
-      try {
-        await api(`/api/rooms/${selectedRoom.id}/computers/${id}`, { method: 'DELETE' });
-        fetchRoomComputers();
-        showToast("Data komputer berhasil dihapus.", "success");
-      } catch (e) {
-        showToast("Gagal menghapus data komputer", "error");
-      }
-    }
-  };
 
-  const handleSaveComputer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRoom || !editingComputer) return;
-
-    try {
-      let response;
-      if (editingComputer.id) {
-        response = await api(`/api/rooms/${selectedRoom.id}/computers/${editingComputer.id}`, {
-          method: 'PUT',
-          data: editingComputer
-        });
-      } else {
-        response = await api(`/api/rooms/${selectedRoom.id}/computers`, {
-          method: 'POST',
-          data: { ...editingComputer, id: undefined }
-        });
-      }
-
-      if (response.ok) {
-        setEditingComputer(null);
-        fetchRoomComputers();
-        showToast("Data komputer berhasil disimpan.", "success");
-      } else {
-        showToast("Gagal menyimpan data komputer", "error");
-      }
-    } catch (e) {
-      showToast("Gagal menyimpan data komputer", "error");
-    }
-  };
 
   // Software management functions
   const handleDeleteSoftware = async (id: string) => {
@@ -866,7 +814,10 @@ const handleEdit = async (room: Room) => {
                                       </h3>
                                       {(canManage) && (
                                           <button 
-                                              onClick={() => setViewMode('computers')}
+                                              onClick={() => {
+                                                  localStorage.setItem('targetSpecRoomId', selectedRoom.id);
+                                                  if (onNavigate) onNavigate('manajemen-spesifikasi');
+                                              }}
                                               className="text-sm text-blue-600 hover:underline font-medium"
                                           >
                                               Kelola Unit
@@ -1046,164 +997,7 @@ const handleEdit = async (room: Room) => {
       )
   }
 
-  // --- MANAGE COMPUTERS VIEW ---
-  if (viewMode === 'computers' && selectedRoom) {
-      const handleDownloadTemplate = async () => {
-        showToast("Fitur ini sedang dalam pengembangan.", "info");
-      };
-      const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        showToast("Fitur ini sedang dalam pengembangan.", "info");
-      };
-      const handleDeleteAllComputers = async () => { showToast("Fitur ini sedang dalam pengembangan.", "info"); };
 
-      return (
-          <div className="space-y-6">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <button onClick={() => setViewMode('detail')} className="text-sm text-blue-500 hover:underline flex items-center">
-                      <ChevronRight className="w-4 h-4 rotate-180 mr-1"/> Kembali ke Detail Ruangan
-                  </button>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Kelola Unit Komputer: {selectedRoom.name}</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:flex gap-2 w-full xl:w-auto">
-                      <button onClick={handleDeleteAllComputers} className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700 flex items-center shadow-sm" title="Hapus semua data komputer di ruangan ini (Reset)">
-                          <Trash2 className="w-4 h-4 mr-2"/> Reset Data
-                      </button>
-                      <button onClick={handleDownloadTemplate} className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center shadow-sm">
-                          <Download className="w-4 h-4 mr-2"/> Template
-                      </button>
-                      <label className="bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 flex items-center cursor-pointer shadow-sm">
-                          <FileSpreadsheet className="w-4 h-4 mr-2"/> Import Excel
-                          <input type="file" accept=".xlsx" className="hidden" onChange={handleExcelUpload} />
-                      </label>
-                      <button 
-                          onClick={() => setEditingComputer({ pcNumber: '', cpu: '', gpuType: 'Integrated', gpuModel: '', vram: '', ram: '', storage: '', os: '', keyboard: '', mouse: '', monitor: '', condition: 'Baik' })}
-                          className="bg-gray-800 dark:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 dark:hover:bg-gray-600 flex items-center shadow-sm"
-                      >
-                          <Plus className="w-4 h-4 mr-2"/> Tambah Unit
-                      </button>
-                  </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="overflow-x-auto">
-                      <table className="mobile-data-table w-full text-sm text-left">
-                          <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium">
-                              <tr>
-                                  <th className="px-4 py-3">No. PC</th>
-                                  <th className="px-4 py-3">CPU</th>
-                                  <th className="px-4 py-3">GPU</th>
-                                  <th className="px-4 py-3">RAM/Storage</th>
-                                  <th className="px-4 py-3">Kondisi</th>
-                                  <th className="px-4 py-3">OS</th>
-                                  <th className="px-4 py-3 text-right">Aksi</th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                              {roomComputers.map(pc => (
-                                  <tr key={pc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                      <td data-label="No. PC" className="px-4 py-3 font-bold">{pc.pcNumber}</td>
-                                      <td data-label="CPU" className="px-4 py-3">{pc.cpu}</td>
-                                      <td data-label="GPU" className="px-4 py-3">
-                                          <div className="text-xs">{pc.gpuModel}</div>
-                                          <div className="text-[10px] text-gray-500">{pc.gpuType} ({pc.vram})</div>
-                                      </td>
-                                      <td data-label="RAM/Storage" className="px-4 py-3">
-                                          <div>{pc.ram}</div>
-                                          <div className="text-xs text-gray-500">{pc.storage}</div>
-                                      </td>
-                                      <td data-label="Kondisi" className="px-4 py-3">
-                                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getConditionColor(pc.condition)}`}>{pc.condition}</span>
-                                      </td>
-                                      <td data-label="OS" className="px-4 py-3">{pc.os}</td>
-                                      <td data-label="Aksi" className="px-4 py-3 text-right">
-                                          <button onClick={() => setEditingComputer(pc)} className="text-blue-600 hover:text-blue-800 mr-3"><Edit2 className="w-4 h-4"/></button>
-                                          <button onClick={() => handleDeleteComputer(pc.id)} className="text-red-600 hover:text-red-800"><Trash2 className="w-4 h-4"/></button>
-                                      </td>
-                                  </tr>
-                              ))}
-                              {roomComputers.length === 0 && (
-                                  <tr><td colSpan={7} className="text-center py-8 text-gray-500">Belum ada data komputer.</td></tr>
-                              )}
-                          </tbody>
-                      </table>
-                  </div>
-              </div>
-
-              {/* Modal Edit/Add Computer */}
-              {editingComputer && (
-                  <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                      <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
-                          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                              <h3 className="font-bold text-gray-900 dark:text-white">{editingComputer.id ? 'Edit Spesifikasi' : 'Tambah Unit Baru'}</h3>
-                              <button onClick={() => setEditingComputer(null)}><X className="w-5 h-5 text-gray-500"/></button>
-                          </div>
-                          <form onSubmit={handleSaveComputer} className="mobile-modal-body p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Nomor PC</label>
-                                  <input type="text" required value={editingComputer.pcNumber || ''} onChange={e => setEditingComputer({...editingComputer, pcNumber: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="PC-01"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">OS</label>
-                                  <input type="text" value={editingComputer.os || ''} onChange={e => setEditingComputer({...editingComputer, os: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Windows 11 Pro"/>
-                              </div>
-                              <div className="sm:col-span-2">
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">CPU & GHz</label>
-                                  <input type="text" required value={editingComputer.cpu || ''} onChange={e => setEditingComputer({...editingComputer, cpu: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Intel Core i7-12700 @ 2.10GHz"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Tipe GPU</label>
-                                  <select value={editingComputer.gpuType || 'Integrated'} onChange={e => setEditingComputer({...editingComputer, gpuType: e.target.value as any})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                      <option value="Integrated">Integrated</option>
-                                      <option value="Dedicated">Dedicated (Card)</option>
-                                  </select>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Model GPU</label>
-                                  <input type="text" value={editingComputer.gpuModel || ''} onChange={e => setEditingComputer({...editingComputer, gpuModel: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="NVIDIA RTX 3060"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">VRAM</label>
-                                  <input type="text" value={editingComputer.vram || ''} onChange={e => setEditingComputer({...editingComputer, vram: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="12 GB"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">RAM</label>
-                                  <input type="text" value={editingComputer.ram || ''} onChange={e => setEditingComputer({...editingComputer, ram: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="16 GB DDR4"/>
-                              </div>
-                              <div className="sm:col-span-2">
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Storage (Type & Health)</label>
-                                  <input type="text" value={editingComputer.storage || ''} onChange={e => setEditingComputer({...editingComputer, storage: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="SSD NVMe 512GB (Health: 98%)"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Monitor</label>
-                                  <input type="text" value={editingComputer.monitor || ''} onChange={e => setEditingComputer({...editingComputer, monitor: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Dell 24 inch"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Keyboard</label>
-                                  <input type="text" value={editingComputer.keyboard || ''} onChange={e => setEditingComputer({...editingComputer, keyboard: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Logitech Standard"/>
-                              </div>
-                              <div>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Mouse</label>
-                                  <input type="text" value={editingComputer.mouse || ''} onChange={e => setEditingComputer({...editingComputer, mouse: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Logitech Optical"/>
-                              </div>
-                              <div className="sm:col-span-2">
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">Kondisi Unit</label>
-                                  <select value={editingComputer.condition || 'Baik'} onChange={e => setEditingComputer({...editingComputer, condition: e.target.value as any})} className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                      <option value="Baik">Baik</option>
-                                      <option value="Rusak Ringan">Rusak Ringan</option>
-                                      <option value="Rusak Berat">Rusak Berat</option>
-                                  </select>
-                              </div>
-
-                              <div className="mobile-modal-actions col-span-1 sm:col-span-2 flex justify-end gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                  <button type="button" onClick={() => setEditingComputer(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Batal</button>
-                                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Simpan</button>
-                              </div>
-                          </form>
-                      </div>
-                  </div>
-              )}
-          </div>
-      );
-  }
 
   if (viewMode === 'booking' && selectedRoom) {
       return (

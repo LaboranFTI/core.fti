@@ -1,5 +1,7 @@
+import packageJson from './package.json';
+
 // Konfigurasi Global Aplikasi
-export const APP_VERSION = "1.24.7";
+export const APP_VERSION = packageJson.version;
 export const APP_NAME = "CORE.FTI";
 export const APP_FULL_NAME = "Campus Operational Resource Environment";
 export const INSTITUTION_NAME = "Fakultas Teknologi Informasi - UKSW";

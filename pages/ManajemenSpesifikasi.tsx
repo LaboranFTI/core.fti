@@ -95,6 +95,18 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
     }
   }, [selectedRoom]);
 
+  // Auto-select room when navigating from "Daftar Ruang" via "Kelola Unit" button
+  useEffect(() => {
+    const targetId = localStorage.getItem('targetSpecRoomId');
+    if (targetId && rooms.length > 0) {
+      const targetRoom = rooms.find(r => r.id === targetId);
+      if (targetRoom) {
+        setSelectedRoom(targetRoom);
+      }
+      localStorage.removeItem('targetSpecRoomId');
+    }
+  }, [rooms]);
+
   const fetchRooms = async () => {
     try {
       const res = await api('/api/rooms?exclude_image=true');
