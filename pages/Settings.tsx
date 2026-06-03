@@ -347,7 +347,7 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
     setIsLoading(true);
     try {
       const res = await api('/api/settings/sso-config', {
-        method: 'POST',
+        method: 'PUT',
         data: {
           enabled: ssoConfig.enabled,
           clientId: ssoConfig.clientId,
