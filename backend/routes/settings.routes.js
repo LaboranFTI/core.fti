@@ -124,4 +124,30 @@ router.post('/settings/restore', verifyRole(['Admin']), upload.single('file'), (
   });
 });
 
+// Endpoint Get Konfigurasi SSO
+router.get('/settings/sso-config', verifyRole(['Admin']), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT enabled, client_id as "clientId", domain FROM sso_config LIMIT 1');
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]);
+    } else {
+      res.json({ enabled: false, clientId: '', domain: '' });
+    }
+  } catch (err) {
+    console.error('Error fetching SSO config:', err);
+    res.status(500).json({ error: 'Gagal memuat konfigurasi SSO' });
+  }
+});
+
+// Endpoint Get SSO Users
+router.get('/sso-users', verifyRole(['Admin']), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, email, name, status, created_at as "createdAt", updated_at as "updatedAt" FROM sso_users ORDER BY updated_at DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching SSO users:', err);
+    res.status(500).json({ error: 'Gagal memuat data SSO users' });
+  }
+});
+
 export default router;
