@@ -3,7 +3,7 @@
 
 export const GOOGLE_API_CONFIG = {
   CLIENT_ID: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-  API_KEY: import.meta.env.VITE_GOOGLE_API_KEY || '',
+  API_KEY: import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || '',
   // Only include Calendar API - Drive API is not used
   DISCOVERY_DOCS: [
     'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'

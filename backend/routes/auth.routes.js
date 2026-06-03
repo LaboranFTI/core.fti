@@ -288,14 +288,22 @@ router.post('/auth/google', async (req, res) => {
       const newId = `USER-${Date.now()}`;
       const username = email.split('@')[0]; // Gunakan bagian depan email sebagai username
       
-      // Insert User Baru (Role: Lembaga Kemahasiswaan, Status: Aktif)
+      // Tentukan role berdasarkan domain email
+      let assignedRole = 'Mahasiswa'; // Default role
+      if (email.endsWith('@student.uksw.edu') || email.endsWith('@students.uksw.edu')) {
+        assignedRole = 'Mahasiswa';
+      } else if (email.endsWith('@uksw.edu')) {
+        assignedRole = 'Dosen';
+      }
+
+      // Insert User Baru (Role otomatis berdasarkan domain, Status: Aktif)
       const insertQuery = `
         INSERT INTO users (id, nama, email, username, password, role, identifier, status, created_at)
-        VALUES ($1, $2, $3, $4, NULL, 'Lembaga Kemahasiswaan', $5, 'Aktif', NOW())
+        VALUES ($1, $2, $3, $4, NULL, $5, $6, 'Aktif', NOW())
         RETURNING *
       `;
-      // Identifier default menggunakan bagian depan email jika tidak ada info lain
-      const newUserRes = await pool.query(insertQuery, [newId, name, email, username, username]);
+      // Identifier default menggunakan bagian depan email (yang merupakan NIM untuk mahasiswa)
+      const newUserRes = await pool.query(insertQuery, [newId, name, email, username, assignedRole, username]);
       user = newUserRes.rows[0];
 
       // Buat Notifikasi untuk Admin (Info user baru via SSO)
