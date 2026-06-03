@@ -465,7 +465,7 @@ CREATE TABLE sso_config (
 
 -- Insert default SSO config
 INSERT INTO sso_config (enabled, client_id, domain) 
-VALUES (TRUE, '828476305239-7hilvfjvadt8ndn9br7n1upmdso38ou8.apps.googleusercontent.com', 'uksw.edu,student.uksw.edu,students.uksw.edu');
+VALUES (TRUE, '859554905351-oesfr4h8pp8o8ruthe8i5hkg7r6ggqh2.apps.googleusercontent.com', 'uksw.edu,student.uksw.edu,students.uksw.edu');
 
 -- Tabel SSO Users (Pengguna Google SSO yang Diizinkan)
 -- Menyimpan data pengguna yang dapat login menggunakan Google Workspace

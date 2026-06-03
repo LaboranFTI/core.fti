@@ -174,6 +174,32 @@ export const ensureAuthSchema = async () => {
       await pool.query(query);
     }
     console.log('Auth schema ensured successfully');
+
+    // Sync Google SSO client ID from process.env.VITE_GOOGLE_CLIENT_ID if present
+    const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID;
+    if (googleClientId) {
+      try {
+        const ssoCheck = await pool.query('SELECT * FROM sso_config LIMIT 1');
+        if (ssoCheck.rows.length > 0) {
+          const currentSso = ssoCheck.rows[0];
+          if (currentSso.client_id !== googleClientId) {
+            console.log(`🔄 Syncing Google SSO Client ID in database with .env: ${googleClientId}`);
+            await pool.query(
+              'UPDATE sso_config SET client_id = $1, enabled = TRUE, updated_at = NOW() WHERE id = $2',
+              [googleClientId, currentSso.id]
+            );
+          }
+        } else {
+          console.log(`🔄 Seeding Google SSO Client ID from .env: ${googleClientId}`);
+          await pool.query(
+            'INSERT INTO sso_config (enabled, client_id, domain) VALUES (TRUE, $1, $2)',
+            [googleClientId, 'uksw.edu,student.uksw.edu,students.uksw.edu']
+          );
+        }
+      } catch (ssoErr) {
+        console.error('Error syncing SSO config:', ssoErr);
+      }
+    }
   } catch (err) {
     console.error('Error ensuring auth schema:', err);
     throw err;
