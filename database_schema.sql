@@ -527,12 +527,15 @@ CREATE TABLE observation_requests (
     course_name VARCHAR(255),
     lecturer_name VARCHAR(255),
     head_of_program_name VARCHAR(255),
+    study_program_level VARCHAR(100),
+    study_program_name VARCHAR(255),
     student_members JSONB NOT NULL DEFAULT '[]'::jsonb, -- Anggota kelompok observasi
     signature_base64 TEXT,
     stamp_base64 TEXT,
     letter_number VARCHAR(100),
     letter_sequence INTEGER,
     letter_generated_at TIMESTAMP,
+    access_code VARCHAR(20),
     qr_download_token_hash VARCHAR(64),
     qr_download_token_expires_at TIMESTAMPTZ,
     status VARCHAR(20) DEFAULT 'pending',
@@ -597,6 +600,10 @@ WHERE letter_number IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_observation_requests_qr_download_token_hash
 ON observation_requests(qr_download_token_hash)
 WHERE qr_download_token_hash IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_access_code_unique
+ON observation_requests(access_code)
+WHERE access_code IS NOT NULL;
 
 -- Pengaturan default untuk Layanan TU
 INSERT INTO system_settings (key, value) VALUES ('tu_dean_signature_base64', '') ON CONFLICT (key) DO NOTHING;

@@ -9,4 +9,11 @@ describe('LayananTU active student copy', () => {
     assert.doesNotMatch(source, /upload transkrip/i);
     assert.match(source, /cek KST, lalu ajukan permohonan surat aktif kuliah/);
   });
+
+  it('uses the shared page tab components for the TU tab navigation', () => {
+    assert.match(source, /PageTabs/);
+    assert.match(source, /PageTabSummary/);
+    assert.match(source, /serviceTabs/);
+    assert.doesNotMatch(source, /data-\[state=active\]/);
+  });
 });

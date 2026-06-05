@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
 import crypto from 'crypto';
@@ -28,6 +29,13 @@ const TU_ADMIN_ROLES = ['Admin', 'Admin TU'];
 const TU_SUBMIT_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
 const TU_SETTINGS_KEYS = ['tu_dean_signature_base64', 'tu_faculty_stamp_base64', 'tu_current_semester_code'];
 const QR_DOWNLOAD_TOKEN_TTL_HOURS = 24;
+const publicObservationAccessLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak percobaan kode akses. Silakan coba lagi beberapa menit lagi.' }
+});
 const LETTER_TYPE_TO_CLIENT_KEY = {
   'active-student': 'activeStudent',
   observation: 'observation'
@@ -36,10 +44,24 @@ const LETTER_TYPE_TO_CODE = {
   'active-student': 'S.Ket',
   observation: 'FTI-OBS'
 };
+const OBSERVATION_ACCESS_CODE_PREFIX = 'OBS';
+const OBSERVATION_ACCESS_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const createQrDownloadToken = () => crypto.randomBytes(32).toString('base64url');
 const hashQrDownloadToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const getQrDownloadExpiry = () => new Date(Date.now() + QR_DOWNLOAD_TOKEN_TTL_HOURS * 60 * 60 * 1000);
+const randomAccessCodeSegment = () =>
+  Array.from({ length: 4 }, () => OBSERVATION_ACCESS_CODE_ALPHABET[crypto.randomInt(0, OBSERVATION_ACCESS_CODE_ALPHABET.length)]).join('');
+const createObservationAccessCode = () => `${OBSERVATION_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
+const normalizeObservationAccessCode = (value) => {
+  const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (compactCode.length !== 11 || !compactCode.startsWith(OBSERVATION_ACCESS_CODE_PREFIX)) {
+    return '';
+  }
+
+  const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
+  return /^OBS-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
+};
 
 const createEmptyLetterBackgrounds = () => ({
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
@@ -147,6 +169,9 @@ const ensureTuInfrastructure = async () => {
         letter_number VARCHAR(100),
         letter_sequence INTEGER,
         letter_generated_at TIMESTAMP,
+        access_code VARCHAR(20),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -170,6 +195,9 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
       ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
       ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS access_code VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -233,6 +261,12 @@ const ensureTuInfrastructure = async () => {
       CREATE INDEX IF NOT EXISTS idx_observation_requests_qr_download_token_hash
       ON observation_requests(qr_download_token_hash)
       WHERE qr_download_token_hash IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_access_code_unique
+      ON observation_requests(access_code)
+      WHERE access_code IS NOT NULL
     `);
 
     await pool.query(`
@@ -328,13 +362,34 @@ const mapObservationRow = (row) => ({
   courseName: row.course_name,
   lecturerName: row.lecturer_name,
   headOfProgramName: row.head_of_program_name,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
   students: normalizeObservationStudents(row.student_members),
   status: row.status,
   signatureBase64: row.signature_base64,
   stampBase64: row.stamp_base64,
   letterNumber: row.letter_number,
+  accessCode: row.access_code,
   letterGeneratedAt: row.letter_generated_at,
   createdAt: row.created_at
+});
+
+const buildObservationAccessPayload = (row) => ({
+  accessCode: row.access_code,
+  letterNumber: row.letter_number,
+  status: row.status,
+  letterGeneratedAt: row.letter_generated_at,
+  data: {
+    recipientName: row.recipient_name || '',
+    companyName: row.company || '',
+    companyAddress: row.company_address || '',
+    courseName: row.course_name || '',
+    lecturerName: row.lecturer_name || '',
+    headOfProgramName: row.head_of_program_name || '',
+    studyProgramName: row.study_program_name || '',
+    studyProgramLevel: row.study_program_level || '',
+    students: normalizeObservationStudents(row.student_members)
+  }
 });
 
 const buildLetterBackgroundsPayload = (rows) => {
@@ -707,6 +762,71 @@ const ensureLetterNumber = async (client, type, requestData) => {
   );
 
   return updateResult.rows[0];
+};
+
+const buildObservationPdfBuffer = async (requestData) => {
+  const config = letterConfig.observation;
+  const tuSettings = await getTuSettingsPayload();
+  const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
+  const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+  const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
+  const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
+  let htmlContent = await fs.readFile(templatePath, 'utf-8');
+
+  const tanggalSurat = requestData.letter_generated_at
+    ? new Date(requestData.letter_generated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+    : new Date(requestData.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  htmlContent = htmlContent
+    .replace(/{{name}}/g, requestData.name || '')
+    .replace(/{{nim}}/g, requestData.nim || '')
+    .replace(/{{tanggalSurat}}/g, tanggalSurat)
+    .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
+    .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+    .replace(/{{backgroundImage}}/g, backgroundImage)
+    .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
+    .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
+    .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
+    .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
+
+  const placeholders = config.getPlaceholders({
+    data: requestData,
+    letterNumber: requestData.letter_number || '-'
+  });
+
+  for (const key in placeholders) {
+    htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
+  }
+
+  return generatePdfBuffer(htmlContent);
+};
+
+const ensureObservationAccessCode = async (client, requestData) => {
+  if (requestData.access_code) {
+    return requestData;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const accessCode = createObservationAccessCode();
+      const updateResult = await client.query(
+        `UPDATE observation_requests
+         SET access_code = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [accessCode, requestData.id]
+      );
+      return updateResult.rows[0];
+    } catch (err) {
+      if (err?.code === '23505') {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('Gagal membuat kode akses surat observasi.');
 };
 
 const upsertObservationRequest = async (client, data, targetStatus) => {
@@ -1389,10 +1509,11 @@ router.post('/tu/observation-letter/finalize', verifyRole(TU_SUBMIT_ROLES), asyn
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureObservationAccessCode(client, requestData);
 
     await client.query('COMMIT');
 
-    res.json({ success: true, letterNumber: requestData.letter_number });
+    res.json({ success: true, letterNumber: requestData.letter_number, accessCode: requestData.access_code });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Observation letter finalize error:', err);
@@ -1442,6 +1563,7 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureObservationAccessCode(client, requestData);
 
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
@@ -1475,6 +1597,7 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Observation-Access-Code', requestData.access_code || '');
     res.send(pdfBuffer);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1525,6 +1648,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureObservationAccessCode(client, requestData);
     const qrDownloadToken = createQrDownloadToken();
     const qrDownloadTokenHash = hashQrDownloadToken(qrDownloadToken);
     const qrDownloadTokenExpiresAt = getQrDownloadExpiry();
@@ -1579,6 +1703,8 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
       success: true,
       qrUrl: qrPath,
       token: qrDownloadToken,
+      accessCode: requestData.access_code,
+      letterNumber: requestData.letter_number,
       expiresAt: qrDownloadTokenExpiresAt.toISOString()
     });
   } catch (err) {
@@ -1636,6 +1762,7 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
         student_members: normalizeObservationStudents(students)
     }, 'sent');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureObservationAccessCode(client, requestData);
 
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
@@ -1676,11 +1803,13 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
       from: `"${fromName}" <${fromEmail}>`,
       to: targetEmail,
       subject: `${config.subject} - ${resolvedCompanyName || 'Observasi'}`,
-      text: `Halo, ${resolvedName} (${resolvedNim})\n\nPermohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha. Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.\n\nSalam,\nBagian Tata Usaha\nFakultas Teknologi Informasi UKSW`,
+      text: `Halo, ${resolvedName} (${resolvedNim})\n\nPermohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha. Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.\n\nKode akses surat: ${requestData.access_code}\nSimpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.\n\nSalam,\nBagian Tata Usaha\nFakultas Teknologi Informasi UKSW`,
       html: `
         <div style="font-family: sans-serif; color: #333;">
           <h2>Halo, ${resolvedName} (${resolvedNim})</h2>
           ${config.emailBody}
+          <p><strong>Kode akses surat:</strong> ${requestData.access_code}</p>
+          <p>Simpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.</p>
           <br/>
           <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
         </div>
@@ -1701,7 +1830,8 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     res.json({
       success: true,
       message: `Surat berhasil dikirim ke ${targetEmail}`,
-      letterNumber: requestData.letter_number
+      letterNumber: requestData.letter_number,
+      accessCode: requestData.access_code
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
@@ -1709,6 +1839,120 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     res.status(500).json({ error: 'Gagal mengirim email surat observasi. Pastikan konfigurasi EMAIL di .env sudah benar.' });
   } finally {
     client.release();
+  }
+});
+
+router.post('/tu/public/observation-letter/access', publicObservationAccessLimiter, async (req, res) => {
+  const accessCode = normalizeObservationAccessCode(req.body?.accessCode);
+  if (!accessCode) {
+    return res.status(400).json({ error: 'Kode akses tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `SELECT * FROM observation_requests
+       WHERE access_code = $1
+       LIMIT 1`,
+      [accessCode]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Surat observasi tidak ditemukan untuk kode akses tersebut.' });
+    }
+
+    res.json({ success: true, letter: buildObservationAccessPayload(result.rows[0]) });
+  } catch (err) {
+    console.error('Public observation access lookup error:', err);
+    res.status(500).json({ error: 'Gagal membuka surat observasi.' });
+  }
+});
+
+router.patch('/tu/public/observation-letter/access', publicObservationAccessLimiter, async (req, res) => {
+  const accessCode = normalizeObservationAccessCode(req.body?.accessCode);
+  if (!accessCode) {
+    return res.status(400).json({ error: 'Kode akses tidak valid.' });
+  }
+
+  const {
+    recipientName,
+    companyName,
+    companyAddress,
+    courseName,
+    lecturerName,
+    headOfProgramName,
+    students
+  } = req.body;
+
+  try {
+    await ensureTuInfrastructure();
+    // Update konten surat saja; letter_number tidak akan berubah.
+    const updateResult = await pool.query(
+      `UPDATE observation_requests
+       SET recipient_name = $1,
+           company = $2,
+           company_address = $3,
+           course_name = $4,
+           lecturer_name = $5,
+           head_of_program_name = $6,
+           student_members = $7::jsonb,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE access_code = $8
+       RETURNING *`,
+      [
+        String(recipientName || '').trim() || null,
+        String(companyName || '').trim() || null,
+        String(companyAddress || '').trim() || null,
+        String(courseName || '').trim() || null,
+        String(lecturerName || '').trim() || null,
+        String(headOfProgramName || '').trim() || null,
+        JSON.stringify(normalizeObservationStudents(students)),
+        accessCode
+      ]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Surat observasi tidak ditemukan untuk kode akses tersebut.' });
+    }
+
+    res.json({ success: true, letter: buildObservationAccessPayload(updateResult.rows[0]) });
+  } catch (err) {
+    console.error('Public observation access update error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan perubahan surat observasi.' });
+  }
+});
+
+router.post('/tu/public/observation-letter/download', publicObservationAccessLimiter, async (req, res) => {
+  const accessCode = normalizeObservationAccessCode(req.body?.accessCode);
+  if (!accessCode) {
+    return res.status(400).json({ error: 'Kode akses tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `SELECT * FROM observation_requests
+       WHERE access_code = $1
+       LIMIT 1`,
+      [accessCode]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Surat observasi tidak ditemukan untuk kode akses tersebut.' });
+    }
+
+    const requestData = result.rows[0];
+    const pdfBuffer = await buildObservationPdfBuffer(requestData);
+    const safeCompanyName = (requestData.company || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `SuratObservasi_${safeCompanyName}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Public observation access download error:', err);
+    res.status(500).json({ error: 'Gagal mengunduh ulang surat observasi.' });
   }
 });
 

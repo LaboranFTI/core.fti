@@ -7,6 +7,7 @@ interface EmailSuccessDialogProps {
   onClose: () => void;
   recipientEmail?: string;
   letterNumber?: string | null;
+  accessCode?: string | null;
   title?: string;
   description?: string;
 }
@@ -16,6 +17,7 @@ export function EmailSuccessDialog({
   onClose,
   recipientEmail,
   letterNumber,
+  accessCode,
   title = 'Email berhasil terkirim',
   description = 'Surat sudah berhasil diproses dan dikirim ke alamat email tujuan.'
 }: EmailSuccessDialogProps) {
@@ -47,6 +49,11 @@ export function EmailSuccessDialog({
           {letterNumber ? (
             <div className="rounded-xl bg-white px-3 py-2 text-sm text-slate-600 shadow-sm dark:bg-gray-900 dark:text-gray-300">
               Nomor surat: <span className="font-semibold text-slate-900 dark:text-white">{letterNumber}</span>
+            </div>
+          ) : null}
+          {accessCode ? (
+            <div className="rounded-xl bg-white px-3 py-2 text-sm text-slate-600 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+              Kode akses: <span className="font-semibold tracking-[0.16em] text-slate-900 dark:text-white">{accessCode}</span>
             </div>
           ) : null}
         </div>

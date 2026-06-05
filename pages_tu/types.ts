@@ -51,12 +51,15 @@ export interface ObservationRequest {
   courseName?: string;
   lecturerName?: string;
   headOfProgramName?: string;
+  studyProgramLevel?: string;
+  studyProgramName?: string;
   students: Student[];
   status: 'pending' | 'verified' | 'sent';
   createdAt: string;
   signatureBase64?: string;
   stampBase64?: string;
   letterNumber?: string;
+  accessCode?: string;
   letterGeneratedAt?: string;
 }
 

@@ -5,7 +5,8 @@ import { AdminPanel } from './components/AdminPanel';
 import { LetterArchivePanel } from './components/LetterArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
 import { LetterPreview } from './components/LetterPreview';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { PageTabs, PageTabItem, PageTabSummary } from '../components/ui/page-tabs';
+import { Tabs, TabsContent } from '../components/ui/tabs';
 import { Archive, FileText, LayoutPanelTop, PenSquare, Shield } from 'lucide-react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
@@ -228,6 +229,12 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   }, []);
 
   const ActiveTabIcon = activeTabMeta[activeTab]?.icon || FileText;
+  const serviceTabs: PageTabItem[] = [
+    !isMahasiswa && { value: 'aktif', label: 'Surat Aktif Kuliah', icon: FileText },
+    { value: 'observasi', label: 'Surat Ijin Observasi', icon: PenSquare },
+    isTUAdmin && { value: 'arsip-surat', label: 'Arsip Surat', icon: Archive },
+    isTUAdmin && { value: 'panel-admin', label: 'Panel Admin', icon: Shield }
+  ].filter(Boolean) as PageTabItem[];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -243,48 +250,14 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       {/* Konten Utama berdasarkan Role */}
       <div className="pt-2 print:p-0">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="flex w-full flex-col">
-          <TabsList
-            className="mb-4 flex w-full flex-wrap gap-2 rounded-3xl bg-transparent p-0 print:hidden"
-          >
-            {!isMahasiswa && (
-              <TabsTrigger value="aktif" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
-                <FileText className="mr-2 h-4 w-4" />
-                Surat Aktif Kuliah
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="observasi" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
-              <PenSquare className="mr-2 h-4 w-4" />
-              Surat Ijin Observasi
-            </TabsTrigger>
-            {isTUAdmin && (
-              <TabsTrigger value="arsip-surat" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
-                <Archive className="w-4 h-4 mr-2" />
-                Arsip Surat
-              </TabsTrigger>
-            )}
-            {isTUAdmin && (
-              <TabsTrigger value="panel-admin" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium shadow-sm transition-all data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:data-[state=active]:border-blue-900/50 dark:data-[state=active]:bg-blue-950/30 dark:data-[state=active]:text-blue-300">
-                <Shield className="w-4 h-4 mr-2" />
-                Panel Admin
-              </TabsTrigger>
-            )}
-          </TabsList>
+          <PageTabs items={serviceTabs} className="mb-4 print:hidden" />
 
-          <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/70 print:hidden">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-blue-100 p-3 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
-                <ActiveTabIcon className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                  {activeTabMeta[activeTab]?.title}
-                </p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {activeTabMeta[activeTab]?.description}
-                </p>
-              </div>
-            </div>
-          </div>
+          <PageTabSummary
+            icon={ActiveTabIcon}
+            title={activeTabMeta[activeTab]?.title}
+            description={activeTabMeta[activeTab]?.description}
+            className="mb-4 print:hidden"
+          />
           
           <TabsContent value="aktif" className="print:m-0 focus:outline-none">
             <ActiveStudentForm />

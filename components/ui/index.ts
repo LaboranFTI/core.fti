@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from './dropdown-menu';
 import { Input } from './input';
 import { Label } from './label';
+import { PageTabs, PageTabSummary } from './page-tabs';
 import { RadioGroup, RadioGroupItem } from './radio-group';
 import { ScrollArea } from './scroll-area';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from './select';
@@ -28,6 +29,8 @@ export {
   DialogTitle,
   Input,
   Label,
+  PageTabs,
+  PageTabSummary,
   ScrollArea,
   Table,
   TableBody,

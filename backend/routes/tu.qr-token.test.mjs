@@ -27,11 +27,13 @@ describe('TU observation QR download tokens', () => {
       '/tu/observation-letter/send-email'
     );
 
+    assert.match(qrRoute, /requestData\s*=\s*await ensureObservationAccessCode\(client,\s*requestData\)/);
     assert.match(qrRoute, /const qrDownloadToken\s*=\s*createQrDownloadToken\(\)/);
     assert.match(qrRoute, /const qrDownloadTokenHash\s*=\s*hashQrDownloadToken\(qrDownloadToken\)/);
     assert.match(qrRoute, /qr_download_token_hash\s*=\s*\$1/);
     assert.match(qrRoute, /qr_download_token_expires_at\s*=\s*\$2/);
     assert.match(qrRoute, /\/api\/tu\/public\/qr-download\/\$\{qrDownloadToken\}/);
+    assert.match(qrRoute, /accessCode:\s*requestData\.access_code/);
   });
 
   it('resolves public downloads by non-expired token hash instead of request id', () => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
+import QRCode from 'react-qr-code';
 import { ObservationData } from '../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -26,6 +27,19 @@ import { EmailSuccessDialog } from './EmailSuccessDialog';
 
 const MAX_OBSERVATION_STUDENTS = 7;
 
+const createDefaultObservationData = (): ObservationData => ({
+  recipientName: '',
+  companyName: '',
+  companyAddress: '',
+  courseName: '',
+  lecturerName: '',
+  headOfProgramName: '',
+  studyProgramId: '',
+  studyProgramName: '',
+  studyProgramLevel: '',
+  students: [{ name: '', nim: '' }]
+});
+
 interface ObservationFormProps {
   onDataChange: (data: ObservationData) => void;
   onPrint: () => void;
@@ -42,12 +56,19 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [formFeedback, setFormFeedback] = useState(feedback);
   const [isGeneratingQr, setIsGeneratingQr] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [qrAccessCode, setQrAccessCode] = useState<string | null>(null);
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
   const [isFinalizingPrint, setIsFinalizingPrint] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | 'print' | null>(null);
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
-  const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null } | null>(null);
+  const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; accessCode?: string | null } | null>(null);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [accessLetterState, setAccessLetterState] = useState<{ accessCode: string; letterNumber?: string | null; status?: string | null } | null>(null);
+  const [isOpeningAccessCode, setIsOpeningAccessCode] = useState(false);
+  const [isSavingAccessCode, setIsSavingAccessCode] = useState(false);
+  const [isDownloadingAccessCode, setIsDownloadingAccessCode] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Program Studi & Dosen data
@@ -67,24 +88,28 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { register, control, watch, getValues, setValue } = useForm<ObservationData>({
-    defaultValues: {
-      recipientName: '',
-      companyName: '',
-      companyAddress: '',
-      courseName: '',
-      lecturerName: '',
-      headOfProgramName: '',
-      studyProgramId: '',
-      studyProgramName: '',
-      studyProgramLevel: '',
-      students: [{ name: '', nim: '' }]
-    }
+  const { register, control, watch, getValues, setValue, reset } = useForm<ObservationData>({
+    defaultValues: createDefaultObservationData()
   });
 
   const { fields, append, remove } = useFieldArray({
     control,
     name: "students"
+  });
+
+  const normalizeAccessCodeInput = (value: string) => value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+
+  const normalizeLoadedObservationData = (data: Partial<ObservationData> = {}): ObservationData => ({
+    recipientName: data.recipientName || '',
+    companyName: data.companyName || '',
+    companyAddress: data.companyAddress || '',
+    courseName: data.courseName || '',
+    lecturerName: data.lecturerName || '',
+    headOfProgramName: data.headOfProgramName || '',
+    studyProgramId: data.studyProgramId || '',
+    studyProgramName: data.studyProgramName || '',
+    studyProgramLevel: data.studyProgramLevel || '',
+    students: data.students && data.students.length > 0 ? data.students : [{ name: '', nim: '' }]
   });
 
   // Build lecturer options for SearchableSelect
@@ -142,6 +167,148 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     return () => subscription.unsubscribe();
   }, [getValues, watch, onDataChange]);
 
+  const resetSelfServiceFlow = useCallback(() => {
+    const defaultData = createDefaultObservationData();
+    reset(defaultData);
+    setSelectedProdiId('');
+    setIsProdiSelected(false);
+    setIsFetchingKaprodi(false);
+    setQrUrl(null);
+    setQrAccessCode(null);
+    setQrExpiresAt(null);
+    setEmailModalOpen(false);
+    setTargetEmail('');
+    setEmailSuccessState(null);
+    setAccessCodeInput('');
+    setAccessLetterState(null);
+    setIsOpeningAccessCode(false);
+    setIsSavingAccessCode(false);
+    setIsDownloadingAccessCode(false);
+    setFormFeedback(null);
+    onDataChange(defaultData);
+  }, [onDataChange, reset]);
+
+  const handleOpenAccessCodeLetter = async () => {
+    const accessCode = accessCodeInput.trim();
+    if (!accessCode) {
+      setFormFeedback({ type: 'error', message: 'Masukkan kode akses surat terlebih dahulu.' });
+      return;
+    }
+
+    setIsOpeningAccessCode(true);
+    setFormFeedback(null);
+    try {
+      const res = await api('/api/tu/public/observation-letter/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode })
+      });
+      const json = await res.json().catch(() => ({ error: 'Gagal membuka surat.' }));
+      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal membuka surat.');
+
+      const loadedData = normalizeLoadedObservationData(json.letter?.data);
+      reset(loadedData);
+      onDataChange(loadedData);
+      setSelectedProdiId(loadedData.studyProgramId || '');
+      setIsProdiSelected(true);
+      setAccessCodeInput(json.letter.accessCode || accessCode);
+      setAccessLetterState({
+        accessCode: json.letter.accessCode || accessCode,
+        letterNumber: json.letter.letterNumber || null,
+        status: json.letter.status || null
+      });
+      setFormFeedback({
+        type: 'success',
+        message: 'Surat ditemukan. Data bisa diedit lalu disimpan atau diunduh ulang.'
+      });
+    } catch (error) {
+      setAccessLetterState(null);
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal membuka surat.' });
+    } finally {
+      setIsOpeningAccessCode(false);
+    }
+  };
+
+  const handleSaveAccessCodeLetter = async () => {
+    if (!accessLetterState?.accessCode) {
+      setFormFeedback({ type: 'error', message: 'Buka surat dengan kode akses terlebih dahulu.' });
+      return;
+    }
+
+    setIsSavingAccessCode(true);
+    setFormFeedback(null);
+    try {
+      const formData = getValues();
+      const res = await api('/api/tu/public/observation-letter/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, accessCode: accessLetterState.accessCode })
+      });
+      const json = await res.json().catch(() => ({ error: 'Gagal menyimpan perubahan surat.' }));
+      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal menyimpan perubahan surat.');
+
+      const loadedData = normalizeLoadedObservationData(json.letter?.data);
+      reset(loadedData);
+      onDataChange(loadedData);
+      setAccessLetterState({
+        accessCode: json.letter.accessCode || accessLetterState.accessCode,
+        letterNumber: json.letter.letterNumber || accessLetterState.letterNumber || null,
+        status: json.letter.status || accessLetterState.status || null
+      });
+      setFormFeedback({
+        type: 'success',
+        message: 'Perubahan surat disimpan. Nomor surat tetap sama.'
+      });
+    } catch (error) {
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menyimpan perubahan surat.' });
+    } finally {
+      setIsSavingAccessCode(false);
+    }
+  };
+
+  const handleDownloadAccessCodeLetter = async () => {
+    const accessCode = accessLetterState?.accessCode || accessCodeInput.trim();
+    if (!accessCode) {
+      setFormFeedback({ type: 'error', message: 'Masukkan kode akses surat terlebih dahulu.' });
+      return;
+    }
+
+    setIsDownloadingAccessCode(true);
+    setFormFeedback(null);
+    try {
+      const res = await api('/api/tu/public/observation-letter/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode })
+      });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({ error: 'Gagal mengunduh ulang surat.' }));
+        throw new Error(errorJson.error);
+      }
+
+      const blob = await res.blob();
+      const companyName = getValues('companyName');
+      const safeCompanyName = (companyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+      const filename = `SuratObservasi_${safeCompanyName}.pdf`;
+      const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setFormFeedback({ type: 'success', message: 'Surat berhasil diunduh ulang.' });
+    } catch (error) {
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengunduh ulang surat.' });
+    } finally {
+      setIsDownloadingAccessCode(false);
+    }
+  };
+
   const handleConfirm = () => {
     const action = confirmAction;
     setConfirmAction(null);
@@ -173,9 +340,9 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       if (!res.ok) throw new Error(json.error);
       setFormFeedback({
         type: 'success',
-        message: `Surat berhasil dikirim ke ${targetEmail}. Jika belum masuk ke inbox, cek juga folder spam.`
+        message: `Surat berhasil dikirim ke ${targetEmail}. Kode akses surat juga dikirim melalui email.`
       });
-      setEmailSuccessState({ email: targetEmail, letterNumber: json.letterNumber || null });
+      setEmailSuccessState({ email: targetEmail, letterNumber: json.letterNumber || null, accessCode: json.accessCode || null });
       setTargetEmail('');
     } catch (error) {
       setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengirim email.' });
@@ -230,6 +397,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       }
 
       const blob = await res.blob();
+      const accessCode = res.headers.get('X-Observation-Access-Code');
       const companyName = getValues('companyName');
       const safeCompanyName = (companyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
       const filename = `SuratObservasi_${safeCompanyName}.pdf`;
@@ -244,7 +412,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      setFormFeedback({ type: 'success', message: 'Surat berhasil diunduh dan diarsipkan secara otomatis.' });
+      setFormFeedback({
+        type: 'success',
+        message: accessCode
+          ? `Surat berhasil diunduh dan diarsipkan. Kode akses surat: ${accessCode}. Simpan kode ini untuk membuka ulang surat.`
+          : 'Surat berhasil diunduh dan diarsipkan secara otomatis.'
+      });
     } catch (error) {
       console.error('Failed to download PDF:', error);
       setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengunduh PDF.' });
@@ -273,7 +446,14 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       // Dipaksa menggunakan IP spesifik untuk rute jaringan lokal sesuai permintaan
       const absoluteQrUrl = `https://192.168.229.201${json.qrUrl}`;
       setQrUrl(absoluteQrUrl);
-      setFormFeedback({ type: 'success', message: 'QR Code berhasil dibuat. Scan untuk mengunduh.' });
+      setQrAccessCode(json.accessCode || null);
+      setQrExpiresAt(json.expiresAt || null);
+      setFormFeedback({
+        type: 'success',
+        message: json.accessCode
+          ? `QR Code berhasil dibuat. Kode akses surat: ${json.accessCode}.`
+          : 'QR Code berhasil dibuat. Scan untuk mengunduh.'
+      });
     } catch (error) {
       console.error('Failed to generate QR:', error);
       setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menghasilkan QR Code.' });
@@ -315,6 +495,83 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                   : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300'
               }`}>
               {formFeedback.message}
+            </div>
+          )}
+
+          {!readOnly && (
+            <div className="p-6 bg-white dark:bg-gray-800 space-y-4">
+              <div className="flex items-center gap-2 text-slate-800 dark:text-white">
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-semibold text-lg">Buka Surat Lama dengan Kode</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="observation-access-code" className="text-slate-700 dark:text-slate-300 font-medium">
+                    Kode Akses Surat
+                  </Label>
+                  <Input
+                    id="observation-access-code"
+                    value={accessCodeInput}
+                    onChange={(event) => setAccessCodeInput(normalizeAccessCodeInput(event.target.value))}
+                    onKeyDown={(event) => event.key === 'Enter' && handleOpenAccessCodeLetter()}
+                    placeholder="OBS-ABCD-1234"
+                    className="bg-white dark:bg-gray-800 font-mono tracking-[0.08em]"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleOpenAccessCodeLetter}
+                  disabled={!accessCodeInput.trim() || isOpeningAccessCode}
+                  className="sm:self-end bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+                >
+                  {isOpeningAccessCode ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                  Buka Surat
+                </Button>
+              </div>
+
+              {accessLetterState && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">Nomor surat</p>
+                      <p className="mt-1 font-semibold text-slate-900 dark:text-white">{accessLetterState.letterNumber || 'Belum tersedia'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">Kode akses</p>
+                      <p className="mt-1 font-mono font-semibold tracking-[0.12em] text-slate-900 dark:text-white">{accessLetterState.accessCode}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleSaveAccessCodeLetter}
+                      disabled={isSavingAccessCode || isDownloadingAccessCode}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {isSavingAccessCode ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                      Simpan Perubahan
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDownloadAccessCodeLetter}
+                      disabled={isSavingAccessCode || isDownloadingAccessCode}
+                      variant="outline"
+                      className="border-blue-200 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-950/40"
+                    >
+                      {isDownloadingAccessCode ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                      Download Ulang
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={resetSelfServiceFlow}
+                      variant="outline"
+                      className="border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Surat Baru
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -639,15 +896,37 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
             <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Scan untuk Download</h3>
             <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Gunakan kamera HP atau aplikasi scanner untuk mengunduh PDF secara otomatis.</p>
             <div className="bg-white p-4 rounded-xl inline-block border border-slate-200 shadow-sm mb-4">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`}
-                alt="QR Code Download"
-                className="w-48 h-48"
+              <QRCode
+                value={qrUrl}
+                size={192}
+                className="h-48 w-48"
+                aria-label="QR Code Download"
               />
             </div>
+            {qrAccessCode && (
+              <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left dark:border-blue-900/50 dark:bg-blue-950/20">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-300">Kode akses surat</p>
+                <p className="mt-2 text-center text-xl font-bold tracking-[0.2em] text-slate-900 dark:text-white">{qrAccessCode}</p>
+                <p className="mt-2 text-xs leading-5 text-blue-700 dark:text-blue-200">
+                  Simpan kode ini jika perlu membuka atau mengunduh ulang surat setelah QR ditutup.
+                </p>
+              </div>
+            )}
             <div className="bg-slate-100 dark:bg-gray-700/50 p-3 rounded-lg break-all text-xs text-slate-500 dark:text-gray-400 text-left">
               {qrUrl}
             </div>
+            {qrExpiresAt && (
+              <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">
+                Link QR berlaku 24 jam. Generate QR ulang akan membuat link baru dengan masa berlaku 24 jam lagi, tetapi kode akses tetap sama.
+              </p>
+            )}
+            <Button
+              type="button"
+              className="mt-5 w-full bg-blue-600 text-white hover:bg-blue-700"
+              onClick={resetSelfServiceFlow}
+            >
+              Selesai & Buat Surat Baru
+            </Button>
           </div>
         </div>
       )}
@@ -660,9 +939,10 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       />
       <EmailSuccessDialog
         open={Boolean(emailSuccessState)}
-        onClose={() => setEmailSuccessState(null)}
+        onClose={resetSelfServiceFlow}
         recipientEmail={emailSuccessState?.email}
         letterNumber={emailSuccessState?.letterNumber}
+        accessCode={emailSuccessState?.accessCode}
         title="Surat observasi berhasil dikirim"
       />
     </>
