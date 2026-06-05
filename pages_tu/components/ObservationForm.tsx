@@ -64,6 +64,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
   const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; accessCode?: string | null } | null>(null);
+  const [formMode, setFormMode] = useState<'new' | 'existing'>('new');
   const [accessCodeInput, setAccessCodeInput] = useState('');
   const [accessLetterState, setAccessLetterState] = useState<{ accessCode: string; letterNumber?: string | null; status?: string | null } | null>(null);
   const [isOpeningAccessCode, setIsOpeningAccessCode] = useState(false);
@@ -169,6 +170,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const resetSelfServiceFlow = useCallback(() => {
     const defaultData = createDefaultObservationData();
     reset(defaultData);
+    setFormMode('new');
     setSelectedProdiId('');
     setIsProdiSelected(false);
     setIsFetchingKaprodi(false);
@@ -185,6 +187,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setFormFeedback(null);
     onDataChange(defaultData);
   }, [onDataChange, reset]);
+
+  const handleFormModeChange = (mode: 'new' | 'existing') => {
+    if (mode === formMode) return;
+    resetSelfServiceFlow();
+    setFormMode(mode);
+  };
 
   const handleOpenAccessCodeLetter = async () => {
     const accessCode = accessCodeInput.trim();
@@ -480,8 +488,42 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     <>
       <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-visible">
       <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
-        <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">Formulir Pengisian</CardTitle>
-        <CardDescription className="text-slate-500 dark:text-gray-400">Lengkapi data di bawah ini. Preview surat di sebelah kanan akan diperbarui otomatis.</CardDescription>
+        <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">
+          {formMode === 'new' ? 'Buat Surat Observasi Baru' : 'Buka Surat Observasi Lama'}
+        </CardTitle>
+        <CardDescription className="text-slate-500 dark:text-gray-400">
+          {formMode === 'new'
+            ? 'Lengkapi data surat baru. Preview di sebelah kanan akan diperbarui otomatis.'
+            : 'Masukkan kode akses untuk membuka, mengubah, atau mengirim kembali surat yang sudah dibuat.'}
+        </CardDescription>
+        {!readOnly && (
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-900/50">
+            <button
+              type="button"
+              onClick={() => handleFormModeChange('new')}
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                formMode === 'new'
+                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Plus className="h-4 w-4" />
+              Buat Surat Baru
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFormModeChange('existing')}
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                formMode === 'existing'
+                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Buka Surat Lama
+            </button>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-0">
@@ -489,7 +531,9 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           <div className="px-6 py-4 bg-blue-50/80 text-sm text-blue-700 dark:bg-blue-950/20 dark:text-blue-300">
             {readOnly
               ? 'Role Mahasiswa hanya memiliki akses baca pada tab surat ijin observasi. Form, download PDF, dan cetak dinonaktifkan.'
-              : 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF atau cetak saat preview sudah sesuai. Data surat akan otomatis masuk arsip.'}
+              : formMode === 'new'
+                ? 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF atau cetak saat preview sudah sesuai. Data surat akan otomatis masuk arsip.'
+                : 'Gunakan kode akses yang diperoleh dari email atau tampilan QR. Form surat baru tidak perlu diisi untuk membuka surat lama.'}
           </div>
 
           {formFeedback && (
@@ -503,7 +547,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
             </div>
           )}
 
-          {!readOnly && (
+          {!readOnly && formMode === 'existing' && (
             <div className="p-6 bg-white dark:bg-gray-800 space-y-4">
               <div className="flex items-center gap-2 text-slate-800 dark:text-white">
                 <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -558,7 +602,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                     </Button>
                     <Button
                       type="button"
-                      onClick={resetSelfServiceFlow}
+                      onClick={() => handleFormModeChange('new')}
                       variant="outline"
                       className="border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
@@ -570,7 +614,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
             </div>
           )}
 
-          {/* Step 1: Program Studi Selection (WAJIB) */}
+          {/* Step 1: Program Studi Selection (WAJIB untuk surat baru) */}
+          {(readOnly || formMode === 'new') && (
           <div className="p-6 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/20 dark:to-indigo-950/20 space-y-5">
             <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-2">
               <GraduationCap className="w-5 h-5" />
@@ -617,6 +662,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
               </div>
             )}
           </div>
+          )}
 
           {/* Form pengisian surat — hanya muncul setelah prodi dipilih */}
           {isProdiSelected && (
@@ -663,7 +709,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="courseName" className="text-slate-700 dark:text-slate-300 font-medium">Nama Mata Kuliah</Label>
-                    <Input id="courseName" placeholder="Contoh: Rekayasa Perangkat Lunak" disabled={readOnly} {...register("courseName")} />
+                    <Input id="courseName" placeholder="Contoh: Rekayasa Perangkat Lunak C" disabled={readOnly} {...register("courseName")} />
                   </div>
 
                   <div className="space-y-1.5">

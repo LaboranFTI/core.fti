@@ -45,4 +45,13 @@ describe('ObservationForm access code UX', () => {
     assert.match(source, /\/api\/tu\/public\/observation-letter\/download/);
     assert.doesNotMatch(source, /Download Ulang/);
   });
+
+  it('separates new-letter and existing-letter workflows into explicit modes', () => {
+    assert.match(source, /formMode/);
+    assert.match(source, /Buat Surat Baru/);
+    assert.match(source, /Buka Surat Lama/);
+    assert.match(source, /handleFormModeChange/);
+    assert.match(source, /formMode === 'existing'/);
+    assert.match(source, /formMode === 'new'/);
+  });
 });
