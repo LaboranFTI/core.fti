@@ -40,8 +40,9 @@ describe('ObservationForm access code UX', () => {
     assert.match(source, /Buka Surat Lama dengan Kode/);
     assert.match(source, /handleOpenAccessCodeLetter/);
     assert.match(source, /handleSaveAccessCodeLetter/);
-    assert.match(source, /handleDownloadAccessCodeLetter/);
+    assert.match(source, /accessLetterState\?\.accessCode/);
     assert.match(source, /\/api\/tu\/public\/observation-letter\/access/);
     assert.match(source, /\/api\/tu\/public\/observation-letter\/download/);
+    assert.doesNotMatch(source, /Download Ulang/);
   });
 });

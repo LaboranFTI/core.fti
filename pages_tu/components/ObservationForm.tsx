@@ -68,7 +68,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [accessLetterState, setAccessLetterState] = useState<{ accessCode: string; letterNumber?: string | null; status?: string | null } | null>(null);
   const [isOpeningAccessCode, setIsOpeningAccessCode] = useState(false);
   const [isSavingAccessCode, setIsSavingAccessCode] = useState(false);
-  const [isDownloadingAccessCode, setIsDownloadingAccessCode] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Program Studi & Dosen data
@@ -183,7 +182,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setAccessLetterState(null);
     setIsOpeningAccessCode(false);
     setIsSavingAccessCode(false);
-    setIsDownloadingAccessCode(false);
     setFormFeedback(null);
     onDataChange(defaultData);
   }, [onDataChange, reset]);
@@ -266,49 +264,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     }
   };
 
-  const handleDownloadAccessCodeLetter = async () => {
-    const accessCode = accessLetterState?.accessCode || accessCodeInput.trim();
-    if (!accessCode) {
-      setFormFeedback({ type: 'error', message: 'Masukkan kode akses surat terlebih dahulu.' });
-      return;
-    }
-
-    setIsDownloadingAccessCode(true);
-    setFormFeedback(null);
-    try {
-      const res = await api('/api/tu/public/observation-letter/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessCode })
-      });
-
-      if (!res.ok) {
-        const errorJson = await res.json().catch(() => ({ error: 'Gagal mengunduh ulang surat.' }));
-        throw new Error(errorJson.error);
-      }
-
-      const blob = await res.blob();
-      const companyName = getValues('companyName');
-      const safeCompanyName = (companyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
-      const filename = `SuratObservasi_${safeCompanyName}.pdf`;
-      const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
-      const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      setFormFeedback({ type: 'success', message: 'Surat berhasil diunduh ulang.' });
-    } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengunduh ulang surat.' });
-    } finally {
-      setIsDownloadingAccessCode(false);
-    }
-  };
-
   const handleConfirm = () => {
     const action = confirmAction;
     setConfirmAction(null);
@@ -385,6 +340,56 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setFormFeedback(null);
     try {
       const formData = getValues();
+      if (accessLetterState?.accessCode) {
+        const saveRes = await api('/api/tu/public/observation-letter/access', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...formData, accessCode: accessLetterState.accessCode })
+        });
+        const saveJson = await saveRes.json().catch(() => ({ error: 'Gagal menyimpan perubahan surat.' }));
+        if (!saveRes.ok || !saveJson.success) {
+          throw new Error(saveJson.error || 'Gagal menyimpan perubahan surat.');
+        }
+
+        const loadedData = normalizeLoadedObservationData(saveJson.letter?.data);
+        reset(loadedData);
+        onDataChange(loadedData);
+        setAccessLetterState({
+          accessCode: saveJson.letter.accessCode || accessLetterState.accessCode,
+          letterNumber: saveJson.letter.letterNumber || accessLetterState.letterNumber || null,
+          status: saveJson.letter.status || accessLetterState.status || null
+        });
+
+        const downloadRes = await api('/api/tu/public/observation-letter/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessCode: accessLetterState.accessCode })
+        });
+
+        if (!downloadRes.ok) {
+          const errorJson = await downloadRes.json().catch(() => ({ error: 'Gagal mengunduh PDF.' }));
+          throw new Error(errorJson.error);
+        }
+
+        const blob = await downloadRes.blob();
+        const companyName = loadedData.companyName;
+        const safeCompanyName = (companyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+        const filename = `SuratObservasi_${safeCompanyName}.pdf`;
+
+        const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
+        const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        setFormFeedback({ type: 'success', message: 'Perubahan disimpan dan surat berhasil diunduh dari kode akses.' });
+        return;
+      }
+
       const res = await api('/api/tu/observation-letter/generate-and-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -541,25 +546,15 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                       <p className="mt-1 font-mono font-semibold tracking-[0.12em] text-slate-900 dark:text-white">{accessLetterState.accessCode}</p>
                     </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Button
                       type="button"
                       onClick={handleSaveAccessCodeLetter}
-                      disabled={isSavingAccessCode || isDownloadingAccessCode}
+                      disabled={isSavingAccessCode || isDownloadingPdf}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
                       {isSavingAccessCode ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
                       Simpan Perubahan
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleDownloadAccessCodeLetter}
-                      disabled={isSavingAccessCode || isDownloadingAccessCode}
-                      variant="outline"
-                      className="border-blue-200 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-950/40"
-                    >
-                      {isDownloadingAccessCode ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                      Download Ulang
                     </Button>
                     <Button
                       type="button"
