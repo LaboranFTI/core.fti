@@ -52,7 +52,13 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <button
               key={item.id}
               type="button"
-              onClick={() => onNavigate(item.id)}
+              onClick={() => {
+                if (item.url) {
+                  window.open(item.url, '_blank', 'noopener,noreferrer');
+                } else {
+                  onNavigate(item.id);
+                }
+              }}
               aria-current={isActive ? 'page' : undefined}
               className={`flex min-h-16 flex-1 flex-col items-center justify-center rounded-2xl px-2 py-2 text-[11px] font-medium tracking-[0.01em] transition-colors ${
                 isActive

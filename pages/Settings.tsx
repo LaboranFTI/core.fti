@@ -299,7 +299,7 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
         }
       } else if (confirmModal.actionType === 'restore_db') {
         const formData = new FormData();
-        formData.append('backupFile', restoreFile!);
+        formData.append('file', restoreFile!);
         const response = await api('/api/settings/restore', { method: 'POST', data: formData });
         const result = await response.json();
         if (response.ok && result.success) {
@@ -371,10 +371,13 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
     const newState = !maintenanceMode;
     setMaintenanceMode(newState);
     try {
-      await api('/api/settings/maintenance', {
-        method: 'POST',
+      const response = await api('/api/settings/maintenance', {
+        method: 'PUT',
         data: { enabled: newState }
       });
+      if (!response.ok) {
+        throw new Error('Failed to update maintenance mode');
+      }
       showToast(`Maintenance Mode ${newState ? 'Diaktifkan' : 'Dinonaktifkan'}`, newState ? 'warning' : 'success');
     } catch (e) {
       setMaintenanceMode(!newState);
@@ -385,10 +388,13 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
   const handleAnnouncementSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api('/api/settings/announcement', {
-        method: 'POST',
+      const response = await api('/api/settings/announcement', {
+        method: 'PUT',
         data: announcement
       });
+      if (!response.ok) {
+        throw new Error('Failed to update announcement');
+      }
       showToast('Pengumuman berhasil diperbarui', 'success');
     } catch (err) {
       showToast('Gagal menyimpan pengumuman', 'error');

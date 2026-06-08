@@ -81,7 +81,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigate(item.id)}
+                  onClick={() => {
+                    if (item.url) {
+                      window.open(item.url, '_blank', 'noopener,noreferrer');
+                    } else {
+                      onNavigate(item.id);
+                    }
+                  }}
                   onMouseEnter={(e) => {
                     if (effectiveCollapsed) {
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -156,7 +162,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                     return (
                       <button
                         key={item.id}
-                        onClick={() => onNavigate(item.id)}
+                        onClick={() => {
+                          if (item.url) {
+                            window.open(item.url, '_blank', 'noopener,noreferrer');
+                          } else {
+                            onNavigate(item.id);
+                          }
+                        }}
                         className={`group flex w-full min-h-11 items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                           isActive
                             ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'

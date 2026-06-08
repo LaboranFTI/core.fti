@@ -10,18 +10,41 @@ import { verifyRole } from '../middleware/auth.js';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
+// Endpoint Get Status Maintenance
+router.get('/settings/maintenance', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'maintenance_mode' LIMIT 1");
+    res.json({ enabled: result.rows[0]?.value === 'true' });
+  } catch (err) {
+    console.error('Error fetching maintenance status:', err);
+    res.status(500).json({ error: 'Gagal mengambil pengaturan maintenance' });
+  }
+});
+
 // Endpoint Update Status Maintenance
 router.put('/settings/maintenance', verifyRole(['Admin']), async (req, res) => {
-  const { maintenance_mode } = req.body;
+  const { enabled } = req.body;
   try {
     await pool.query(
       "INSERT INTO system_settings (key, value) VALUES ('maintenance_mode', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
-      [String(maintenance_mode)]
+      [String(enabled)]
     );
     res.json({ success: true, message: 'Status maintenance diperbarui' });
   } catch (err) {
-    console.error('Error fetching maintenance status:', err);
+    console.error('Error updating maintenance status:', err);
     res.status(500).json({ error: 'Gagal memperbarui status maintenance' });
+  }
+});
+
+// Endpoint Get Global Announcement
+router.get('/settings/announcement', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'global_announcement' LIMIT 1");
+    const value = result.rows[0]?.value;
+    res.json(value ? JSON.parse(value) : { active: false, message: '', type: 'info' });
+  } catch (err) {
+    console.error('Error fetching global announcement:', err);
+    res.status(500).json({ error: 'Gagal mengambil pengumuman' });
   }
 });
 
@@ -35,25 +58,40 @@ router.put('/settings/announcement', verifyRole(['Admin']), async (req, res) => 
     );
     res.json({ success: true, message: 'Pengumuman diperbarui' });
   } catch (err) {
-    console.error('Error fetching global announcement:', err);
+    console.error('Error updating global announcement:', err);
     res.status(500).json({ error: 'Gagal memperbarui pengumuman' });
+  }
+});
+
+// Endpoint Get Konfigurasi SSO
+router.get('/settings/sso-config', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT enabled, client_id as "clientId", domain FROM sso_config LIMIT 1');
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]);
+    } else {
+      res.json({ enabled: false, clientId: '', domain: '' });
+    }
+  } catch (err) {
+    console.error('Error fetching SSO config:', err);
+    res.status(500).json({ error: 'Gagal memuat konfigurasi SSO' });
   }
 });
 
 // Endpoint Update Konfigurasi SSO
 router.put('/settings/sso-config', verifyRole(['Admin']), async (req, res) => {
-  const { enabled, client_id, domain } = req.body;
+  const { enabled, clientId, domain } = req.body;
   try {
     const result = await pool.query('SELECT id FROM sso_config LIMIT 1');
     if (result.rows.length > 0) {
       await pool.query(
         'UPDATE sso_config SET enabled = $1, client_id = $2, domain = $3, updated_at = NOW() WHERE id = $4',
-        [enabled, client_id, domain, result.rows[0].id]
+        [enabled, clientId, domain, result.rows[0].id]
       );
     } else {
       await pool.query(
         'INSERT INTO sso_config (enabled, client_id, domain) VALUES ($1, $2, $3)',
-        [enabled, client_id, domain]
+        [enabled, clientId, domain]
       );
     }
     res.json({ success: true, message: 'Konfigurasi SSO diperbarui' });
@@ -122,21 +160,6 @@ router.post('/settings/restore', verifyRole(['Admin']), upload.single('file'), (
 
     res.json({ success: true, message: 'Database berhasil dipulihkan (Restore).' });
   });
-});
-
-// Endpoint Get Konfigurasi SSO
-router.get('/settings/sso-config', verifyRole(['Admin']), async (req, res) => {
-  try {
-    const result = await pool.query('SELECT enabled, client_id as "clientId", domain FROM sso_config LIMIT 1');
-    if (result.rows.length > 0) {
-      res.json(result.rows[0]);
-    } else {
-      res.json({ enabled: false, clientId: '', domain: '' });
-    }
-  } catch (err) {
-    console.error('Error fetching SSO config:', err);
-    res.status(500).json({ error: 'Gagal memuat konfigurasi SSO' });
-  }
 });
 
 // Endpoint Get SSO Users

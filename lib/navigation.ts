@@ -17,6 +17,7 @@ import {
   LucideIcon,
   SlidersHorizontal,
   Settings,
+  Shield,
   UserCog,
   Users,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export interface NavigationItem {
   label: string;
   icon: LucideIcon;
   roles: Role[];
+  url?: string;
 }
 
 export interface NavigationGroup {
@@ -93,6 +95,22 @@ export const mainNavigationItems: NavigationItem[] = [
     roles: [
       Role.ADMIN,
       Role.LABORAN,
+      Role.DOSEN,
+      Role.SUPERVISOR,
+      Role.USER_TU,
+      Role.ADMIN_TU,
+    ],
+  },
+  {
+    id: "labguard",
+    label: "LabGuard",
+    icon: Shield,
+    url: "http://192.168.68.246:3000",
+    roles: [
+      Role.MAHASISWA,
+      Role.ADMIN,
+      Role.LABORAN,
+      Role.LEMBAGA_KEMAHASISWAAN,
       Role.DOSEN,
       Role.SUPERVISOR,
       Role.USER_TU,

@@ -26,9 +26,10 @@ export const verifyRole = (allowedRoles) => (req, res, next) => {
 export const verifyToken = (req, res, next) => {
   // Path di sini tidak perlu '/api' karena middleware ini sudah di-mount pada '/api'.
   // req.path akan menjadi '/login', bukan '/api/login'.
-  // Updated public paths to include sso-config (used on login page)
   const publicPaths = ['/login', '/register', '/set-password', '/logout', '/auth/refresh', '/auth/google', '/check-user-exists', '/tu/public'];
-  if (publicPaths.some(path => req.path.startsWith(path)) || req.path === '/') {
+  const publicGetPaths = ['/settings/maintenance', '/settings/announcement', '/settings/sso-config'];
+  const isPublicGet = req.method === 'GET' && publicGetPaths.includes(req.path);
+  if (publicPaths.some(path => req.path.startsWith(path)) || isPublicGet || req.path === '/') {
     return next();
   }
 

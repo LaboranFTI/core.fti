@@ -6,7 +6,7 @@ import LoadingScreen from './components/LoadingScreen';
 import ProtectedRoute from './components/ProtectedRoute';
 import { api } from './services/api';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { getNavigationLabel } from './lib/navigation';
+import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
 
 // Helper fungsi untuk membersihkan cache PWA (Service Worker) sebelum reload
 const clearCacheAndReload = async () => {
@@ -670,7 +670,16 @@ const AppContent: React.FC = () => {
               onMarkAsRead={markNotificationAsRead}
               onMarkAllAsRead={markAllNotificationsAsRead}
               onClearAllNotifications={clearAllNotifications}
-              onNavigate={(page) => navigate(`/${page}`)}
+              onNavigate={(page) => {
+                const navItem = getNavigationItemById(page);
+                if (navItem?.url) {
+                  window.open(navItem.url, '_blank', 'noopener,noreferrer');
+                } else if (page.startsWith('http://') || page.startsWith('https://')) {
+                  window.open(page, '_blank', 'noopener,noreferrer');
+                } else {
+                  navigate(`/${page}`);
+                }
+              }}
               onMainScroll={handleMainScroll}
             >
               <Suspense fallback={<PageLoader />}>

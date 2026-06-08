@@ -3,7 +3,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import multer from 'multer';
 import { allowedOrigins } from './backend/config/cors.js';
 import { pool, testConnection, createIndexes, ensureAuthSchema } from './backend/config/database.js';
 import { verifyToken } from './backend/middleware/auth.js';
@@ -49,47 +48,6 @@ app.use(cors({
 // 3. Body Parser
 app.use(express.json({ limit: '20mb' })); // Tingkatkan limit ke 20mb untuk gambar 360 resolusi tinggi
 app.use(express.urlencoded({ extended: true, limit: '20mb' })); // Tambahkan juga limit untuk urlencoded
-
-// Konfigurasi Upload (Simpan sementara di folder uploads/)
-const upload = multer({ dest: 'uploads/' });
-
-// --- Rute Publik (Akses Guest Tanpa Token) ---
-// Harus diletakkan SEBELUM middleware verifyToken agar bisa diakses oleh guest di App.tsx & Login.tsx
-app.get('/api/settings/maintenance', async (req, res) => {
-  try {
-    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'maintenance_mode'");
-    const isEnabled = result.rows.length > 0 && result.rows[0].value === 'true';
-    res.json({ enabled: isEnabled });
-  } catch (err) {
-    res.status(500).json({ error: 'Gagal mengambil pengaturan maintenance' });
-  }
-});
-
-app.get('/api/settings/announcement', async (req, res) => {
-  try {
-    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'global_announcement'");
-    if (result.rows.length > 0 && result.rows[0].value) {
-      res.json(JSON.parse(result.rows[0].value));
-    } else {
-      res.json({ active: false, message: '', type: 'info' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Gagal mengambil pengumuman' });
-  }
-});
-
-app.get('/api/settings/sso-config', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT enabled, client_id as "clientId", domain FROM sso_config LIMIT 1');
-    if (result.rows.length > 0) {
-      res.json(result.rows[0]);
-    } else {
-      res.json({ enabled: true });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Gagal mengambil konfigurasi SSO' });
-  }
-});
 
 // Terapkan middleware verifikasi token ke semua rute API
 app.use('/api', verifyToken);
