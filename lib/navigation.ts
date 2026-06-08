@@ -103,18 +103,13 @@ export const mainNavigationItems: NavigationItem[] = [
   },
   {
     id: "labguard",
-    label: "LabGuard",
+    label: "LabGuard (Testing)",
     icon: Shield,
     url: "http://192.168.68.246:3000",
     roles: [
-      Role.MAHASISWA,
       Role.ADMIN,
       Role.LABORAN,
-      Role.LEMBAGA_KEMAHASISWAAN,
-      Role.DOSEN,
       Role.SUPERVISOR,
-      Role.USER_TU,
-      Role.ADMIN_TU,
     ],
   },
 ];
