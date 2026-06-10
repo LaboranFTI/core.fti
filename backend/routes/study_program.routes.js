@@ -1,5 +1,6 @@
 import express from 'express';
 import { pool } from '../config/database.js';
+import { verifyRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -19,7 +20,93 @@ router.get('/study-programs', async (req, res) => {
   }
 });
 
-// 2. GET - Mengambil Kepala Program Studi berdasarkan ID prodi
+// 2. POST - Menambahkan program studi
+router.post('/study-programs', verifyRole(['Admin', 'Admin TU']), async (req, res) => {
+  const id = req.body.id?.trim();
+  const name = req.body.name?.trim();
+  const level = req.body.level?.trim();
+
+  if (!id || !name || !level) {
+    return res.status(400).json({ error: 'Kode NIM, nama program studi, dan jenjang wajib diisi.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO study_programs (id, name, level) VALUES ($1, $2, $3) RETURNING *',
+      [id, name, level]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Program studi berhasil ditambahkan',
+      data: result.rows[0]
+    });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Kode NIM program studi sudah terdaftar.' });
+    }
+
+    console.error('Error creating study program:', err);
+    res.status(500).json({ error: 'Gagal menambahkan program studi' });
+  }
+});
+
+// 3. PUT - Memperbarui program studi
+router.put('/study-programs/:id', verifyRole(['Admin', 'Admin TU']), async (req, res) => {
+  const { id } = req.params;
+  const name = req.body.name?.trim();
+  const level = req.body.level?.trim();
+
+  if (!name || !level) {
+    return res.status(400).json({ error: 'Nama program studi dan jenjang wajib diisi.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE study_programs SET name = $1, level = $2 WHERE id = $3 RETURNING *',
+      [name, level, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Program studi tidak ditemukan.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Program studi berhasil diperbarui',
+      data: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Error updating study program:', err);
+    res.status(500).json({ error: 'Gagal memperbarui program studi' });
+  }
+});
+
+// 4. DELETE - Menghapus program studi
+router.delete('/study-programs/:id', verifyRole(['Admin', 'Admin TU']), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM study_programs WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Program studi tidak ditemukan.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Program studi berhasil dihapus'
+    });
+  } catch (err) {
+    console.error('Error deleting study program:', err);
+    res.status(500).json({ error: 'Gagal menghapus program studi' });
+  }
+});
+
+// 5. GET - Mengambil Kepala Program Studi berdasarkan ID prodi
 // Endpoint: GET /study-programs/:id/kaprodi
 router.get('/study-programs/:id/kaprodi', async (req, res) => {
   try {
@@ -45,7 +132,7 @@ router.get('/study-programs/:id/kaprodi', async (req, res) => {
   }
 });
 
-// 3. GET - Mengambil dosen berdasarkan jabatan (misal: Dekan)
+// 6. GET - Mengambil dosen berdasarkan jabatan (misal: Dekan)
 // Endpoint: GET /lecturers/by-jabatan/:jabatan
 router.get('/lecturers/by-jabatan/:jabatan', async (req, res) => {
   try {

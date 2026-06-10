@@ -64,6 +64,7 @@ const NotFound = lazyWithReload(() => import('./pages/NotFound'));
 const LayananTU = lazyWithReload(() => import('./pages_tu/LayananTU'));
 const MobileUpload = lazyWithReload(() => import('./pages_tu/components/MobileUpload'));
 const LecturerManagement = lazyWithReload(() => import('./pages/ManajemenDosen'));
+const StudyProgramManagement = lazyWithReload(() => import('./pages/ManajemenProgramStudi'));
 
 
 // Loading fallback component
@@ -740,6 +741,11 @@ const AppContent: React.FC = () => {
           <Route path="/manajemen-dosen" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <LecturerManagement showToast={showToast} role={currentRole} />
+            </ProtectedRoute>
+          } />
+          <Route path="/manajemen-program-studi" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <StudyProgramManagement showToast={showToast} />
             </ProtectedRoute>
           } />
           <Route path="/pemesanan-saya" element={

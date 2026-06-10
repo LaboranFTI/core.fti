@@ -3,6 +3,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { pool } from '../config/database.js';
 import { verifyToken } from '../middleware/auth.js';
 import { formatStudentName } from '../utils/activeStudentLetter.js';
+import { summarizeSoapResponse } from '../utils/siasatDiagnostics.js';
 
 const router = express.Router();
 
@@ -75,6 +76,37 @@ const collectNamedXmlValues = (obj, targetKeys, results = []) => {
   }
 
   return results;
+};
+
+const logSiasatResponseDiagnostic = ({
+  operation,
+  nim,
+  semester,
+  response,
+  xmlText,
+  resultObj,
+  resultNodeName,
+  dataNodeName,
+  startedAt,
+}) => {
+  const summary = summarizeSoapResponse({
+    xmlText,
+    parsedBody: resultObj,
+    operation,
+    resultNodeName,
+    dataNodeName,
+  });
+
+  console.info(`[SIASAT ${operation}] Response diagnostic`, {
+    nim,
+    ...(semester ? { semester } : {}),
+    httpStatus: response.status,
+    contentType: response.headers.get('content-type'),
+    elapsedMs: Date.now() - startedAt,
+    ...summary,
+  });
+
+  return summary;
 };
 
 const getAutoSemesterCode = () => {
@@ -177,6 +209,7 @@ router.get('/siasat/mahasiswa/:nim', verifyToken, async (req, res) => {
   `;
 
   try {
+    const startedAt = Date.now();
     const response = await fetch(SOAP_URL, {
       method: 'POST',
       headers: {
@@ -190,12 +223,27 @@ router.get('/siasat/mahasiswa/:nim', verifyToken, async (req, res) => {
 
     const xmlText = await response.text();
     const resultObj = parser.parse(xmlText);
+    const responseDiagnostic = logSiasatResponseDiagnostic({
+      operation: 'getData',
+      nim,
+      response,
+      xmlText,
+      resultObj,
+      resultNodeName: 'getDataResult',
+      dataNodeName: 'listmhs',
+      startedAt,
+    });
     
     // Cari tag <listmhs> di mana pun ia berada (meniru XPath)
     const listMhs = findXmlNode(resultObj, 'listmhs');
     
     if (!listMhs) {
-      return res.status(404).json({ error: 'Data mahasiswa tidak ditemukan di SIASAT' });
+      return res.status(404).json({
+        error: 'Data mahasiswa tidak ditemukan di SIASAT',
+        code: responseDiagnostic.isEmptySuccessResponse
+          ? 'SIASAT_PROFILE_EMPTY_RESPONSE'
+          : 'SIASAT_PROFILE_DATA_NOT_FOUND',
+      });
     }
 
     res.json({ success: true, data: listMhs });
@@ -241,6 +289,7 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
   `;
 
   try {
+    const startedAt = Date.now();
     const response = await fetch(SOAP_URL, {
       method: 'POST',
       headers: {
@@ -254,6 +303,17 @@ router.get('/siasat/kst/:nim', verifyToken, async (req, res) => {
 
     const xmlText = await response.text();
     const resultObj = parser.parse(xmlText);
+    logSiasatResponseDiagnostic({
+      operation: 'GetKartuStudi',
+      nim,
+      semester,
+      response,
+      xmlText,
+      resultObj,
+      resultNodeName: 'GetKartuStudiResult',
+      dataNodeName: 'listmhskst',
+      startedAt,
+    });
     
     // Cari tag <listmhskst> di mana pun ia berada (mengabaikan wrapper diffgr dari .NET)
     let listKst = findXmlNode(resultObj, 'listmhskst');
@@ -320,6 +380,7 @@ router.get('/siasat/mahasiswa/:nim/nama', verifyToken, async (req, res) => {
   `;
 
   try {
+    const startedAt = Date.now();
     const response = await fetch(SOAP_URL, {
       method: 'POST',
       headers: {
@@ -333,7 +394,16 @@ router.get('/siasat/mahasiswa/:nim/nama', verifyToken, async (req, res) => {
 
     const xmlText = await response.text();
     const resultObj = parser.parse(xmlText);
-
+    const responseDiagnostic = logSiasatResponseDiagnostic({
+      operation: 'GetNamaMhs',
+      nim,
+      response,
+      xmlText,
+      resultObj,
+      resultNodeName: 'GetNamaMhsResult',
+      dataNodeName: 'listmhs',
+      startedAt,
+    });
     const getNamaMhsResult = findXmlNode(resultObj, 'GetNamaMhsResult');
     const listMhs = findXmlNode(resultObj, 'listmhs');
 
@@ -370,9 +440,15 @@ router.get('/siasat/mahasiswa/:nim/nama', verifyToken, async (req, res) => {
         nim,
         availableNameCandidates: debugCandidates,
         listMhsKeys: listMhs && typeof listMhs === 'object' ? Object.keys(listMhs) : [],
-        getNamaMhsResultKeys: getNamaMhsResult && typeof getNamaMhsResult === 'object' ? Object.keys(getNamaMhsResult) : []
+        getNamaMhsResultKeys: getNamaMhsResult && typeof getNamaMhsResult === 'object' ? Object.keys(getNamaMhsResult) : [],
+        responseDiagnostic,
       });
-      return res.status(404).json({ error: 'Nama mahasiswa tidak ditemukan di SIASAT' });
+      return res.status(404).json({
+        error: 'Nama mahasiswa tidak ditemukan di SIASAT',
+        code: responseDiagnostic.isEmptySuccessResponse
+          ? 'SIASAT_NAME_EMPTY_RESPONSE'
+          : 'SIASAT_NAME_NOT_FOUND',
+      });
     }
 
     res.json({

@@ -12,6 +12,7 @@ import {
   DoorOpen,
   FileText,
   GraduationCap,
+  LibraryBig,
   Info,
   LayoutDashboard,
   LucideIcon,
@@ -164,6 +165,12 @@ export const navigationGroups: NavigationGroup[] = [
         label: 'Dosen',
         icon: GraduationCap, // Anda bisa menggantinya dengan ikon GraduationCap atau yang lain
         roles: [Role.ADMIN, Role.ADMIN_TU] // Restriksi Role
+      },
+      {
+        id: "manajemen-program-studi",
+        label: "Program Studi",
+        icon: LibraryBig,
+        roles: [Role.ADMIN, Role.ADMIN_TU],
       },
       {
         id: "manajemen-laboran",
