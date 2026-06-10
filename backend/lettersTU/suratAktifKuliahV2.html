@@ -102,7 +102,7 @@
             position: absolute;
             left: 5mm;
             bottom: -6mm;
-            height: 35mm;
+            height: 40mm;
             opacity: 0.9;
             z-index: 20;
             mix-blend-mode: multiply;
@@ -118,6 +118,12 @@
         }
 
         .signature-name {
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            width: max-content;
+            white-space: nowrap;
+            font-size: 11pt;
             font-weight: bold;
             text-decoration: underline;
         }

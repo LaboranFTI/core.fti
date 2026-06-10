@@ -169,12 +169,12 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
               <img
                 src={data.stampBase64}
                 alt="Cap Fakultas"
-                className="absolute bottom-[-6mm] left-[5mm] h-[35mm] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"
+                className="absolute bottom-[-6mm] left-[5mm] h-[40mm] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"
               />
             )}
           </div>
 
-          <p className="font-bold underline underline-offset-4">{data.deanName || derivedDeanName}</p>
+          <p className="relative left-1/2 w-max -translate-x-1/2 whitespace-nowrap text-[11pt] font-bold underline underline-offset-4">{data.deanName || derivedDeanName}</p>
           <p>{data.deanTitle || derivedDeanTitle}</p>
         </div>
       </div>
