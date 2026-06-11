@@ -21,6 +21,8 @@ interface ScheduleEntry {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
+  kebutuhan: string;
+  sameAsPrevious: boolean;
 }
 
 interface RoomScheduleBlock {
@@ -37,6 +39,8 @@ const emptySchedule = (): ScheduleEntry => ({
   date: "",
   startTime: "",
   endTime: "",
+  kebutuhan: "",
+  sameAsPrevious: false,
 });
 
 const emptyBlock = (): RoomScheduleBlock => ({
@@ -237,8 +241,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
   onCancel,
   showToast,
 }) => {
-  const userRole = (localStorage.getItem("currentRole") as Role) || Role.LEMBAGA_KEMAHASISWAAN;
-  const canManage = userRole === Role.ADMIN || userRole === Role.LABORAN || userRole.toString() === 'Supervisor';
+  const userRole = (
+    sessionStorage.getItem("currentRole") ||
+    localStorage.getItem("currentRole")
+  ) as Role;
+  const canManage =
+    userRole === Role.ADMIN ||
+    userRole === Role.LABORAN ||
+    userRole === Role.SUPERVISOR;
 
   // ── Common fields ──────────────────────────────────────────────────────────
   const [purpose, setPurpose] = useState(initialData?.purpose ?? "");
@@ -256,7 +266,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const [autoApprove, setAutoApprove] = useState(true);
   
   const [techSupportPic, setTechSupportPic] = useState<string[]>((initialData as any)?.techSupportPic ?? []);
-  const [techSupportNeeds, setTechSupportNeeds] = useState<string>((initialData as any)?.techSupportNeeds ?? "");
+  const techSupportNeeds = (initialData as any)?.techSupportNeeds ?? "";
   const [staffList, setStaffList] = useState<{id: string, name: string, jabatan: string}[]>([]);
 
   useEffect(() => {
@@ -279,6 +289,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
               date: s.date ? new Date(s.date).toLocaleDateString("en-CA") : "",
               startTime: s.startTime?.slice(0, 5) ?? "",
               endTime: s.endTime?.slice(0, 5) ?? "",
+              kebutuhan: s.kebutuhan ?? "",
+              sameAsPrevious: false,
             }))
           : [emptySchedule()];
       return [
@@ -342,14 +354,26 @@ const BookingForm: React.FC<BookingFormProps> = ({
       prev.map((b) =>
         b.id !== blockId
           ? b
-          : { ...b, schedules: b.schedules.filter((s) => s.id !== scheduleId) },
+          : {
+              ...b,
+              schedules: b.schedules
+                .filter((s) => s.id !== scheduleId)
+                .map((s, index, schedules) => ({
+                  ...s,
+                  sameAsPrevious: index > 0 && s.sameAsPrevious,
+                  kebutuhan:
+                    index > 0 && s.sameAsPrevious
+                      ? schedules[index - 1].kebutuhan
+                      : s.kebutuhan,
+                })),
+            },
       ),
     );
 
   const updateSchedule = (
     blockId: string,
     scheduleId: string,
-    field: "date" | "startTime" | "endTime",
+    field: "date" | "startTime" | "endTime" | "kebutuhan",
     value: string,
   ) =>
     setBlocks((prev) =>
@@ -358,11 +382,48 @@ const BookingForm: React.FC<BookingFormProps> = ({
           ? b
           : {
               ...b,
-              schedules: b.schedules.map((s) =>
-                s.id !== scheduleId ? s : { ...s, [field]: value },
-              ),
+              schedules: (() => {
+                const schedules = b.schedules.map((s) => ({ ...s }));
+                const index = schedules.findIndex((s) => s.id === scheduleId);
+                if (index === -1) return schedules;
+
+                schedules[index] = { ...schedules[index], [field]: value };
+                if (field === "kebutuhan") {
+                  for (let i = index + 1; i < schedules.length; i++) {
+                    if (!schedules[i].sameAsPrevious) break;
+                    schedules[i].kebutuhan = schedules[i - 1].kebutuhan;
+                  }
+                }
+                return schedules;
+              })(),
             },
       ),
+    );
+
+  const copyPreviousScheduleNeeds = (
+    blockId: string,
+    scheduleId: string,
+    checked: boolean,
+  ) =>
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+
+        const schedules = b.schedules.map((s) => ({ ...s }));
+        const index = schedules.findIndex((s) => s.id === scheduleId);
+        if (index <= 0) return b;
+
+        schedules[index].sameAsPrevious = checked;
+        if (checked) {
+          schedules[index].kebutuhan = schedules[index - 1].kebutuhan;
+          for (let i = index + 1; i < schedules.length; i++) {
+            if (!schedules[i].sameAsPrevious) break;
+            schedules[i].kebutuhan = schedules[i - 1].kebutuhan;
+          }
+        }
+
+        return { ...b, schedules };
+      }),
     );
 
   // ── File handling ──────────────────────────────────────────────────────────
@@ -392,7 +453,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
 
   const validate = (): string | null => {
     const hasExistingFile = (initialData as any)?.hasFile || initialData?.proposalFile;
-    if (!bookingFile && !proposalFileBase64 && !hasExistingFile)
+    const isUploadRequired = !canManage;
+    if (isUploadRequired && !bookingFile && !proposalFileBase64 && !hasExistingFile)
       return "Mohon upload surat permohonan (PDF).";
     if (blocks.length === 0)
       return "Tambahkan minimal satu blok ruangan & jadwal.";
@@ -445,10 +507,11 @@ const BookingForm: React.FC<BookingFormProps> = ({
           responsiblePerson,
           contactPerson,
           schedules: firstBlock.schedules.map(
-            ({ date, startTime, endTime }) => ({
+            ({ date, startTime, endTime, kebutuhan }) => ({
               date,
               startTime,
               endTime,
+              kebutuhan,
             }),
           ),
           autoApprove: canManage ? autoApprove : false,
@@ -483,10 +546,11 @@ const BookingForm: React.FC<BookingFormProps> = ({
               purpose,
               responsiblePerson,
               contactPerson,
-              schedules: block.schedules.map(({ date, startTime, endTime }) => ({
+              schedules: block.schedules.map(({ date, startTime, endTime, kebutuhan }) => ({
                 date,
                 startTime,
                 endTime,
+                kebutuhan,
               })),
               autoApprove: canManage ? autoApprove : false,
               techSupportPic: canManage ? techSupportPic : [],
@@ -670,10 +734,10 @@ const BookingForm: React.FC<BookingFormProps> = ({
                   </button>
                 </div>
 
-                {block.schedules.map((schedule) => (
+                {block.schedules.map((schedule, scheduleIndex) => (
                   <div
                     key={schedule.id}
-                    className="flex flex-col sm:flex-row gap-2 items-end"
+                    className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-gray-50/60 p-3 sm:flex-row sm:flex-wrap sm:items-end dark:border-gray-700 dark:bg-gray-800/40"
                   >
                     {/* Date */}
                     <div className="flex-1 w-full">
@@ -753,6 +817,46 @@ const BookingForm: React.FC<BookingFormProps> = ({
                       /* Spacer to keep alignment consistent */
                       <div className="shrink-0 w-10 sm:mb-px hidden sm:block" />
                     )}
+
+                    <div className="w-full sm:basis-full">
+                      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-xs text-gray-500 dark:text-gray-400">
+                          Kebutuhan Alat/Teknis
+                        </label>
+                        {scheduleIndex > 0 && (
+                          <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={schedule.sameAsPrevious}
+                              onChange={(e) =>
+                                copyPreviousScheduleNeeds(
+                                  block.id,
+                                  schedule.id,
+                                  e.target.checked,
+                                )
+                              }
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900"
+                            />
+                            Kebutuhan sama dengan jadwal sebelumnya
+                          </label>
+                        )}
+                      </div>
+                      <textarea
+                        value={schedule.kebutuhan}
+                        onChange={(e) =>
+                          updateSchedule(
+                            block.id,
+                            schedule.id,
+                            "kebutuhan",
+                            e.target.value,
+                          )
+                        }
+                        disabled={schedule.sameAsPrevious}
+                        rows={2}
+                        placeholder="Contoh: 2 mic wireless, kabel HDMI, operator audio"
+                        className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -797,7 +901,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
             <Wrench className="w-4 h-4 text-blue-500" />
             Technical Support (Opsional)
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIC Laboran / Teknisi</label>
               {techSupportPic.length > 0 && (
@@ -826,16 +930,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kebutuhan Teknis (Mic, Sound, dll)</label>
-              <textarea
-                value={techSupportNeeds}
-                onChange={e => setTechSupportNeeds(e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg dark:text-white focus:ring-2 focus:ring-blue-500 text-sm"
-                rows={2}
-                placeholder="Daftar alat yang dibutuhkan..."
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -848,7 +942,9 @@ const BookingForm: React.FC<BookingFormProps> = ({
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Upload Surat Permohonan{" "}
-            <span className="text-gray-400 font-normal">(PDF, Maks. 5 MB)</span>
+            <span className="text-gray-400 font-normal">
+              ({canManage ? "Opsional" : "Wajib"} · PDF, Maks. 5 MB)
+            </span>
           </label>
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
             <input

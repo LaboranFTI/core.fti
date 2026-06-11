@@ -27,6 +27,7 @@ interface EventScheduleOption {
     startTime: string;
     endTime: string;
     roomIds: string[];
+    needs: string[];
 }
 
 interface EventGroup {
@@ -54,7 +55,7 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
         pic: true,
         contact: false,
         tech: false,
-        needs: false
+        needs: true
     });
 
     const ticketRef = useRef<HTMLDivElement>(null);
@@ -93,6 +94,13 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
         return group.uniqueSchedules.find(schedule => schedule.key === selectedKey) ?? group.uniqueSchedules[0] ?? null;
     };
 
+    const getScheduleNeeds = (schedule: EventScheduleOption | null, fallbackNeeds = '') => {
+        if (schedule?.needs.length) return schedule.needs;
+
+        const fallback = (fallbackNeeds ?? '').trim();
+        return fallback ? [fallback] : [];
+    };
+
     const handleScheduleSelection = (groupKey: string, scheduleKey: string) => {
         setSelectedScheduleKeys(prev => ({
             ...prev,
@@ -124,7 +132,8 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                     : [{
                         date: entry.date ?? '',
                         startTime: entry.startTime ?? '',
-                        endTime: entry.endTime ?? ''
+                        endTime: entry.endTime ?? '',
+                        kebutuhan: entry.techSupportNeeds ?? ''
                     }];
 
                 schedules.forEach(schedule => {
@@ -132,10 +141,14 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
 
                     const scheduleKey = `${schedule.date}_${schedule.startTime}_${schedule.endTime}`;
                     const existingSchedule = uniqueSchedulesMap.get(scheduleKey);
+                    const scheduleNeeds = schedule.kebutuhan?.trim() || entry.techSupportNeeds?.trim() || '';
 
                     if (existingSchedule) {
                         if (entry.roomId && !existingSchedule.roomIds.includes(entry.roomId)) {
                             existingSchedule.roomIds.push(entry.roomId);
+                        }
+                        if (scheduleNeeds && !existingSchedule.needs.includes(scheduleNeeds)) {
+                            existingSchedule.needs.push(scheduleNeeds);
                         }
                         return;
                     }
@@ -145,7 +158,8 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                         date: schedule.date,
                         startTime: schedule.startTime,
                         endTime: schedule.endTime,
-                        roomIds: entry.roomId ? [entry.roomId] : []
+                        roomIds: entry.roomId ? [entry.roomId] : [],
+                        needs: scheduleNeeds ? [scheduleNeeds] : []
                     });
                 });
             });
@@ -224,6 +238,30 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
         setShareConfig(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    const showAllShareFields = () => {
+        setShareConfig({
+            title: true,
+            time: true,
+            location: true,
+            pic: true,
+            contact: true,
+            tech: true,
+            needs: true
+        });
+    };
+
+    const useCompactShareFields = () => {
+        setShareConfig({
+            title: true,
+            time: true,
+            location: true,
+            pic: false,
+            contact: false,
+            tech: false,
+            needs: false
+        });
+    };
+
     const displayedEvents = useMemo(() => {
         return groupedEvents.filter(group => {
             if (filterRoom !== 'All' && !group.roomIds.includes(filterRoom)) return false;
@@ -244,6 +282,10 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
     }, [groupedEvents, filterStatus, filterRoom]);
 
     const activeSelectedSchedule = selectedGroup ? getActiveSchedule(selectedGroup) : null;
+    const activeSelectedScheduleNeeds = getScheduleNeeds(
+        activeSelectedSchedule,
+        selectedGroup?.master.techSupportNeeds
+    );
 
     return (
         <div className="space-y-6">
@@ -289,6 +331,7 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                     const lastSchedule = group.uniqueSchedules[group.uniqueSchedules.length - 1];
                     const isPast = lastSchedule ? new Date(`${lastSchedule.date}T${lastSchedule.endTime}`).getTime() < now : false;
                     const activeSchedule = getActiveSchedule(group);
+                    const activeScheduleNeeds = getScheduleNeeds(activeSchedule, group.master.techSupportNeeds);
 
                     const isOngoing = group.uniqueSchedules.some((sch) => {
                         const start = new Date(`${sch.date}T${sch.startTime}`).getTime();
@@ -372,6 +415,15 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                                     <User className="w-4 h-4 mr-2 text-gray-400" />
                                     <span>{group.master.responsiblePerson}</span>
                                 </div>
+                                {activeScheduleNeeds.length > 0 && (
+                                    <div className="flex items-start rounded-lg bg-amber-50 px-2.5 py-2 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                                        <Wrench className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide">Kebutuhan Acara</p>
+                                            <p className="line-clamp-2 text-xs">{activeScheduleNeeds.join(' • ')}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
@@ -461,20 +513,33 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                                     </div>
                                 </div>
 
+                                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-900/10">
+                                    <h4 className="mb-2 flex items-center text-sm font-semibold uppercase text-amber-800 dark:text-amber-300">
+                                        <Wrench className="mr-2 h-4 w-4" /> Kebutuhan Acara
+                                    </h4>
+                                    {activeSelectedScheduleNeeds.length > 0 ? (
+                                        <ul className="space-y-1.5 text-sm text-amber-900 dark:text-amber-200">
+                                            {activeSelectedScheduleNeeds.map((need) => (
+                                                <li key={need} className="flex items-start gap-2">
+                                                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                                    <span>{need}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-sm text-amber-800/70 dark:text-amber-300/70">Tidak ada kebutuhan khusus.</p>
+                                    )}
+                                </div>
+
                                 <div>
                                     <h4 className="text-sm font-semibold text-gray-500 uppercase mb-2">Kontak & Penanggung Jawab</h4>
                                     <p className="text-sm text-gray-600 dark:text-gray-300"><span className="font-medium">PJ:</span> {selectedGroup.master.responsiblePerson}</p>
                                     <p className="text-sm text-gray-600 dark:text-gray-300"><span className="font-medium">Kontak:</span> {selectedGroup.master.contactPerson}</p>
                                 </div>
 
-                                {(selectedGroup.master.techSupportPicName || selectedGroup.master.techSupportNeeds) && (
+                                {selectedGroup.master.techSupportPicName && (
                                     <div>
-                                        {selectedGroup.master.techSupportPicName && (
-                                            <p className="text-sm text-gray-600 dark:text-gray-300"><span className="font-medium">PIC:</span> {selectedGroup.master.techSupportPicName}</p>
-                                        )}
-                                        {selectedGroup.master.techSupportNeeds && (
-                                            <p className="text-sm text-gray-600 dark:text-gray-300"><span className="font-medium">Kebutuhan:</span> {selectedGroup.master.techSupportNeeds}</p>
-                                        )}
+                                        <p className="text-sm text-gray-600 dark:text-gray-300"><span className="font-medium">PIC Teknis:</span> {selectedGroup.master.techSupportPicName}</p>
                                     </div>
                                 )}
 
@@ -483,6 +548,23 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                                         <Share2 className="w-4 h-4 mr-2" /> Bagikan Informasi (PNG)
                                     </h4>
                                     <p className="text-xs text-gray-500 mb-3">Pilih informasi yang ingin ditampilkan pada gambar:</p>
+
+                                    <div className="mb-4 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={showAllShareFields}
+                                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
+                                        >
+                                            Tampilkan Semua
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={useCompactShareFields}
+                                            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                        >
+                                            Tampilan Ringkas
+                                        </button>
+                                    </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                                         <label className="flex items-center space-x-2 text-sm cursor-pointer">
@@ -625,10 +707,21 @@ const Acara: React.FC<EventsProps> = ({ showToast, isDarkMode }) => {
                                                         <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{selectedGroup.master.techSupportPicName}</p>
                                                     </div>
                                                 )}
-                                                {shareConfig.needs && selectedGroup.master.techSupportNeeds && (
+                                                {shareConfig.needs && (
                                                     <div>
                                                         <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold mb-1 flex items-center"><Info className="w-3 h-3 mr-1" /> Kebutuhan</p>
-                                                        <p className="text-sm text-gray-700 dark:text-gray-300 italic">{selectedGroup.master.techSupportNeeds}</p>
+                                                        {activeSelectedScheduleNeeds.length > 0 ? (
+                                                            <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                                                                {activeSelectedScheduleNeeds.map((need) => (
+                                                                    <li key={need} className="flex items-start gap-2">
+                                                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                                                                        <span>{need}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        ) : (
+                                                            <p className="text-sm italic text-gray-500 dark:text-gray-400">Tidak ada kebutuhan khusus</p>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

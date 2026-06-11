@@ -119,7 +119,7 @@ router.get('/bookings', async (req, res) => {
         const result = await pool.query(`
             SELECT ${columns}, u.nama as user_name, r.name as room_name, 
                    (SELECT string_agg(s.nama, ', ') FROM staff s WHERE s.id = ANY(b.tech_support_pic)) as tech_pic_name,
-                   (SELECT json_agg(json_build_object('date', bs2.schedule_date, 'startTime', bs2.start_time, 'endTime', bs2.end_time) ORDER BY bs2.schedule_date)
+                   (SELECT json_agg(json_build_object('date', bs2.schedule_date, 'startTime', bs2.start_time, 'endTime', bs2.end_time, 'kebutuhan', bs2.kebutuhan) ORDER BY bs2.schedule_date)
                     FROM booking_schedules bs2 
                     WHERE bs2.booking_id = b.id) as all_schedules
             FROM bookings b
@@ -215,9 +215,9 @@ router.post('/bookings', async (req, res) => {
     if (schedules && Array.isArray(schedules)) {
       for (const sch of schedules) {
         await client.query(
-          `INSERT INTO booking_schedules (booking_id, schedule_date, start_time, end_time)
-           VALUES ($1, $2, $3, $4)`,
-          [bookingId, sch.date, sch.startTime, sch.endTime]
+          `INSERT INTO booking_schedules (booking_id, schedule_date, start_time, end_time, kebutuhan)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [bookingId, sch.date, sch.startTime, sch.endTime, sch.kebutuhan || null]
         );
       }
     }
@@ -351,8 +351,8 @@ router.put('/bookings/:id', async (req, res) => {
         if (schedules && Array.isArray(schedules)) {
             for (const sch of schedules) {
                 await client.query(
-                    `INSERT INTO booking_schedules (booking_id, schedule_date, start_time, end_time) VALUES ($1, $2, $3, $4)`,
-                    [id, sch.date, sch.startTime, sch.endTime]
+                    `INSERT INTO booking_schedules (booking_id, schedule_date, start_time, end_time, kebutuhan) VALUES ($1, $2, $3, $4, $5)`,
+                    [id, sch.date, sch.startTime, sch.endTime, sch.kebutuhan || null]
                 );
             }
         }

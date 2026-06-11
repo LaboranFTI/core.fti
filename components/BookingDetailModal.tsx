@@ -118,6 +118,8 @@ const BookingDetailModal = ({
   handleDeleteClick,
   handleApproveClick,
   processingId,
+  canEditBooking,
+  handleEditBooking,
   // NEW — array of all BookingWithTech entries that belong to the same
   // request letter (same userId + purpose + proposalFile hash).
   // Falls back to [selectedBooking] when not provided for backward compat.
@@ -423,6 +425,7 @@ const BookingDetailModal = ({
                   date: string;
                   startTime: string;
                   endTime: string;
+                  kebutuhan?: string;
                 }[] =
                   booking.schedules?.length > 0
                     ? booking.schedules
@@ -431,6 +434,7 @@ const BookingDetailModal = ({
                           date: booking.date ?? "",
                           startTime: booking.startTime ?? "",
                           endTime: booking.endTime ?? "",
+                          kebutuhan: booking.techSupportNeeds ?? "",
                         },
                       ];
 
@@ -472,6 +476,7 @@ const BookingDetailModal = ({
                             <th className="px-3 py-2 text-left">Mulai</th>
                             <th className="px-3 py-2 text-left">Selesai</th>
                             <th className="px-3 py-2 text-left">Durasi</th>
+                            <th className="px-3 py-2 text-left">Kebutuhan</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-700/40 dark:bg-gray-900/30">
@@ -481,6 +486,7 @@ const BookingDetailModal = ({
                                 date: string;
                                 startTime: string;
                                 endTime: string;
+                                kebutuhan?: string;
                               },
                               sIdx: number,
                             ) => (
@@ -511,6 +517,9 @@ const BookingDetailModal = ({
                                     <Timer className="h-2.5 w-2.5" />
                                     {computeDuration(s.startTime, s.endTime)}
                                   </span>
+                                </td>
+                                <td className="min-w-48 whitespace-pre-wrap px-3 py-2.5 text-gray-700 dark:text-gray-300">
+                                  {s.kebutuhan || "—"}
                                 </td>
                               </tr>
                             ),
@@ -586,6 +595,16 @@ const BookingDetailModal = ({
           >
             Tutup
           </button>
+
+          {canEditBooking && (
+            <button
+              onClick={() => handleEditBooking(selectedBooking)}
+              className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 dark:border-blue-700 dark:bg-gray-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+            >
+              <Edit className="h-4 w-4" />
+              Edit Pesanan
+            </button>
+          )}
 
           {/* ── APPROVED actions ── */}
           {selectedBooking.status === BookingStatus.APPROVED && (

@@ -755,7 +755,7 @@ const AppContent: React.FC = () => {
           } />
           <Route path="/pesanan-ruang" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <PesananRuang addNotification={addNotification} showToast={showToast} />
+              <PesananRuang role={currentRole} addNotification={addNotification} showToast={showToast} />
             </ProtectedRoute>
           } />
           <Route path="/profil" element={

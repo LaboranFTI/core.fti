@@ -47,6 +47,7 @@ declare global {
 }
 
 interface ManageBookingsProps {
+  role: Role;
   addNotification: (
     title: string,
     message: string,
@@ -90,9 +91,11 @@ interface GroupDetailRow {
 }
 
 const PesananRuang: React.FC<ManageBookingsProps> = ({
+  role,
   addNotification,
   showToast,
 }) => {
+  const canEditBooking = [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR].includes(role);
   const [bookings, setBookings] = useState<BookingWithTech[]>([]);
   const { rooms } = useRooms({ excludeImage: true });
   const [staffList, setStaffList] = useState<LabStaff[]>([]);
@@ -106,6 +109,9 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     useState<BookingWithTech | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<BookingWithTech | null>(
+    null,
+  );
 
   const googleApi = useGoogleCalendar(Role.ADMIN, showToast);
 
@@ -754,6 +760,25 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     });
   };
 
+  const handleCreateBooking = () => {
+    setEditingBooking(null);
+    setIsBookingModalOpen(true);
+  };
+
+  const handleEditBooking = (booking: BookingWithTech) => {
+    setEditingBooking({
+      ...booking,
+      proposalFile: (booking as any).hasFile ? booking.id : undefined,
+    });
+    setSelectedBooking(null);
+    setIsBookingModalOpen(true);
+  };
+
+  const closeBookingModal = () => {
+    setIsBookingModalOpen(false);
+    setEditingBooking(null);
+  };
+
   const getGroupDetailRows = (group: any): GroupDetailRow[] =>
     group.entries.flatMap((booking: BookingWithTech) => {
       const scheds = booking.schedules?.length
@@ -796,7 +821,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
             </div>
           )}
           <button
-            onClick={() => setIsBookingModalOpen(true)}
+            onClick={handleCreateBooking}
             className="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center text-sm font-medium shadow-sm transition-all hover:scale-105"
           >
             <Plus className="w-4 h-4 mr-2" /> Buat Pesanan
@@ -1504,6 +1529,8 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         processingId={processingId}
         ticketRef={ticketRef}
         bookingGroup={selectedBookingGroup}
+        canEditBooking={canEditBooking}
+        handleEditBooking={handleEditBooking}
       />
 
       {/* Approval Confirmation Modal */}
@@ -1548,11 +1575,15 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
           <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-3xl overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 shrink-0">
               <h3 className="font-bold text-gray-900 dark:text-white flex items-center text-base">
-                <Plus className="w-5 h-5 mr-2 text-blue-600" />
-                Buat Pesanan Ruangan
+                {editingBooking ? (
+                  <Edit className="w-5 h-5 mr-2 text-blue-600" />
+                ) : (
+                  <Plus className="w-5 h-5 mr-2 text-blue-600" />
+                )}
+                {editingBooking ? "Edit Pesanan Ruangan" : "Buat Pesanan Ruangan"}
               </h3>
               <button
-                onClick={() => setIsBookingModalOpen(false)}
+                onClick={closeBookingModal}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
               >
                 <X className="w-5 h-5" />
@@ -1562,11 +1593,12 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
               <BookingForm
                 rooms={rooms}
                 showToast={showToast}
+                initialData={editingBooking}
                 onSuccess={() => {
-                  setIsBookingModalOpen(false);
+                  closeBookingModal();
                   fetchData();
                 }}
-                onCancel={() => setIsBookingModalOpen(false)}
+                onCancel={closeBookingModal}
               />
             </div>
           </div>

@@ -175,6 +175,7 @@ CREATE TABLE booking_schedules (
     schedule_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
+    kebutuhan TEXT,
     CONSTRAINT fk_schedule_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
 );
 

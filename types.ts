@@ -41,7 +41,7 @@ export interface Booking {
   date: string; // YYYY-MM-DD (kept for backward compatibility)
   startTime: string; // HH:mm (kept for backward compatibility)
   endTime: string; // HH:mm (kept for backward compatibility)
-  schedules?: { date: string; startTime: string; endTime: string }[]; // Multiple schedules support
+  schedules?: { date: string; startTime: string; endTime: string; kebutuhan?: string }[]; // Multiple schedules support
   proposalFile?: string; // New: URL/Name of uploaded PDF
   status: BookingStatus;
   rejectionReason?: string; // Alasan penolakan

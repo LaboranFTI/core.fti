@@ -176,6 +176,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
 
   /** True for roles that can create / edit / delete calendar events. */
   const canManage = role === Role.ADMIN || role === Role.LABORAN || role.toString() === 'Supervisor';
+  /** Admin TU can authenticate to read private calendars without management controls. */
+  const canAuthenticate = canManage || role === Role.ADMIN_TU;
 
   const getDateRangeForView = (date: Date, view: "month" | "week" | "day") => {
     const year = date.getFullYear();
@@ -215,7 +217,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
       }, 200);
       return () => clearTimeout(handler);
     }
-  }, [selectedRoom, isGapiInitialized, currentDate, viewMode]);
+  }, [selectedRoom, isGapiInitialized, isAuthenticated, currentDate, viewMode]);
 
   const goToToday = () => setCurrentDate(new Date());
 
@@ -860,8 +862,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               </a>
             )}
 
-            {/* Auth status / login — admin & laboran only */}
-            {canManage && (
+            {/* Auth status / login for roles allowed to access private calendars. */}
+            {canAuthenticate && (
               <div className="flex items-center">
                 {isAuthenticated ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
