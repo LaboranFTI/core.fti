@@ -120,8 +120,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     useState<BookingWithTech[]>([]);
   const [approvalData, setApprovalData] = useState<{
     pic: string[];
-    needs: string;
-  }>({ pic: [], needs: "" });
+  }>({ pic: [] });
 
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
   const [bookingsToReject, setBookingsToReject] =
@@ -131,8 +130,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
   const [isEditingTech, setIsEditingTech] = useState(false);
   const [editTechData, setEditTechData] = useState<{
     pic: string[];
-    needs: string;
-  }>({ pic: [], needs: "" });
+  }>({ pic: [] });
 
   const [deleteOption, setDeleteOption] = useState<
     "single" | "thisAndFollowing" | "all"
@@ -378,7 +376,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
   const handleUpdateStatus = async (
     id: string,
     newStatus: BookingStatus,
-    techData?: { pic: string[]; needs: string },
+    techData?: { pic: string[] },
     reason?: string,
     skipFetch?: boolean
   ) => {
@@ -404,7 +402,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
       data: {
         status: newStatus,
         techSupportPic: techData?.pic || [],
-        techSupportNeeds: techData?.needs || "",
         rejectionReason: reason,
       },
     });
@@ -420,7 +417,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
           .filter((s) => techData?.pic.includes(s.id))
           .map((s) => s.name)
           .join(", "),
-        techSupportNeeds: techData?.needs,
         rejectionReason: reason,
       });
     }
@@ -451,7 +447,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
 
   const handleApproveClick = (bookingsTarget: BookingWithTech | BookingWithTech[]) => {
     setBookingsToApprove(Array.isArray(bookingsTarget) ? bookingsTarget : [bookingsTarget]);
-    setApprovalData({ pic: [], needs: "" });
+    setApprovalData({ pic: [] });
     setIsApprovalModalOpen(true);
   };
 
@@ -522,7 +518,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         method: "PUT",
         data: {
           techSupportPic: editTechData.pic,
-          techSupportNeeds: editTechData.needs,
         },
       });
       const staffName = staffList
@@ -533,7 +528,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         ...selectedBooking,
         techSupportPic: editTechData.pic,
         techSupportPicName: staffName,
-        techSupportNeeds: editTechData.needs,
       };
       setSelectedBooking(updatedBooking);
       setBookings((prev) =>
@@ -756,7 +750,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     setIsEditingTech(false);
     setEditTechData({
       pic: booking.techSupportPic || [],
-      needs: booking.techSupportNeeds || "",
     });
   };
 

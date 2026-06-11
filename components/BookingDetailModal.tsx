@@ -359,19 +359,6 @@ const BookingDetailModal = ({
                         </select>
                       </div>
 
-                      {/* Needs textarea */}
-                      <textarea
-                        value={editTechData.needs}
-                        onChange={(e) =>
-                          setEditTechData({
-                            ...editTechData,
-                            needs: e.target.value,
-                          })
-                        }
-                        rows={2}
-                        placeholder="Kebutuhan alat (mis: 2 Mic Wireless, HDMI)"
-                        className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                      />
                     </div>
                   ) : (
                     /* View mode */
@@ -384,14 +371,7 @@ const BookingDetailModal = ({
                           {selectedBooking.techSupportPicName || "—"}
                         </span>
                       </div>
-                      <div className="flex gap-2">
-                        <span className="w-16 shrink-0 pt-0.5 text-xs text-gray-400">
-                          Alat
-                        </span>
-                        <span className="whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">
-                          {selectedBooking.techSupportNeeds || "—"}
-                        </span>
-                      </div>
+
                     </div>
                   )}
                 </div>

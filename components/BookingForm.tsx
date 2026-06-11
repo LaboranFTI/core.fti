@@ -266,7 +266,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const [autoApprove, setAutoApprove] = useState(true);
   
   const [techSupportPic, setTechSupportPic] = useState<string[]>((initialData as any)?.techSupportPic ?? []);
-  const techSupportNeeds = (initialData as any)?.techSupportNeeds ?? "";
+
   const [staffList, setStaffList] = useState<{id: string, name: string, jabatan: string}[]>([]);
 
   useEffect(() => {
@@ -516,7 +516,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
           ),
           autoApprove: canManage ? autoApprove : false,
         techSupportPic: canManage ? techSupportPic : [],
-        techSupportNeeds: canManage ? techSupportNeeds : "",
         };
 
         if (finalFilePayload) {
@@ -554,7 +553,6 @@ const BookingForm: React.FC<BookingFormProps> = ({
               })),
               autoApprove: canManage ? autoApprove : false,
               techSupportPic: canManage ? techSupportPic : [],
-              techSupportNeeds: canManage ? techSupportNeeds : "",
             };
 
             if (finalFilePayload) {

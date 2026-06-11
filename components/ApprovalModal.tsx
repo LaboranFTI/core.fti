@@ -53,16 +53,6 @@ const ApprovalModal = ({ isOpen, booking, rooms, staffList, approvalData, setApp
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Kebutuhan Teknis (Mic, Sound, dll)</label>
-              <textarea
-                value={approvalData.needs}
-                onChange={e => setApprovalData({ ...approvalData, needs: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white text-sm focus:ring-2 focus:ring-green-500"
-                rows={3}
-                placeholder="Daftar alat yang dibutuhkan..."
-              />
-            </div>
           </div>
           <div className="mobile-modal-actions flex justify-end gap-3 pt-2">
             <Button onClick={onClose} variant="secondary">Batal</Button>
