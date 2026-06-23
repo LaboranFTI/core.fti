@@ -484,6 +484,117 @@ router.get('/google/callback', async (req, res) => {
   }
 });
 
+// Endpoint POST /auth/google: Verifikasi Access Token Google SSO dari Frontend
+router.post('/google', async (req, res) => {
+  const { accessToken, deviceId, rememberMe } = req.body;
+
+  if (!accessToken) {
+    return res.status(400).json({ success: false, error: 'Access token Google diperlukan.' });
+  }
+
+  try {
+    // 1. Ambil Profil Pengguna dari Google menggunakan access token
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!userRes.ok) {
+      const errText = await userRes.text();
+      console.error('Error fetching user info from Google:', errText);
+      return res.status(400).json({ success: false, error: 'Gagal mengambil profil pengguna dari Google.' });
+    }
+
+    const googleUser = await userRes.json();
+    const { email, name } = googleUser;
+
+    // 2. Validasi Domain SSO (jika dikonfigurasi di DB)
+    const configRes = await pool.query('SELECT * FROM sso_config LIMIT 1');
+    const config = configRes.rows[0];
+    if (config && config.enabled && config.domain && config.domain.trim() !== '') {
+      const allowedDomains = config.domain.split(',').map(d => d.trim()).filter(d => d !== '');
+      if (allowedDomains.length > 0) {
+        const isAllowed = allowedDomains.some(domain => email.endsWith(`@${domain}`));
+        if (!isAllowed) {
+          console.log(`SSO Domain validation failed for email: ${email}. Allowed domains: ${allowedDomains.join(', ')}`);
+          return res.status(400).json({ success: false, error: 'Domain email tidak diizinkan untuk login.' });
+        }
+      }
+    }
+
+    // 3. Sinkronisasi ke tabel sso_users
+    const ssoId = `SSO-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO sso_users (id, email, name, status, updated_at)
+       VALUES ($1, $2, $3, 'Aktif', NOW())
+       ON CONFLICT (email) DO UPDATE SET
+       name = EXCLUDED.name, updated_at = NOW()`,
+      [ssoId, email, name]
+    );
+
+    // 4. Cari atau Registrasi User Baru
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    let user = userCheck.rows[0];
+
+    if (!user) {
+      // Auto register
+      const newId = `USER-${Date.now()}`;
+      const username = email.split('@')[0];
+      let assignedRole = 'Mahasiswa';
+      if (email.endsWith('@student.uksw.edu') || email.endsWith('@students.uksw.edu')) {
+        assignedRole = 'Mahasiswa';
+      } else if (email.endsWith('@uksw.edu')) {
+        assignedRole = 'Dosen';
+      }
+
+      const insertQuery = `
+        INSERT INTO users (id, nama, email, username, password, role, identifier, status, created_at)
+        VALUES ($1, $2, $3, $4, NULL, $5, $6, 'Aktif', NOW())
+        RETURNING *
+      `;
+      const newUserRes = await pool.query(insertQuery, [newId, name, email, username, assignedRole, username]);
+      user = newUserRes.rows[0];
+
+      // Buat Notifikasi Admin
+      const notifId = `NOTIF-${Date.now()}`;
+      await pool.query(
+        "INSERT INTO notifications (id, user_id, title, message, type) VALUES ($1, NULL, $2, $3, 'info')",
+        [notifId, 'User Baru via SSO', `User ${name} (${email}) telah mendaftar otomatis via Google SSO.`]
+      );
+    } else {
+      if (user.status !== 'Aktif') {
+        return res.status(400).json({ success: false, error: 'Akun dinonaktifkan.' });
+      }
+      await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+    }
+
+    // 5. Buat Sesi JWT Lokal
+    const { token, expiresAt } = createAccessToken(user);
+    const session = await persistUserSession({
+      req,
+      user,
+      token,
+      expiresAt,
+      deviceId: deviceId || `device_${createSessionId()}`,
+      rememberMe: Boolean(rememberMe)
+    });
+
+    // 6. Kembalikan Response Sukses
+    res.json({
+      success: true,
+      token,
+      id: user.id,
+      role: user.role,
+      name: user.nama,
+      email: user.email,
+      deviceId: session.deviceId,
+      refreshToken: session.refreshToken
+    });
+  } catch (err) {
+    console.error('SSO Token Error:', err);
+    res.status(500).json({ success: false, error: 'Terjadi kesalahan internal server saat memproses SSO.' });
+  }
+});
+
 // Endpoint GET /auth/google/calendar: Redirect user to Google OAuth for Calendar permission
 router.get('/google/calendar', async (req, res) => {
   const token = req.query.token;
