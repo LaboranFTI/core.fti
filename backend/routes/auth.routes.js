@@ -326,7 +326,7 @@ router.post('/login', apiLimiter, async (req, res) => {
 // Endpoint GET /auth/google: Redirect user to Google OAuth Consent Page (SSO Only)
 router.get('/google', async (req, res) => {
   const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
   const clientId = process.env.GOOGLE_CLIENT_ID;
 
   const options = {
@@ -361,7 +361,7 @@ router.get('/google/callback', async (req, res) => {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback',
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/google/callback`,
       grant_type: 'authorization_code'
     };
 
@@ -617,7 +617,7 @@ router.get('/google/calendar', async (req, res) => {
     const state = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
     const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-    const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || 'http://localhost:5000/api/auth/google/calendar/callback';
+    const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/google/calendar/callback`;
     const clientId = process.env.GOOGLE_CLIENT_ID;
 
     const options = {
@@ -659,7 +659,7 @@ router.get('/google/calendar/callback', async (req, res) => {
 
     // 2. Tukar Authorization Code dengan Google Tokens
     const tokenUrl = 'https://oauth2.googleapis.com/token';
-    const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || 'http://localhost:5000/api/auth/google/calendar/callback';
+    const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/google/calendar/callback`;
     const values = {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
