@@ -162,7 +162,7 @@ export default function App() {
     const [error, setError] = useState(null);
     const [connectionAlert, setConnectionAlert] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [showOnlyLabs, setShowOnlyLabs] = useState(false);
+    const [showOnlyLabs, setShowOnlyLabs] = useState(true);
     const [bandwidthDrafts, setBandwidthDrafts] = useState({});
     const [labsOnlyOrder, setLabsOnlyOrder] = useState(LABS_ONLY_ORDER_FALLBACK);
     const labsOnlyOrderIndex = buildLabsOnlyIndex(labsOnlyOrder);
