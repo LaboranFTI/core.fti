@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { pool } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
+import { sendMail } from '../utils/mailer.js';
 const router = express.Router();
 
 const ASSIGNABLE_ROLES = ['Mahasiswa', 'Laboran', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU'];
@@ -22,6 +23,81 @@ const buildResetTokenPayload = () => {
     resetTokenHash: hashResetToken(resetToken),
     resetTokenExpiresAt,
   };
+};
+
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const formatResetExpiry = (value) => new Date(value).toLocaleString('id-ID', {
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Asia/Jakarta',
+});
+
+const buildPasswordResetEmail = ({ user, resetToken, resetTokenExpiresAt }) => {
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const resetUrl = `${frontendUrl}/login?reset=1&email=${encodeURIComponent(user.email)}`;
+  const safeName = escapeHtml(user.nama || user.name || 'Pengguna');
+  const safeToken = escapeHtml(resetToken);
+  const safeExpiry = escapeHtml(formatResetExpiry(resetTokenExpiresAt));
+  const safeResetUrl = escapeHtml(resetUrl);
+
+  const text = [
+    `Halo, ${user.nama || user.name || 'Pengguna'}.`,
+    '',
+    'Admin CORE.FTI telah menerbitkan token reset password untuk akun Anda.',
+    `Token reset: ${resetToken}`,
+    `Berlaku sampai: ${formatResetExpiry(resetTokenExpiresAt)} WIB`,
+    '',
+    `Buka halaman berikut untuk membuat password baru: ${resetUrl}`,
+    'Masukkan email akun Anda, token reset di atas, lalu password baru.',
+    '',
+    'Jika Anda tidak meminta reset password, abaikan email ini dan hubungi admin CORE.FTI.',
+  ].join('\n');
+
+  const html = `
+    <div style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;padding:32px 16px;">
+        <div style="background:#ffffff;border:1px solid #dbe3ec;border-radius:10px;overflow:hidden;">
+          <div style="padding:22px 26px;border-bottom:1px solid #e2e8f0;background:#f8fafc;">
+            <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#64748b;">CORE.FTI</p>
+            <h1 style="margin:0;font-size:20px;line-height:1.35;color:#020617;">Token Reset Password</h1>
+          </div>
+          <div style="padding:26px;">
+            <p style="margin:0 0 14px;line-height:1.6;">Halo <strong>${safeName}</strong>,</p>
+            <p style="margin:0 0 18px;line-height:1.6;">Admin CORE.FTI telah menerbitkan token reset password untuk akun Anda. Gunakan token berikut untuk membuat password baru.</p>
+            <div style="margin:18px 0;padding:18px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;">
+              <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#64748b;">Token Reset</p>
+              <p style="margin:0;font-family:Consolas,Monaco,monospace;font-size:24px;font-weight:700;letter-spacing:.08em;color:#020617;">${safeToken}</p>
+            </div>
+            <p style="margin:0 0 18px;line-height:1.6;">Token berlaku sampai <strong>${safeExpiry} WIB</strong>.</p>
+            <p style="margin:0 0 22px;line-height:1.6;">Buka halaman login CORE.FTI, pilih pembuatan password baru, lalu masukkan email akun, token reset, dan password baru Anda.</p>
+            <a href="${safeResetUrl}" style="display:inline-block;padding:11px 16px;background:#020617;color:#ffffff;text-decoration:none;border-radius:7px;font-weight:700;">Buka CORE.FTI</a>
+            <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#64748b;">Jika Anda tidak meminta reset password, abaikan email ini dan hubungi admin CORE.FTI.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return { html, text };
+};
+
+const sendPasswordResetTokenEmail = async ({ user, resetToken, resetTokenExpiresAt }) => {
+  const { html, text } = buildPasswordResetEmail({ user, resetToken, resetTokenExpiresAt });
+  return sendMail({
+    to: user.email,
+    subject: 'Token Reset Password CORE.FTI',
+    html,
+    text,
+  });
 };
 
 const canViewAnyProfile = (role) => ['Admin', 'Laboran', 'Supervisor'].includes(role);
@@ -366,13 +442,15 @@ router.put('/users/:id/status', verifyRole(['Admin']), async (req, res) => {
 
 // Endpoint reset password user
 router.put('/users/:id/reset-password', verifyRole(['Admin']), async (req, res) => {
+  const shouldSendEmail = req.body?.sendEmail === true;
+
   try {
     if (req.user.id === req.params.id) {
       return res.status(400).json({ error: 'Gunakan halaman profil untuk mengubah password akun Anda sendiri.' });
     }
 
     const targetUser = await pool.query(
-      'SELECT id, role, status FROM users WHERE id = $1',
+      'SELECT id, nama, email, role, status FROM users WHERE id = $1',
       [req.params.id]
     );
 
@@ -405,14 +483,87 @@ router.put('/users/:id/reset-password', verifyRole(['Admin']), async (req, res) 
       [req.params.id, resetTokenHash, resetTokenExpiresAt]
     );
 
+    let emailSent = false;
+    let emailError = null;
+
+    if (shouldSendEmail) {
+      try {
+        await sendPasswordResetTokenEmail({ user, resetToken, resetTokenExpiresAt });
+        emailSent = true;
+      } catch (mailErr) {
+        console.error('Error sending reset password email:', mailErr);
+        emailError = 'Token berhasil dibuat, tetapi email gagal dikirim. Periksa konfigurasi SMTP.';
+      }
+    }
+
     res.json({
       success: true,
       resetToken,
       resetTokenExpiresAt: resetTokenExpiresAt.toISOString(),
+      emailSent,
+      emailError,
     });
   } catch (err) {
     console.error('Error resetting password:', err);
     res.status(500).json({ error: 'Gagal mereset password user.' });
+  }
+});
+
+// Endpoint kirim email token reset yang baru saja diterbitkan admin
+router.post('/users/:id/reset-password/send-email', verifyRole(['Admin']), async (req, res) => {
+  const resetToken = String(req.body?.resetToken || '').trim().toUpperCase();
+
+  if (!resetToken) {
+    return res.status(400).json({ error: 'Token reset wajib dikirim untuk verifikasi.' });
+  }
+
+  try {
+    const targetUser = await pool.query(
+      `SELECT id, nama, email, role, status, password_reset_token_hash, password_reset_expires_at
+       FROM users
+       WHERE id = $1`,
+      [req.params.id]
+    );
+
+    if (targetUser.rows.length === 0) {
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
+    }
+
+    const user = targetUser.rows[0];
+
+    if (user.role === 'Admin') {
+      return res.status(403).json({ error: 'Akun admin hanya dapat dikelola langsung dari database.' });
+    }
+
+    if (!user.password_reset_token_hash || !user.password_reset_expires_at) {
+      return res.status(400).json({ error: 'Akun ini tidak memiliki token reset aktif.' });
+    }
+
+    if (new Date(user.password_reset_expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Token reset sudah kadaluarsa. Terbitkan token baru terlebih dahulu.' });
+    }
+
+    const providedTokenHash = hashResetToken(resetToken);
+    const savedTokenBuffer = Buffer.from(user.password_reset_token_hash, 'utf8');
+    const providedTokenBuffer = Buffer.from(providedTokenHash, 'utf8');
+
+    if (
+      savedTokenBuffer.length !== providedTokenBuffer.length ||
+      !crypto.timingSafeEqual(savedTokenBuffer, providedTokenBuffer)
+    ) {
+      return res.status(400).json({ error: 'Token reset tidak cocok dengan token aktif akun ini.' });
+    }
+
+    await sendPasswordResetTokenEmail({
+      user,
+      resetToken,
+      resetTokenExpiresAt: user.password_reset_expires_at,
+    });
+
+    res.json({ success: true, message: `Token reset berhasil dikirim ke ${user.email}.` });
+  } catch (err) {
+    console.error('Error sending reset token email:', err);
+    res.status(500).json({ error: 'Gagal mengirim email token reset. Pastikan konfigurasi SMTP benar.' });
   }
 });
 

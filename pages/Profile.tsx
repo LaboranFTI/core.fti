@@ -1,8 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Role } from '../types';
-import { User, Mail, Phone, Shield, Save, Lock, Building, CreditCard, X, KeyRound, Camera, Calendar, Clock, Activity, Bell, Package } from 'lucide-react';
+import {
+  Bell,
+  Building,
+  Calendar,
+  Camera,
+  Clock,
+  CreditCard,
+  Envelope as Mail,
+  FloppyDisk as Save,
+  Key as KeyRound,
+  Lock,
+  Package,
+  Phone,
+  Pulse as Activity,
+  ShieldCheck as Shield,
+  User,
+  X,
+} from '@phosphor-icons/react';
 import { api } from '../services/api';
 import Cropper from 'react-easy-crop';
+import PageCard from '../components/PageCard';
 
 // Helper untuk membuat image object
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -289,17 +307,17 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Header / Cover */}
-      <div className="relative rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="h-40 bg-linear-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-90"></div>
-        <div className="px-6 pb-6">
-          <div className="relative flex flex-col sm:flex-row sm:items-end -mt-16 mb-4">
+      <PageCard padding="none" className="relative overflow-hidden">
+        <div className="h-32 border-b border-slate-200 bg-slate-950 dark:border-slate-700 dark:bg-slate-100"></div>
+        <div className="px-5 pb-6 sm:px-6">
+          <div className="relative mb-4 -mt-14 flex flex-col sm:flex-row sm:items-end">
             <div className="relative group" onClick={() => isEditing && fileInputRef.current?.click()}>
-              <img src={userData.avatar} alt="Profile" className={`w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 shadow-lg bg-white object-cover ${isEditing ? 'cursor-pointer ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-800' : ''}`} />
+              <img src={userData.avatar} alt="Profile" className={`h-28 w-28 rounded-lg border-4 border-white bg-white object-cover shadow-lg dark:border-slate-900 ${isEditing ? 'cursor-pointer ring-2 ring-slate-700 ring-offset-2 dark:ring-slate-200 dark:ring-offset-slate-900' : ''}`} />
               {isEditing && (
-                <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  <Camera className="w-8 h-8 text-white" />
+                <div className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Camera className="h-8 w-8 text-white" weight="duotone" />
                 </div>
               )}
               <input 
@@ -310,19 +328,24 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 onChange={handleImageUpload}
               />
             </div>
-            <div className="mt-4 sm:mt-0 sm:ml-5 mb-1 flex-1">
-              <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">{userData.name}</h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center">
-                <span className="mr-2 font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">@{userData.username || '-'}</span>
-                <Shield className="w-4 h-4 mr-1 text-blue-500" /> {role}
+            <div className="mb-1 mt-4 flex-1 sm:ml-5 sm:mt-0">
+              <div className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                Profil Akun
+              </div>
+              <h1 className="mt-2 text-3xl font-bold text-slate-950 dark:text-white">{userData.name}</h1>
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs dark:border-slate-700 dark:bg-slate-900">@{userData.username || '-'}</span>
+                <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/35 dark:text-blue-300">
+                  <Shield className="h-4 w-4" weight="duotone" /> {role}
+                </span>
               </p>
             </div>
-            <div className="mt-4 sm:mt-0 ml-auto mb-2 w-full sm:w-auto">
+            <div className="mb-2 ml-auto mt-4 w-full sm:mt-0 sm:w-auto">
               {!isEditing ? (
                 canEditProfile ? (
                   <button 
                     onClick={() => setIsEditing(true)}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-400 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white sm:w-auto"
                   >
                     Edit Profil
                   </button>
@@ -330,7 +353,7 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
               ) : (
                 <button 
                   onClick={() => setIsEditing(false)}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 sm:w-auto"
                 >
                   Batal
                 </button>
@@ -338,20 +361,20 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
             </div>
           </div>
         </div>
-      </div>
+      </PageCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Personal Info */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <PageCard padding="lg">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Informasi Pribadi</h2>
               {isEditing && (
                 <button 
                   onClick={handleSave}
-                  className="flex items-center text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center rounded-lg bg-slate-950 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
-                  <Save className="w-4 h-4 mr-2" /> Simpan Perubahan
+                  <Save className="mr-2 h-4 w-4" weight="duotone" /> Simpan Perubahan
                 </button>
               )}
             </div>
@@ -361,59 +384,59 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Nama Lengkap</label>
                   <div className="relative">
-                    <User className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
                     <input 
                       type="text" 
                       disabled={!isEditing}
                       value={userData.name}
                       onChange={e => setUserData({...userData, name: e.target.value})}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 dark:disabled:bg-slate-800"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Username</label>
                   <div className="relative">
-                    <User className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
                     <input 
                       type="text" 
                       disabled={!isEditing}
                       value={userData.username || ''}
                       onChange={e => setUserData({...userData, username: e.target.value})}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 dark:disabled:bg-slate-800"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{role === Role.LEMBAGA_KEMAHASISWAAN || role === Role.MAHASISWA ? 'NIM' : 'NIDN/NIP'}</label>
                   <div className="relative">
-                    <CreditCard className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
                     <input 
                       type="text" 
                       disabled={!isEditing}
                       value={userData.nim}
                       onChange={e => setUserData({...userData, nim: e.target.value})}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 dark:disabled:bg-slate-800"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Email UKSW</label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
                     <input 
                       type="email" 
                       disabled={!isEditing}
                       value={userData.email}
                       onChange={e => setUserData({...userData, email: e.target.value})}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 dark:disabled:bg-slate-800"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Nomor Telepon/WA</label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" weight="bold" />
                     <input 
                       type="text" 
                       disabled={!isEditing}
@@ -424,16 +447,16 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                           setUserData({...userData, phone: val});
                         }
                       }}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 dark:disabled:bg-slate-800"
                     />
                   </div>
                 </div>
               </div>
             </form>
-          </div>
+          </PageCard>
 
           {/* Dynamic Account Info (Dipindah ke kolom kiri agar layout seimbang) */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <PageCard padding="lg">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Informasi & Statistik Akun</h2>
             {isLoadingStats ? (
               <div className="flex justify-center py-4">
@@ -442,10 +465,10 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Status Akun */}
-                <div className="p-4 bg-gray-50 dark:bg-gray-700/40 rounded-xl border border-gray-100 dark:border-gray-600/50 flex flex-col justify-center">
+                <div className="flex flex-col justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
                   <div className="flex items-center mb-2">
-                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg mr-3">
-                      <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <div className="mr-3 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/35 dark:text-emerald-300">
+                      <Activity className="h-5 w-5" weight="duotone" />
                     </div>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status Akun</p>
                   </div>
@@ -455,10 +478,10 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 </div>
                 
                 {/* Terakhir Login */}
-                <div className="p-4 bg-gray-50 dark:bg-gray-700/40 rounded-xl border border-gray-100 dark:border-gray-600/50 flex flex-col justify-center">
+                <div className="flex flex-col justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
                   <div className="flex items-center mb-2">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg mr-3">
-                      <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="mr-3 rounded-md border border-blue-200 bg-blue-50 p-2 text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/35 dark:text-blue-300">
+                      <Clock className="h-5 w-5" weight="duotone" />
                     </div>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Login Terakhir</p>
                   </div>
@@ -466,10 +489,10 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 </div>
                 
                 {/* Terakhir Password Diubah */}
-                <div className="p-4 bg-gray-50 dark:bg-gray-700/40 rounded-xl border border-gray-100 dark:border-gray-600/50 flex flex-col justify-center">
+                <div className="flex flex-col justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
                   <div className="flex items-center mb-2">
-                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg mr-3">
-                      <KeyRound className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    <div className="mr-3 rounded-md border border-red-200 bg-red-50 p-2 text-red-700 dark:border-red-900/70 dark:bg-red-950/35 dark:text-red-300">
+                      <KeyRound className="h-5 w-5" weight="duotone" />
                     </div>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ubah Sandi</p>
                   </div>
@@ -477,10 +500,10 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 </div>
                 
                 {/* Anggota Sejak */}
-                <div className="p-4 bg-gray-50 dark:bg-gray-700/40 rounded-xl border border-gray-100 dark:border-gray-600/50 flex flex-col justify-center">
+                <div className="flex flex-col justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
                   <div className="flex items-center mb-2">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg mr-3">
-                      <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <div className="mr-3 rounded-md border border-slate-200 bg-white p-2 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                      <Calendar className="h-5 w-5" weight="duotone" />
                     </div>
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Anggota Sejak</p>
                   </div>
@@ -488,10 +511,10 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 </div>
 
                 {/* Total Peminjaman Ruang */}
-                <div className="col-span-1 sm:col-span-2 lg:col-span-2 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800/50 flex items-center justify-between">
+                <div className="col-span-1 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/70 dark:bg-amber-950/35 sm:col-span-2 lg:col-span-2">
                   <div className="flex items-center">
-                    <div className="p-2 bg-orange-100 dark:bg-orange-900/40 rounded-lg mr-3">
-                      <Building className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                    <div className="mr-3 rounded-md border border-amber-200 bg-white/70 p-2 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-300">
+                      <Building className="h-6 w-6" weight="duotone" />
                     </div>
                     <div>
                       <p className="text-xs font-medium text-orange-600 dark:text-orange-400 uppercase mb-0.5">Peminjaman Ruang</p>
@@ -501,10 +524,10 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 </div>
                 
                 {/* Total Peminjaman Barang */}
-                <div className="col-span-1 sm:col-span-2 lg:col-span-2 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800/50 flex items-center justify-between">
+                <div className="col-span-1 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/35 sm:col-span-2 lg:col-span-2">
                   <div className="flex items-center">
-                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg mr-3">
-                      <Package className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                    <div className="mr-3 rounded-md border border-emerald-200 bg-white/70 p-2 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <Package className="h-6 w-6" weight="duotone" />
                     </div>
                     <div>
                       <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase mb-0.5">Peminjaman Barang</p>
@@ -514,26 +537,26 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 </div>
               </div>
             )}
-          </div>
+          </PageCard>
         </div>
 
         {/* Right Column: Settings */}
         <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <PageCard padding="lg">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Keamanan Akun</h2>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/40">
                 <div className="flex items-center">
-                  <Lock className="w-5 h-5 text-gray-400 mr-3" />
+                  <Lock className="mr-3 h-5 w-5 text-slate-400" weight="duotone" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Password</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Password</p>
                     <p className="text-xs text-gray-500">Ubah password Anda</p>
                   </div>
                 </div>
                 {canChangePassword ? (
                   <button 
                     onClick={() => setIsChangePasswordOpen(true)}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    className="text-sm font-semibold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
                   >
                     Ubah
                   </button>
@@ -542,19 +565,19 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                 )}
               </div>
             </div>
-          </div>
+          </PageCard>
 
           {/* Quick Actions */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <PageCard padding="lg">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Aksi Cepat</h2>
             <div className="space-y-3">
               {!isMahasiswa && (
                 <button 
                   onClick={() => onNavigate?.('dashboard')}
-                  className="w-full flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-all hover:scale-[1.02] group"
+                  className="group flex w-full items-center rounded-lg border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-950/40 dark:hover:bg-slate-900"
                 >
-                  <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3" />
-                  <span className="text-sm font-medium text-blue-900 dark:text-blue-300 group-hover:text-blue-700 dark:group-hover:text-blue-200">Notifikasi</span>
+                  <Bell className="mr-3 h-5 w-5 text-slate-500" weight="duotone" />
+                  <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-950 dark:text-slate-300 dark:group-hover:text-white">Notifikasi</span>
                   {stats.unreadNotifications > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{stats.unreadNotifications}</span>
                   )}
@@ -563,38 +586,39 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
               {canViewBookingHistory && (
                 <button 
                   onClick={() => onNavigate?.('pemesanan-saya')}
-                  className="w-full flex items-center p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-xl transition-all hover:scale-[1.02] group"
+                  className="group flex w-full items-center rounded-lg border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-950/40 dark:hover:bg-slate-900"
                 >
-                  <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-3" />
-                  <span className="text-sm font-medium text-purple-900 dark:text-purple-300 group-hover:text-purple-700 dark:group-hover:text-purple-200">Riwayat Peminjaman</span>
+                  <Calendar className="mr-3 h-5 w-5 text-slate-500" weight="duotone" />
+                  <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-950 dark:text-slate-300 dark:group-hover:text-white">Riwayat Peminjaman</span>
                 </button>
               )}
               <button 
                 onClick={() => onNavigate?.('ruangan')}
-                className="w-full flex items-center p-4 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 rounded-xl transition-all hover:scale-[1.02] group"
+                className="group flex w-full items-center rounded-lg border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-950/40 dark:hover:bg-slate-900"
               >
-                <Building className="w-5 h-5 text-green-600 dark:text-green-400 mr-3" />
-                <span className="text-sm font-medium text-green-900 dark:text-green-300 group-hover:text-green-700 dark:group-hover:text-green-200">Ruangan Favorit</span>
+                <Building className="mr-3 h-5 w-5 text-slate-500" weight="duotone" />
+                <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-950 dark:text-slate-300 dark:group-hover:text-white">Ruangan Favorit</span>
               </button>
             </div>
-          </div>
+          </PageCard>
         </div>
       </div>
 
       {/* Change Password Modal */}
       {canChangePassword && isChangePasswordOpen && (
         <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
-              <h3 className="font-bold text-gray-900 dark:text-white flex items-center">
-                <KeyRound className="w-5 h-5 mr-2 text-blue-600" />
+          <div className="mobile-modal-panel flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 animate-fade-in-up dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/40">
+              <h3 className="flex items-center font-bold text-slate-950 dark:text-white">
+                <KeyRound className="mr-2 h-5 w-5 text-slate-600 dark:text-slate-300" weight="duotone" />
                 Ubah Password
               </h3>
               <button 
                 onClick={() => setIsChangePasswordOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                aria-label="Tutup modal"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" weight="bold" />
               </button>
             </div>
             <form onSubmit={handleChangePassword} className="mobile-modal-body p-4 sm:p-6 space-y-4">
@@ -604,7 +628,7 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                   type="password" required 
                   value={passwordForm.current}
                   onChange={e => setPasswordForm({...passwordForm, current: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
                 />
               </div>
               <div>
@@ -613,7 +637,7 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                   type="password" required 
                   value={passwordForm.new}
                   onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
                 />
               </div>
               <div>
@@ -622,20 +646,20 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                   type="password" required 
                   value={passwordForm.confirm}
                   onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
                 />
               </div>
               <div className="mobile-modal-actions pt-4 flex justify-end gap-3 border-t border-gray-200 dark:border-gray-700 mt-2">
                 <button 
                   type="button" 
                   onClick={() => setIsChangePasswordOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Batal
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-md hover:shadow-lg transition-all"
+                  className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   Simpan Password
                 </button>
@@ -648,11 +672,11 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
       {/* Crop Modal */}
       {isCropModalOpen && tempImage && (
         <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-           <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col h-125">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
-                 <h3 className="font-bold text-gray-900 dark:text-white">Sesuaikan Foto Profil</h3>
-                 <button onClick={() => { setIsCropModalOpen(false); setTempImage(null); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                    <X className="w-5 h-5" />
+           <div className="mobile-modal-panel flex h-125 w-full max-w-md flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
+              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/40">
+                 <h3 className="font-bold text-slate-950 dark:text-white">Sesuaikan Foto Profil</h3>
+                 <button onClick={() => { setIsCropModalOpen(false); setTempImage(null); }} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Tutup modal">
+                    <X className="h-5 w-5" weight="bold" />
                  </button>
               </div>
               <div className="relative flex-1 bg-black">
@@ -666,16 +690,16 @@ const Profile: React.FC<ProfileProps> = ({ role, showToast, onNavigate }) => {
                     onZoomChange={setZoom}
                  />
               </div>
-              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 space-y-4">
+              <div className="space-y-4 border-t border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
                  <div className="flex items-center space-x-2">
                     <span className="text-xs text-gray-500">Zoom</span>
                     <input type="range" value={zoom} min={1} max={3} step={0.1} aria-labelledby="Zoom" onChange={(e) => setZoom(Number(e.target.value))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" />
                  </div>
                  <div className="mobile-modal-actions flex justify-end gap-3">
-                    <button onClick={() => { setIsCropModalOpen(false); setTempImage(null); }} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                    <button onClick={() => { setIsCropModalOpen(false); setTempImage(null); }} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                        Batal
                     </button>
-                    <button onClick={handleCropSave} className="px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg">
+                    <button onClick={handleCropSave} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
                        Simpan Foto
                     </button>
                  </div>

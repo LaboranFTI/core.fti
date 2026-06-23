@@ -433,7 +433,7 @@ const Login: React.FC<LoginProps> = ({
 
             const res = await api('/api/auth/google', {
               method: 'POST',
-              data: { 
+              data: {
                 accessToken: tokenResponse.access_token,
                 deviceId: deviceId,
                 rememberMe: rememberMe
@@ -449,7 +449,7 @@ const Login: React.FC<LoginProps> = ({
                activeStorage.setItem("userId", data.id);
                activeStorage.setItem("userName", data.name);
                activeStorage.setItem("userEmail", data.email);
-               
+
                if (data.deviceId) {
                  localStorage.setItem("deviceId", data.deviceId);
                } else if (!localStorage.getItem("deviceId")) {
@@ -465,7 +465,7 @@ const Login: React.FC<LoginProps> = ({
                } else {
                  localStorage.removeItem("rememberedEmail");
                }
-               
+
                showToast(`Login berhasil sebagai ${data.name}`, "success");
                onLogin(data.role as Role, data.name, rememberMe, data.email);
             } else {
@@ -509,36 +509,48 @@ const Login: React.FC<LoginProps> = ({
 
         <div className="relative z-10 flex min-h-full flex-col justify-between gap-12">
           <div className="max-w-xl">
-            <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-sm">
-            <img
-              src={nocLogo}
-              alt="NOC Logo"
-              className="h-12 w-12 object-contain sm:h-14 sm:w-14"
-            />
+            <div className="mb-8 inline-flex items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 px-4.5 py-3 backdrop-blur-md shadow-lg">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/10 shadow-sm backdrop-blur-sm sm:h-12 sm:w-12">
+                <img
+                  src={nocLogo}
+                  alt="NOC Logo"
+                  className="h-8 w-8 object-contain sm:h-9 sm:w-9"
+                />
+              </div>
               <div>
-                <p className="font-brand text-2xl font-bold tracking-tight sm:text-3xl">{APP_NAME} - UKSW</p>
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-blue-100/90">{APP_FULL_NAME}</p>
+                <p
+                  className="text-xl font-black tracking-tighter text-white sm:text-2xl"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  {APP_NAME} - UKSW
+                </p>
+                <p
+                  className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-blue-200/90"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  {APP_FULL_NAME}
+                </p>
               </div>
             </div>
             <h1 className="max-w-lg text-4xl font-bold leading-[1.05] text-white sm:text-5xl lg:text-6xl">
-              Platform manajemen sarpras dan layanan administrasi yang terintegrasi.
+              Sistem Informasi Manajemen Sarana, Prasarana, dan Administrasi Terpadu.
             </h1>
-            <p className="mt-5 max-w-md text-base leading-7 text-blue-100 sm:text-lg">
-              Kelola ruangan, inventaris, jadwal, dan layanan administrasi FTI UKSW dari satu web app.
+            <p className="mt-5 max-w-md text-base leading-7 text-blue-100/90 sm:text-lg">
+              Layanan pengelolaan fasilitas, inventarisasi aset, penjadwalan kuliah, dan administrasi akademik FTI UKSW secara terintegrasi.
             </p>
           </div>
           <div className="grid max-w-xl gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-[0.16em] text-blue-100/80">Ruangan</p>
-              <p className="mt-2 text-lg font-semibold">Detail ruangan lengkap</p>
+            <div className="rounded-xl border border-white/5 bg-white/5 p-4 backdrop-blur-xs shadow-md hover:bg-white/10 hover:border-white/12 transition-all duration-300">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80">Fasilitas</p>
+              <p className="mt-2 text-sm font-semibold text-white leading-snug">Informasi utilitas dan peminjaman ruang</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-[0.16em] text-blue-100/80">Inventaris</p>
-              <p className="mt-2 text-lg font-semibold">Aset milik FTI UKSW</p>
+            <div className="rounded-xl border border-white/5 bg-white/5 p-4 backdrop-blur-xs shadow-md hover:bg-white/10 hover:border-white/12 transition-all duration-300">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80">Inventarisasi</p>
+              <p className="mt-2 text-sm font-semibold text-white leading-snug">Manajemen aset sarana prasarana</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-[0.16em] text-blue-100/80">Layanan</p>
-              <p className="mt-2 text-lg font-semibold">Akses lebih cepat</p>
+            <div className="rounded-xl border border-white/5 bg-white/5 p-4 backdrop-blur-xs shadow-md hover:bg-white/10 hover:border-white/12 transition-all duration-300">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80">Layanan TU</p>
+              <p className="mt-2 text-sm font-semibold text-white leading-snug">Administrasi persuratan akademik</p>
             </div>
           </div>
 
@@ -550,15 +562,18 @@ const Login: React.FC<LoginProps> = ({
 
       {/* Right Side - Forms */}
       <div className="relative flex items-center justify-center bg-white px-5 py-8 text-gray-900 transition-colors dark:bg-gray-900 dark:text-white sm:px-6 lg:w-[48%] lg:px-10">
-        <div className="w-full max-w-lg rounded-[2rem] border border-gray-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] dark:border-gray-800 dark:bg-gray-900 sm:p-8">
+        <div className="w-full max-w-lg rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-xl backdrop-blur-md dark:border-gray-800/80 dark:bg-slate-900/95 sm:p-8">
           {view === "login" && (
             <div className="animate-fade-in-up">
               <div className="mb-8 text-center">
-                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
-                  Selamat Datang
+                <h2
+                  className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  Login
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  Masuk untuk mengakses layanan CORE.FTI
+                  Silakan masukkan kredensial Anda untuk mengakses layanan.
                 </p>
               </div>
 
@@ -629,7 +644,7 @@ const Login: React.FC<LoginProps> = ({
                       htmlFor="remember-me"
                       className="ml-2 block text-sm text-gray-900 dark:text-gray-300"
                     >
-                      Ingat Saya
+                      Ingat Sesi Saya
                     </label>
                   </div>
 
@@ -639,7 +654,7 @@ const Login: React.FC<LoginProps> = ({
                       onClick={() => changeView("forgot-password")}
                       className="font-medium text-blue-600 hover:text-blue-500"
                     >
-                      Lupa Password?
+                      Lupa Kata Sandi?
                     </button>
                   </div>
                 </div>
@@ -665,8 +680,8 @@ const Login: React.FC<LoginProps> = ({
                         <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
                       </div>
                       <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">
-                          atau lanjutkan dengan
+                        <span className="px-2 bg-white dark:bg-slate-900 text-slate-500">
+                          atau masuk menggunakan
                         </span>
                       </div>
                     </div>
@@ -707,12 +722,12 @@ const Login: React.FC<LoginProps> = ({
               </div>
 
               <p className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
-                Belum punya akun?{" "}
+                Belum memiliki akun?{" "}
                 <button
                   onClick={() => changeView("register")}
                   className="font-medium text-blue-600 hover:text-blue-500"
                 >
-                  Buat akun baru
+                  Registrasi Akun Baru
                 </button>
               </p>
             </div>
@@ -724,15 +739,18 @@ const Login: React.FC<LoginProps> = ({
                 onClick={() => changeView("login")}
                 className="flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 mb-6 transition-colors"
               >
-                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Login
+                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Halaman Masuk
               </button>
 
               <div className="mb-8">
-                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
-                  Buat Akun
+                <h2
+                  className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  Registrasi Akun Baru
                 </h2>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                  Daftar untuk mengakses sistem
+                  Lengkapi formulir pendaftaran berikut untuk memperoleh hak akses.
                 </p>
               </div>
 
@@ -823,7 +841,7 @@ const Login: React.FC<LoginProps> = ({
                     </div>
                     {formData.password && (
                       <div className="mt-1 text-xs text-right">
-                        Strength:{" "}
+                        Kekuatan Sandi:{" "}
                         <span
                           className={`font-bold ${getPasswordStrength(formData.password).color}`}
                         >
@@ -861,7 +879,7 @@ const Login: React.FC<LoginProps> = ({
                     {formData.confirmPassword &&
                       formData.password !== formData.confirmPassword && (
                         <p className="mt-1 text-xs text-red-500">
-                          Password tidak cocok
+                          Konfirmasi sandi tidak sesuai dengan kata sandi baru.
                         </p>
                       )}
                   </div>
@@ -877,7 +895,7 @@ const Login: React.FC<LoginProps> = ({
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    "Daftar Sekarang"
+                    "Daftar"
                   )}
                 </button>
               </form>
@@ -890,15 +908,18 @@ const Login: React.FC<LoginProps> = ({
                 onClick={() => changeView("login")}
                 className="flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 mb-6 transition-colors"
               >
-                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Login
+                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Halaman Masuk
               </button>
 
               <div className="mb-8">
-                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
-                  Lupa Password?
+                <h2
+                  className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  Pemulihan Kata Sandi
                 </h2>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                  Masukkan email anda untuk mereset password
+                  Masukkan alamat email terdaftar untuk menerima instruksi pemulihan kata sandi.
                 </p>
               </div>
 
@@ -957,7 +978,7 @@ const Login: React.FC<LoginProps> = ({
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    "Cek Akun"
+                    "Verifikasi Alamat Email"
                   )}
                 </button>
               </form>
@@ -970,12 +991,15 @@ const Login: React.FC<LoginProps> = ({
                 onClick={() => changeView("login")}
                 className="mb-6 flex items-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors"
               >
-                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Login
+                <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Halaman Masuk
               </button>
 
               <div className="mb-8">
-                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
-                  Buat Password Baru
+                <h2
+                  className="text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  Pengaturan Kata Sandi Baru
                 </h2>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   Akun:{" "}
@@ -984,13 +1008,13 @@ const Login: React.FC<LoginProps> = ({
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Gunakan token reset yang dibagikan admin. Token berlaku terbatas.
+                  Gunakan token otorisasi yang diberikan oleh administrator. Token memiliki masa berlaku terbatas.
                 </p>
               </div>
 
               <form onSubmit={handleSetNewPassword} className="space-y-5">
                 <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
-                  Masukkan token reset dari admin, lalu buat password minimal 8 karakter agar akun bisa dipakai login lagi.
+                  Masukkan token otorisasi dan tentukan kata sandi baru (minimal 8 karakter) untuk mengaktifkan kembali akun Anda.
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1039,7 +1063,7 @@ const Login: React.FC<LoginProps> = ({
                   {formData.password && (
                     <div className="mt-1 flex items-center justify-between gap-3 text-xs">
                       <span className="text-gray-500 dark:text-gray-400">
-                        Gunakan kombinasi huruf besar, angka, dan simbol agar lebih aman.
+                        Gunakan kombinasi huruf kapital, angka, dan karakter khusus demi keamanan tingkat tinggi.
                       </span>
                       <span className={`shrink-0 font-bold ${setPasswordStrength.color}`}>
                         {setPasswordStrength.label}
@@ -1083,11 +1107,11 @@ const Login: React.FC<LoginProps> = ({
                   </div>
                   {setPasswordMismatch ? (
                     <p className="mt-1 text-xs font-medium text-red-500">
-                      Konfirmasi password belum sama dengan password baru.
+                      Konfirmasi kata sandi tidak sesuai dengan kata sandi baru.
                     </p>
                   ) : formData.confirmPassword ? (
                     <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">
-                      Konfirmasi password sudah cocok.
+                      Konfirmasi kata sandi sesuai.
                     </p>
                   ) : null}
                 </div>
@@ -1100,7 +1124,7 @@ const Login: React.FC<LoginProps> = ({
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    "Simpan Password & Login"
+                    "Simpan Kata Sandi"
                   )}
                 </button>
               </form>

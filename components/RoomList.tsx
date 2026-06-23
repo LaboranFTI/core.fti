@@ -1,7 +1,18 @@
 import React from 'react';
 import { Room } from '../types';
-import { Skeleton } from './Skeleton';
-import { MapPin, Users, Monitor, Check, Edit2, Trash2, ChevronRight } from 'lucide-react';
+import {
+  Buildings,
+  CalendarCheck,
+  CaretRight,
+  Check,
+  DesktopTower,
+  DoorOpen,
+  MapPin,
+  PencilSimpleLine,
+  Stack,
+  Trash,
+  Users,
+} from '@phosphor-icons/react';
 
 interface FloorGroup {
   floor: string;
@@ -19,6 +30,19 @@ interface RoomListProps {
   isDarkMode: boolean;
 }
 
+const categoryClasses: Record<string, string> = {
+  'Laboratorium Komputer': 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/50 dark:text-sky-200',
+  Teori: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200',
+  Praktek: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200',
+  Rekreasi: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/50 dark:text-rose-200',
+  Meeting: 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/50 dark:text-violet-200',
+  Lounge: 'border-indigo-200 bg-indigo-50 text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/50 dark:text-indigo-200',
+  'Open Space': 'border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-900/60 dark:bg-cyan-950/50 dark:text-cyan-200',
+  'Auditorium/Ruang Kuliah Umum': 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200',
+};
+
+const getCategoryClass = (category?: string) => categoryClasses[category || ''] || 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200';
+
 const RoomList: React.FC<RoomListProps> = ({
   filteredRooms,
   collapsedFloors,
@@ -27,9 +51,7 @@ const RoomList: React.FC<RoomListProps> = ({
   onRoomSelect,
   onEdit,
   onDelete,
-  isDarkMode
 }) => {
-  // Group rooms by floor (memoized in parent, passed down)
   const groupedRooms: FloorGroup[] = React.useMemo(() => {
     const groups: Record<string, Room[]> = {};
     filteredRooms.forEach(room => {
@@ -41,148 +63,152 @@ const RoomList: React.FC<RoomListProps> = ({
     });
     return Object.keys(groups).sort().map(floor => ({
       floor,
-      rooms: groups[floor]
+      rooms: groups[floor],
     }));
   }, [filteredRooms]);
 
   if (filteredRooms.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-full mb-4">
-          <MapPin className="w-12 h-12 text-gray-400" />
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm dark:border-slate-600 dark:bg-slate-900">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+          <MapPin className="h-7 w-7" weight="duotone" />
         </div>
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Tidak ada ruangan ditemukan</h3>
-        <p className="text-gray-500 dark:text-gray-400 max-w-sm">
-          Coba ubah kata kunci pencarian atau tambahkan ruangan baru jika Anda adalah admin.
+        <h3 className="text-lg font-bold text-slate-950 dark:text-white">Tidak ada ruangan ditemukan</h3>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500 dark:text-slate-400">
+          Coba ubah kata kunci, status, kategori, atau urutan data.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-10">
-      {groupedRooms.map((group) => (
-        <div key={group.floor}>
-          {/* Floor Header */}
-          <div 
-            className="flex items-center cursor-pointer group select-none" 
-            onClick={() => toggleFloor(group.floor)}
-          >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mr-3 transition-colors group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50">
-              <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${collapsedFloors[group.floor] !== false ? '' : 'rotate-90'}`} />
-            </div>
-            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{group.floor}</h2>
-            <div className="ml-4 flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-            <span className="ml-4 text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full">
-              {group.rooms.length} Ruangan
-            </span>
-          </div>
-          {collapsedFloors[group.floor] === false && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 pb-2 animate-fade-in-up">
-              {group.rooms.map((room) => (
-                <div 
-                  key={room.id} 
-                  onClick={() => onRoomSelect(room)} 
-                  className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all flex flex-col group cursor-pointer"
-                >
-                  <div className="p-5 flex-1 flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
-                          {room.name}
-                        </h3>
-                        <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                            room.category === 'Laboratorium Komputer' 
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800' 
-                              : room.category === 'Teori' 
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                : room.category === 'Praktek'
-                                  ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800'
-                                  : room.category === 'Rekreasi'
-                                    ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400 border border-pink-200 dark:border-pink-800'
-                                    : room.category === 'Meeting'
-                                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800'
-                                      : room.category === 'Lounge'
-                                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800'
-                                        : room.category === 'Open Space'
-                                          ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800'
-                                          : room.category === 'Auditorium/Ruang Kuliah Umum'
-                                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
-                          }`}>
-                          {room.category}
+    <div className="space-y-5">
+      {groupedRooms.map((group) => {
+        const isExpanded = collapsedFloors[group.floor] === false;
+
+        return (
+          <section key={group.floor} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <button
+              type="button"
+              className="group flex w-full items-center gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:hover:bg-slate-800"
+              onClick={() => toggleFloor(group.floor)}
+            >
+              <span className="flex size-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+                <CaretRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} weight="bold" />
+              </span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 text-base font-bold text-slate-950 dark:text-white">
+                  <Buildings className="h-4 w-4 text-slate-500" weight="duotone" />
+                  {group.floor}
+                </span>
+                <span className="mt-0.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {group.rooms.length} ruangan terdaftar
+                </span>
+              </span>
+              <span className="ml-auto hidden rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 sm:inline-flex">
+                Asset Register
+              </span>
+            </button>
+
+            {isExpanded && (
+              <div className="grid grid-cols-1 gap-4 bg-slate-50/70 p-4 dark:bg-slate-900/35 md:grid-cols-2 2xl:grid-cols-3">
+                {group.rooms.map((room) => {
+                  const category = room.category || 'Umum';
+                  const hasComputers = !!room.computerCount && room.computerCount > 0;
+
+                  return (
+                    <article
+                      key={room.id}
+                      onClick={() => onRoomSelect(room)}
+                      className="group flex min-h-72 cursor-pointer flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <span className={`inline-flex rounded-md border px-2 py-1 text-[11px] font-bold uppercase ${getCategoryClass(category)}`}>
+                            {category}
+                          </span>
+                          <h3 className="mt-3 line-clamp-1 text-xl font-bold text-slate-950 dark:text-white">{room.name}</h3>
+                        </div>
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors group-hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          <DoorOpen className="h-5 w-5" weight="duotone" />
                         </span>
                       </div>
-                      <div className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
-                        <MapPin className="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                      </div>
-                    </div>
-                    
-                    <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 mb-4 flex-1">
-                      {room.description || "Tidak ada deskripsi ruangan."}
-                    </p>
 
-                    <div className="grid grid-cols-2 gap-2 mb-4">
-                      <div className="flex flex-col p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center"><Users className="w-3 h-3 mr-1"/> Kapasitas</span>
-                        <span className="font-semibold text-gray-800 dark:text-gray-200">{room.capacity} Orang</span>
-                      </div>
-                      {room.computerCount && room.computerCount > 0 ? (
-                        <div className="flex flex-col p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
-                          <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center"><Monitor className="w-3 h-3 mr-1"/> Komputer</span>
-                          <span className="font-semibold text-gray-800 dark:text-gray-200">{room.computerCount} Unit</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
-                          <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center"><Check className="w-3 h-3 mr-1"/> Kalender</span>
-                          <span className="font-semibold text-gray-800 dark:text-gray-200">{room.googleCalendarUrl ? 'Tersinkronisasi' : 'Tidak Tersedia'}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1.5 mb-5">
-                      {room.facilities?.slice(0, 3).map((f, i) => (
-                        <span key={i} className="text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-md border border-gray-200 dark:border-gray-600">
-                          {f}
-                        </span>
-                      ))}
-                      {(room.facilities?.length || 0) > 3 && (
-                        <span className="text-[11px] text-gray-500 dark:text-gray-400 px-1 py-1 font-medium">+{room.facilities!.length - 3} lainnya</span>
-                      )}
-                    </div>
+                      <p className="mt-3 line-clamp-2 min-h-11 text-sm leading-6 text-slate-600 dark:text-slate-400">
+                        {room.description || 'Deskripsi ruangan belum tersedia.'}
+                      </p>
 
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
-                      <div className="flex space-x-2 w-full">
-                        {canManage && (
-                          <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
-                            <button 
-                              onClick={() => onEdit(room)} 
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg dark:hover:bg-blue-900/20 transition-colors" 
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                          <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                            <Users className="h-3.5 w-3.5" weight="duotone" />
+                            Kapasitas
+                          </span>
+                          <span className="mt-1 block text-base font-bold text-slate-950 dark:text-white">{room.capacity} orang</span>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                          <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                            {hasComputers ? <DesktopTower className="h-3.5 w-3.5" weight="duotone" /> : <CalendarCheck className="h-3.5 w-3.5" weight="duotone" />}
+                            {hasComputers ? 'Komputer' : 'Kalender'}
+                          </span>
+                          <span className="mt-1 block text-base font-bold text-slate-950 dark:text-white">
+                            {hasComputers ? `${room.computerCount} unit` : room.googleCalendarUrl ? 'Sinkron' : 'Belum ada'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-1.5">
+                        {room.facilities?.slice(0, 3).map((facility, index) => (
+                          <span key={`${facility}-${index}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                            <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-300" weight="bold" />
+                            {facility}
+                          </span>
+                        ))}
+                        {(room.facilities?.length || 0) > 3 && (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                            <Stack className="h-3 w-3" weight="duotone" />
+                            +{room.facilities!.length - 3}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
+                        {canManage ? (
+                          <div className="flex gap-1" onClick={(event) => event.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => onEdit(room)}
+                              className="flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:border-slate-400 hover:bg-white hover:text-slate-950 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-white"
                               title="Edit"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <PencilSimpleLine className="h-4 w-4" weight="duotone" />
                             </button>
-                            <button 
-                              onClick={() => onDelete(room.id)} 
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg dark:hover:bg-red-900/20 transition-colors" 
+                            <button
+                              type="button"
+                              onClick={() => onDelete(room.id)}
+                              className="flex size-9 items-center justify-center rounded-lg border border-red-200 text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/50"
                               title="Delete"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash className="h-4 w-4" weight="duotone" />
                             </button>
                           </div>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Akses baca</span>
                         )}
-                        <button className="flex-1 px-4 py-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 dark:text-gray-900 text-white text-sm font-medium rounded-lg transition-colors text-center ml-auto shadow-sm">
-                          Lihat Detail
-                        </button>
+
+                        <span className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:group-hover:bg-slate-200">
+                          Detail
+                          <CaretRight className="h-4 w-4" weight="bold" />
+                        </span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 };

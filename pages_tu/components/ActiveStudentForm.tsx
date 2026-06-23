@@ -6,11 +6,12 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Eraser, GraduationCap, Send, CheckCircle2, Loader2, Search, XCircle } from 'lucide-react';
 import { api } from '../../services/api';
+import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import {
   buildBirthPlaceAndDate,
   DEFAULT_FACULTY,
   DEFAULT_UNIVERSITY,
-  deriveStudyProgramFromNim
+  findStudyProgramByNim
 } from './activeStudentUtils';
 
 interface ActiveStudentFormValues {
@@ -50,6 +51,7 @@ export function ActiveStudentForm() {
   const [isVerified, setIsVerified] = useState(false);
   const [verifyError, setVerifyError] = useState('');
   const [formFeedback, setFormFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { studyPrograms, fetchStudyPrograms } = useStudyPrograms();
 
   const resetVerifiedFields = () => {
     setValue('name', '');
@@ -90,7 +92,8 @@ export function ActiveStudentForm() {
       return;
     }
 
-    const derivedStudyProgram = deriveStudyProgramFromNim(nimValue);
+    const programs = studyPrograms.length > 0 ? studyPrograms : await fetchStudyPrograms();
+    const derivedStudyProgram = findStudyProgramByNim(nimValue, programs);
     if (!derivedStudyProgram) {
       setVerifyError('Kode program studi dari NIM belum dikenali. Hubungi admin TU untuk memperbarui pemetaan prodi.');
       return;

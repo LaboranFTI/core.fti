@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import { SpinnerGap, WarningDiamond, X } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 
 interface ConfirmModalProps {
@@ -14,6 +14,30 @@ interface ConfirmModalProps {
   isLoading?: boolean;
 }
 
+const toneMap = {
+  danger: {
+    rail: 'bg-red-600 dark:bg-red-400',
+    header: 'border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10',
+    icon: 'border-red-200 bg-white text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200',
+    label: 'text-red-700 dark:text-red-200',
+    variant: 'destructive' as const
+  },
+  warning: {
+    rail: 'bg-amber-500',
+    header: 'border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10',
+    icon: 'border-amber-200 bg-white text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100',
+    label: 'text-amber-700 dark:text-amber-100',
+    variant: 'primary' as const
+  },
+  info: {
+    rail: 'bg-fti-blue-600 dark:bg-fti-blue-300',
+    header: 'border-fti-blue-200 bg-fti-blue-50 dark:border-fti-blue-300/20 dark:bg-fti-blue-500/10',
+    icon: 'border-fti-blue-200 bg-white text-fti-blue-700 dark:border-fti-blue-300/30 dark:bg-fti-blue-500/10 dark:text-fti-blue-100',
+    label: 'text-fti-blue-700 dark:text-fti-blue-100',
+    variant: 'primary' as const
+  }
+};
+
 const ConfirmModal: React.FC<ConfirmModalProps> = ({
   isOpen,
   onClose,
@@ -27,60 +51,45 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const typeStyles = {
-    danger: {
-      icon: 'bg-red-100 dark:bg-red-900/20',
-      iconColor: 'text-red-600 dark:text-red-400',
-      border: 'border-red-200 dark:border-red-800'
-    },
-    warning: {
-      icon: 'bg-yellow-100 dark:bg-yellow-900/20',
-      iconColor: 'text-yellow-600 dark:text-yellow-400',
-      border: 'border-yellow-200 dark:border-yellow-800'
-    },
-    info: {
-      icon: 'bg-blue-100 dark:bg-blue-900/20',
-      iconColor: 'text-blue-600 dark:text-blue-400',
-      border: 'border-blue-200 dark:border-blue-800'
-    }
-  };
-
-  const styles = typeStyles[type];
-  const confirmVariant = type === 'danger' ? 'destructive' : 'primary';
+  const tone = toneMap[type];
 
   return (
-    <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
-        <div className="mobile-modal-body p-6 text-center flex flex-col justify-center">
-          <div className={`w-12 h-12 rounded-full ${styles.icon} flex items-center justify-center mx-auto mb-4`}>
-            <AlertTriangle className={`w-6 h-6 ${styles.iconColor}`} />
-          </div>
-          {title && (
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{title}</h3>
-          )}
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            {message}
-          </p>
-          <div className="mobile-modal-actions flex justify-center gap-3">
-            <Button
+    <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <div className="mobile-modal-panel relative flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl animate-fade-in-up dark:border-slate-800 dark:bg-slate-900">
+        <div className={`absolute inset-y-0 left-0 w-1 ${tone.rail}`} />
+        <div className={`border-b px-5 py-4 ${tone.header}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className={`flex h-10 w-10 items-center justify-center rounded-lg border ${tone.icon}`}>
+                <WarningDiamond size={22} weight="duotone" />
+              </span>
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${tone.label}`}>
+                  Keputusan Sistem
+                </p>
+                {title && <h3 className="mt-1 text-base font-semibold text-slate-950 dark:text-white">{title}</h3>}
+              </div>
+            </div>
+            <button
+              type="button"
               onClick={onClose}
               disabled={isLoading}
-              variant="secondary"
+              className="rounded-md p-1 text-slate-500 transition hover:bg-white/70 hover:text-slate-800 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              aria-label="Tutup konfirmasi"
             >
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+        </div>
+
+        <div className="mobile-modal-body p-5">
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{message}</p>
+          <div className="mobile-modal-actions mt-6 flex justify-end gap-3">
+            <Button onClick={onClose} disabled={isLoading} variant="secondary">
               {cancelText}
             </Button>
-            <Button
-              onClick={onConfirm}
-              disabled={isLoading}
-              variant={confirmVariant}
-              className="min-w-32"
-            >
-              {isLoading && (
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              )}
+            <Button onClick={onConfirm} disabled={isLoading} variant={tone.variant} className="min-w-32">
+              {isLoading && <SpinnerGap size={17} weight="bold" className="mr-2 animate-spin" />}
               {confirmText}
             </Button>
           </div>
@@ -91,4 +100,3 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
 };
 
 export default ConfirmModal;
-

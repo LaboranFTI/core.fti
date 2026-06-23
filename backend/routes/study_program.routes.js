@@ -142,9 +142,9 @@ router.get('/lecturers/by-jabatan/:jabatan', async (req, res) => {
               sp.name AS study_program_name, sp.level AS study_program_level
        FROM lecturer l
        LEFT JOIN study_programs sp ON l.study_program_id = sp.id
-       WHERE l.jabatan = $1
+       WHERE l.jabatan ILIKE $1
        ORDER BY l.nama ASC`,
-      [jabatan]
+      [`${jabatan}%`]
     );
 
     res.json({ found: result.rows.length > 0, data: result.rows });

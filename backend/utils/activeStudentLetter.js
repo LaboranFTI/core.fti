@@ -1,22 +1,18 @@
 export const DEFAULT_FACULTY = 'Teknologi Informasi';
 export const DEFAULT_UNIVERSITY = 'Kristen Satya Wacana';
 
-const STUDY_PROGRAM_MAP = Object.freeze({
-  '56': { studyProgramLevel: 'Diploma Tiga', studyProgramName: 'Teknik Informatika' },
-  '60': { studyProgramLevel: 'Sarjana', studyProgramName: 'Hubungan Masyarakat' },
-  '67': { studyProgramLevel: 'Sarjana', studyProgramName: 'Teknik Informatika' },
-  '68': { studyProgramLevel: 'Sarjana', studyProgramName: 'Sistem Informasi' },
-  '69': { studyProgramLevel: 'Sarjana', studyProgramName: 'Desain Komunikasi Visual' },
-  '70': { studyProgramLevel: 'Sarjana', studyProgramName: 'Pendidikan Teknik Informatika dan Komputer' },
-  '74': { studyProgramLevel: 'Sarjana', studyProgramName: 'Perpustakaan dan Sains Informasi' },
-  '84': { studyProgramLevel: 'Sarjana', studyProgramName: 'Bisnis Digital' },
-  '97': { studyProgramLevel: 'Magister', studyProgramName: 'Sistem Informasi' },
-  '98': { studyProgramLevel: 'Doktor', studyProgramName: 'Ilmu Komputer' }
-});
-
-export const deriveStudyProgramFromNim = (nim = '') => {
+export const getStudyProgramCodeFromNim = (nim = '') => {
   const normalizedNim = String(nim).replace(/\s+/g, '');
-  return STUDY_PROGRAM_MAP[normalizedNim.slice(0, 2)] || null;
+  return normalizedNim.slice(0, 2);
+};
+
+export const mapStudyProgramRow = (row) => {
+  if (!row) return null;
+
+  return {
+    studyProgramLevel: row.level,
+    studyProgramName: row.name
+  };
 };
 
 export const formatStudentName = (rawName) => {

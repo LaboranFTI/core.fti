@@ -12,8 +12,9 @@ import {
   buildBirthPlaceAndDate,
   DEFAULT_FACULTY,
   DEFAULT_UNIVERSITY,
-  deriveStudyProgramFromNim,
-  formatStudentName
+  formatStudentName,
+  getStudyProgramCodeFromNim,
+  mapStudyProgramRow
 } from '../utils/activeStudentLetter.js';
 
 const router = express.Router();
@@ -477,6 +478,18 @@ const getSemesterMeta = (semesterCode) => {
     : { semesterName: 'Genap', academicYear: `${currentYear - 1}/${currentYear}` };
 };
 
+const getStudyProgramByNim = async (nim, queryable = pool) => {
+  const studyProgramCode = getStudyProgramCodeFromNim(nim);
+  if (!studyProgramCode) return null;
+
+  const result = await queryable.query(
+    'SELECT id, name, level FROM study_programs WHERE id = $1 LIMIT 1',
+    [studyProgramCode]
+  );
+
+  return mapStudyProgramRow(result.rows[0]);
+};
+
 const formatLetterNumber = (type, sequence, date) => {
   const paddedSequence = String(sequence).padStart(3, '0');
   const paddedMonth = String(date.getMonth() + 1).padStart(2, '0');
@@ -672,11 +685,11 @@ const letterConfig = {
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
     `,
     getPlaceholders: async ({ data, letterNumber, semesterMeta }) => {
-      let deanName = 'Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.';
+      let deanName = 'Nama Dekan Belum Diatur';
       let deanTitle = 'Dekan';
 
       try {
-        const deanResult = await pool.query("SELECT nama, jabatan FROM lecturer WHERE jabatan ILIKE 'Dekan%' LIMIT 1");
+        const deanResult = await pool.query("SELECT nama, jabatan FROM lecturer WHERE jabatan ILIKE 'Dekan%' ORDER BY nama ASC LIMIT 1");
         if (deanResult.rows.length > 0) {
           deanName = deanResult.rows[0].nama;
           deanTitle = deanResult.rows[0].jabatan;
@@ -685,10 +698,17 @@ const letterConfig = {
         console.error('Failed to fetch Dean data:', e);
       }
 
+      const studyProgram = data.study_program_level && data.study_program_name
+        ? {
+            studyProgramLevel: data.study_program_level,
+            studyProgramName: data.study_program_name
+          }
+        : await getStudyProgramByNim(data.nim);
+
       return {
         '{{tempatTanggalLahir}}': buildBirthPlaceAndDate(data.birth_place || data.birthPlace, data.birth_date || data.birthDate),
-        '{{jenjangProgram}}': data.study_program_level || data.studyProgramLevel || deriveStudyProgramFromNim(data.nim)?.studyProgramLevel || '',
-        '{{programStudi}}': data.study_program_name || data.studyProgramName || deriveStudyProgramFromNim(data.nim)?.studyProgramName || '',
+        '{{jenjangProgram}}': data.study_program_level || data.studyProgramLevel || studyProgram?.studyProgramLevel || '',
+        '{{programStudi}}': data.study_program_name || data.studyProgramName || studyProgram?.studyProgramName || '',
         '{{fakultas}}': data.faculty || data.facultyName || DEFAULT_FACULTY,
         '{{universitas}}': data.university || DEFAULT_UNIVERSITY,
         '{{semester}}': semesterMeta.semesterName,
@@ -711,8 +731,7 @@ const letterConfig = {
       <p>Surat tersebut terlampir pada email ini dalam format PDF.</p>
     `,
     getPlaceholders: ({ data, letterNumber }) => {
-      const derivedProdi = deriveStudyProgramFromNim(data.nim);
-      const level = data.study_program_level || derivedProdi?.studyProgramLevel || 'Sarjana';
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
       const map = {
         'Diploma Tiga': 'D3',
         'Sarjana': 'S1',
@@ -734,7 +753,7 @@ const letterConfig = {
         '{{lecturerName}}': data.lecturer_name || data.lecturerName || '(tidak disebutkan)',
         '{{headOfProgramName}}': data.head_of_program_name || data.headOfProgramName || '(tidak disebutkan)',
         '{{jenjangProgram}}': map[level] || level,
-        '{{programStudi}}': data.study_program_name || derivedProdi?.studyProgramName || 'Teknik Informatika',
+        '{{programStudi}}': data.study_program_name || data.studyProgramName || 'Teknik Informatika',
         '{{studentRows}}': buildObservationStudentRowsHtml(data.student_members || data.students),
         '{{tanggalSurat}}': tanggalSurat
       };
@@ -936,8 +955,6 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
     email,
     birthPlace,
     birthDate,
-    studyProgramLevel,
-    studyProgramName,
     faculty,
     university,
     transcriptBase64,
@@ -947,7 +964,11 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
   try {
     await ensureTuInfrastructure();
     const id = `REQ-${Date.now()}`;
-    const derivedStudyProgram = deriveStudyProgramFromNim(nim);
+    const studyProgram = await getStudyProgramByNim(nim);
+
+    if (!studyProgram) {
+      return res.status(400).json({ error: 'Kode program studi dari NIM belum terdaftar di database.' });
+    }
 
     await pool.query(
       `INSERT INTO active_student_requests (
@@ -973,8 +994,8 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
         email,
         birthPlace || null,
         birthDate || null,
-        studyProgramLevel || derivedStudyProgram?.studyProgramLevel || null,
-        studyProgramName || derivedStudyProgram?.studyProgramName || null,
+        studyProgram.studyProgramLevel,
+        studyProgram.studyProgramName,
         faculty || DEFAULT_FACULTY,
         university || DEFAULT_UNIVERSITY,
         transcriptBase64,
@@ -2074,7 +2095,7 @@ router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async
       .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
       .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
 
-    const specificPlaceholders = config.getPlaceholders({
+    const specificPlaceholders = await config.getPlaceholders({
       data: requestData,
       letterNumber: requestData.letter_number,
       semesterMeta

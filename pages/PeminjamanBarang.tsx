@@ -8,6 +8,8 @@ import { formatDateID } from '../src/utils/formatters';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 
 interface FormData {
   equipmentIds: string[];
@@ -480,35 +482,35 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
 
   return (
     <>
-      <div className="space-y-6"> 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Peminjaman Barang</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Kelola sirkulasi peminjaman inventaris</p>
-        </div>
-        <button 
-          onClick={() => {
-            setEditingTransactionId(null);
-            setFormData({ 
-              equipmentIds: [''], 
-              borrowerName: '', 
-              guarantee: 'KTM', 
-              nim: '', 
-              borrowDate: new Date().toISOString().split('T')[0],
-              borrowTime: new Date().toTimeString().slice(0, 5),
-              borrowOfficer: '',
-              location: ''
-            });
-            setIsModalOpen(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center text-sm font-medium shadow-sm transition-all hover:scale-105"
-        >
-          <Plus className="w-4 h-4 mr-2" /> Peminjaman Baru
-        </button>
-      </div>
+      <div className="space-y-6">
+      <PageHeader
+        title="Peminjaman Barang"
+        description="Kelola sirkulasi peminjaman inventaris, status pengembalian, dan riwayat transaksi barang."
+        actions={
+          <button
+            onClick={() => {
+              setEditingTransactionId(null);
+              setFormData({
+                equipmentIds: [''],
+                borrowerName: '',
+                guarantee: 'KTM',
+                nim: '',
+                borrowDate: new Date().toISOString().split('T')[0],
+                borrowTime: new Date().toTimeString().slice(0, 5),
+                borrowOfficer: '',
+                location: ''
+              });
+              setIsModalOpen(true);
+            }}
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+          >
+            <Plus className="mr-2 h-4 w-4" /> Peminjaman Baru
+          </button>
+        }
+      />
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 justify-between items-center">
+      <PageCard padding="none" className="overflow-hidden">
+        <div className="flex flex-col items-center justify-between gap-4 border-b border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/60 sm:flex-row">
           <div className="w-full sm:w-auto">
             <SearchBar 
               value={searchTerm}
@@ -523,20 +525,20 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
                 type="date" 
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
               />
               <span className="text-gray-500 dark:text-gray-400">-</span>
               <input 
                 type="date" 
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
               />
             </div>
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-400" />
               <select 
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               >
@@ -549,8 +551,8 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
               <tr>
                 <th className="px-6 py-4">Peminjam</th>
                 <th className="px-6 py-4">Waktu Pinjam</th>
@@ -559,7 +561,7 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
                 <th className="px-6 py-4 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {currentKeys.length > 0 ? currentKeys.map((key) => {
                 const groupLoans = groupedLoans[key];
                 const firstLoan = groupLoans[0];
@@ -572,7 +574,7 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
                   <tr 
                     key={key} 
                     onClick={() => setSelectedGroup({ key, loans: groupLoans })}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
+                    className="cursor-pointer transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50 group"
                   >
                     <td className="px-6 py-4">
                       <div className="text-gray-900 dark:text-white font-medium">
@@ -632,7 +634,7 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
-      </div>
+      </PageCard>
 
       {/* Modal Form */}
       {isModalOpen && (

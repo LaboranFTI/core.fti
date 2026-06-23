@@ -73,7 +73,7 @@ const AppShell: React.FC<AppShellProps> = ({
   children,
 }) => {
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'dark' : ''} bg-gray-50 font-sans transition-colors duration-200 dark:bg-gray-950 print:bg-white`}>
+    <div className={`min-h-screen ${isDarkMode ? 'dark' : ''} bg-gray-50 font-sans transition-colors duration-200 dark:bg-slate-900 print:bg-white`}>
       <TopBar
         onToggleSidebar={onToggleSidebar}
         showSidebarToggle={hasSidebarNavigation}
@@ -95,7 +95,7 @@ const AppShell: React.FC<AppShellProps> = ({
       <div className="flex h-[calc(100dvh-3.5rem)] overflow-hidden pt-14 md:h-[calc(100vh-4.5rem)] md:pt-0 print:block print:h-auto print:overflow-visible">
         {isSidebarOpen && hasSidebarNavigation && (
           <div
-            className="fixed inset-x-0 bottom-0 top-14 z-40 bg-slate-950/55 backdrop-blur-sm md:hidden print:hidden"
+            className="fixed inset-x-0 bottom-0 top-14 z-40 bg-slate-950/45 backdrop-blur-sm md:hidden print:hidden"
             onClick={onCloseSidebar}
           />
         )}
@@ -137,7 +137,7 @@ const AppShell: React.FC<AppShellProps> = ({
                 {children}
               </div>
 
-              <footer className="mt-10 border-t border-gray-200 pt-6 pb-4 md:pb-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400 print:hidden">
+              <footer className="mt-10 border-t border-gray-200 pt-6 pb-4 md:pb-8 text-center text-sm text-gray-500 dark:border-slate-700 dark:text-slate-400 print:hidden">
                 {APP_FULL_NAME} &copy; {new Date().getFullYear()} Sarana dan Prasarana FTI UKSW. All rights reserved.
               </footer>
             </div>

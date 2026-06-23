@@ -13,6 +13,17 @@
   --color-primary-600: #0284c7;
   --color-primary-700: #0369a1;
   --color-primary-900: #0c4a6e;
+  --color-fti-blue-50: #eef7ff;
+  --color-fti-blue-100: #d8ecff;
+  --color-fti-blue-200: #acd8fb;
+  --color-fti-blue-300: #77c0f4;
+  --color-fti-blue-500: #1479c9;
+  --color-fti-blue-600: #0b63a8;
+  --color-fti-blue-700: #084f86;
+  --color-fti-blue-900: #07345f;
+  --color-fti-cyan: #2aa7df;
+  --color-fti-gold: #d6a533;
+  --color-fti-ink: #0b1220;
   --color-secondary-500: #64748b;
   --color-secondary-900: #0f172a;
 
@@ -66,6 +77,11 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.56 0.18 257);
   --primary-foreground: oklch(0.99 0.01 250);
+  --brand-blue: #0b63a8;
+  --brand-blue-soft: #eef7ff;
+  --brand-blue-line: #acd8fb;
+  --brand-accent: #1479c9;
+  --brand-gold: #d6a533;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -135,7 +151,7 @@ h1,
 h2,
 h3,
 h4 {
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
@@ -145,27 +161,32 @@ p {
 
 .font-brand {
   font-family: var(--font-brand);
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --background: oklch(0.22 0.018 255);
+  --foreground: oklch(0.96 0.008 255);
+  --card: oklch(0.27 0.02 255);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.27 0.02 255);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.66 0.14 255);
   --primary-foreground: oklch(0.985 0.01 250);
-  --secondary: oklch(0.269 0 0);
+  --brand-blue: #58b7f3;
+  --brand-blue-soft: rgb(20 121 201 / 0.14);
+  --brand-blue-line: rgb(88 183 243 / 0.35);
+  --brand-accent: #77c0f4;
+  --brand-gold: #e1bb55;
+  --secondary: oklch(0.32 0.018 255);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --muted: oklch(0.32 0.018 255);
+  --muted-foreground: oklch(0.76 0.018 255);
+  --accent: oklch(0.34 0.02 255);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.69 0.17 24);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 16%);
+  --input: oklch(1 0 0 / 20%);
   --ring: oklch(0.66 0.14 255);
 }
 
@@ -175,7 +196,7 @@ p {
   .text-4xl {
     font-size: clamp(1.625rem, 5vw, 2rem) !important;
     line-height: 1.15 !important;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     overflow-wrap: anywhere;
   }
 
@@ -183,7 +204,7 @@ p {
   .text-3xl {
     font-size: clamp(1.375rem, 4.5vw, 1.75rem) !important;
     line-height: 1.2 !important;
-    letter-spacing: -0.015em;
+    letter-spacing: 0;
     overflow-wrap: anywhere;
   }
 

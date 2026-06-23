@@ -24,72 +24,72 @@ const getLabelDimensions = (size: '4x2' | '5x3' | '8x6') => {
 
     //bagian mengganti ukuran label, QR code, dan font berdasarkan pilihan ukuran label
     switch (size) {
-        case '5x3': return { 
+        case '5x3': return {
             width: '50mm', height: '30mm', canvasWidth: convertMmToPx(50), canvasHeight: convertMmToPx(30),
-            qrSize: 128, qrMaxW: '18mm', qrMaxH: '18mm', 
+            qrSize: 128, qrMaxW: '18mm', qrMaxH: '18mm',
             headerFont: '18pt', idFont: '22pt', nameFont: '16pt',
             cssHeaderFont: '7pt', cssIdFont: '8.5pt', cssNameFont: '6.5pt'
         };
-        case '8x6': return { 
+        case '8x6': return {
             width: '80mm', height: '60mm', canvasWidth: convertMmToPx(80), canvasHeight: convertMmToPx(60),
-            qrSize: 256, qrMaxW: '38mm', qrMaxH: '38mm', 
+            qrSize: 256, qrMaxW: '38mm', qrMaxH: '38mm',
             headerFont: '32pt', idFont: '40pt', nameFont: '28pt',
             cssHeaderFont: '14pt', cssIdFont: '16pt', cssNameFont: '12pt'
         };
         default: return { // 4x2
             width: '40mm', height: '20mm', canvasWidth: convertMmToPx(40), canvasHeight: convertMmToPx(20),
-            qrSize: 40, qrMaxW: '12mm', qrMaxH: '12mm', 
+            qrSize: 40, qrMaxW: '12mm', qrMaxH: '12mm',
             headerFont: '12pt', idFont: '16pt', nameFont: '12pt',
             cssHeaderFont: '5pt', cssIdFont: '6.5pt', cssNameFont: '5pt'
         };
     }
 };
 
-const LabelComponent = ({ 
-  item, 
-  includeQR = true, 
+const LabelComponent = ({
+  item,
+  includeQR = true,
   labelSize = '4x2' as '4x2' | '5x3' | '8x6'
-}: { 
-  item: Equipment; 
+}: {
+  item: Equipment;
   includeQR?: boolean;
   labelSize?: '4x2' | '5x3' | '8x6';
 }) => {
   const dims = getLabelDimensions(labelSize);
 
   return (
-    <div 
-      className="w-full h-full flex flex-col items-center justify-center p-[0.5mm] font-[system-ui] text-center overflow-hidden bg-white border border-gray-200 print:border-transparent" 
+    <div
+      className="w-full h-full flex flex-col items-center justify-center p-[0.5mm] font-[system-ui] text-center overflow-hidden bg-white border border-gray-200 print:border-transparent"
       style={{width: dims.width, height: dims.height, fontFamily: "'Roboto', 'Helvetica Neue', Arial, sans-serif"}}
     >
         {/* Header: branding */}
         <div className="w-full text-center mb-[0.5mm]">
             <p className={`text-[#4A5568] font-bold leading-none tracking-tight`} style={{fontSize: dims.cssHeaderFont}}>CORE.FTI</p>
         </div>
-        
+
         {/* QR Code - centered, high scannability */}
         {includeQR && (
             <div className="flex-1 flex items-center justify-center mb-[0.5mm]" style={{maxWidth: dims.qrMaxW, maxHeight: dims.qrMaxH}}>
-                <QRCode 
-                    value={item.id} 
-                    size={dims.qrSize} 
-                    level="M" 
-                    style={{ height: "auto", maxWidth: "100%", maxHeight: "100%" }} 
+                <QRCode
+                    value={item.id}
+                    size={dims.qrSize}
+                    level="M"
+                    style={{ height: "auto", maxWidth: "100%", maxHeight: "100%" }}
                 />
             </div>
         )}
-        
+
         {/* Asset ID - monospace bold */}
         {!includeQR && (
             <div className="flex-1 flex items-center justify-center">
                 <p className={`font-['Courier_New',monospace] font-black text-black leading-none tracking-tight px-0.5`} style={{fontSize: dims.cssIdFont}}>{item.id}</p>
             </div>
         )}
-        
+
         {/* Asset ID below QR */}
         <div className="w-full text-center mb-[0.5mm]">
             <p className={`font-['Courier_New',monospace] font-black text-black leading-none tracking-tight whitespace-nowrap overflow-hidden text-ellipsis px-0.5`} style={{fontSize: dims.cssIdFont}}>{item.id}</p>
         </div>
-        
+
         {/* Asset Name - bottom, truncated */}
         <div className="w-full text-center">
             <p className={`text-[#2D3748] font-medium leading-tight line-clamp-2 px-0.5`} style={{lineHeight: '1.1', fontSize: dims.cssNameFont}}>{item.name}</p>
@@ -169,7 +169,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
   const filteredItems = React.useMemo(() => {
     return items.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             item.ukswCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             (item.serialNumber && item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -238,7 +238,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
   const handleSelectItem = (id: string, checked: boolean) => {
       if (!canManageInventory) return;
-      setSelectedItems(prev => 
+      setSelectedItems(prev =>
           checked ? [...prev, id] : prev.filter(itemId => itemId !== id)
       );
   };
@@ -433,12 +433,12 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
           }
 
           const newItems: Equipment[] = [];
-          
+
           const headers: {[key: number]: string} = {};
           worksheet.getRow(1).eachCell((cell, colNumber) => {
               headers[colNumber] = cell.value ? cell.value.toString() : '';
           });
-          
+
           worksheet.eachRow((row, rowNumber) => {
               if (rowNumber === 1) return;
 
@@ -501,7 +501,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
               } else {
                   showToast("Gagal mengimport data. Pastikan ID belum ada di database.", "error");
               }
-              
+
               setIsModalOpen(false);
           } else {
               showToast("Tidak ada data valid yang diimport. Pastikan ID unik dan format benar.", "warning");
@@ -551,7 +551,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     const targetItems = overrideItems || items.filter(i => selectedItems.includes(i.id));
     if (targetItems.length === 0) return;
     const activePaperSize = overridePaperSize || paperSize;
-    
+
     const getQRCodeURL = (value: string) => {
       return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(value)}`;
     };
@@ -564,19 +564,19 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
         <div style="width: 100%; text-align: center; margin-bottom: 0.3mm;">
           <span style="font-size: ${dims.cssHeaderFont}; color: #4A5568; font-weight: 700; letter-spacing: 0.1px; line-height: 1;">CORE.FTI</span>
         </div>
-        
+
         <!-- QR Code (70% height for scannability) -->
         ${includeQR ? `
         <div style="flex: 1; display: flex; align-items: center; justify-content: center; margin-bottom: 0.4mm; max-height: ${dims.qrMaxH};">
           <img src="${getQRCodeURL(item.id)}" alt="QR ${item.id}" style="width: ${dims.qrMaxW}; height: ${dims.qrMaxH}; max-width: 100%; max-height: 100%; image-rendering: -webkit-optimize-contrast; object-fit: contain;" />
         </div>
         ` : ''}
-        
+
         <!-- Asset ID -->
         <div style="width: 100%; text-align: center; margin-bottom: 0.3mm;">
           <p style="margin: 0; font-family: 'Courier New', monospace; font-weight: 900; font-size: ${dims.cssIdFont}; color: #000; line-height: 1; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.id}</p>
         </div>
-        
+
         <!-- Asset Name -->
         <div style="width: 100%; text-align: center;">
           <p style="margin: 0; font-size: ${dims.cssNameFont}; color: #2D3748; line-height: 1.1; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${item.name}</p>
@@ -644,25 +644,25 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
       return;
     }
     if (!qrItem) return;
-    
+
     const dims = getLabelDimensions(labelSize);
     const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${dims.qrSize * 2}x${dims.qrSize * 2}&data=${encodeURIComponent(qrItem.id)}`;
-    
+
     const canvas = document.createElement('canvas');
     canvas.width = dims.canvasWidth;
     canvas.height = dims.canvasHeight;
     const ctx = canvas.getContext('2d')!;
-    
+
     if (ctx) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
+
       ctx.fillStyle = '#4A5568';
       ctx.font = `bold ${dims.headerFont} Roboto, Helvetica Neue, Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText('CORE.FTI', canvas.width / 2, canvas.height * 0.05);
-      
+
       const wrapText = (context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, maxLines: number) => {
         const words = text.split(' ');
         let line = '';
@@ -698,18 +698,18 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
           const qrY = canvas.height * 0.2;
           const qrX = (canvas.width - qrCanvasSize) / 2;
           ctx.drawImage(img, qrX, qrY, qrCanvasSize, qrCanvasSize);
-          
+
           ctx.fillStyle = '#000000';
           ctx.font = `900 ${dims.idFont} 'Courier New', monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
           ctx.fillText(qrItem.id, canvas.width / 2, qrY + qrCanvasSize + (canvas.height * 0.05));
-          
+
           ctx.fillStyle = '#2D3748';
           ctx.font = `500 ${dims.nameFont} Roboto, Helvetica Neue, Arial`;
           ctx.textAlign = 'center';
           wrapText(ctx, qrItem.name, canvas.width / 2, qrY + qrCanvasSize + (canvas.height * 0.15), canvas.width - 40, parseInt(dims.nameFont) * 1.2, 2);
-          
+
           downloadPNG(canvas, qrItem.id);
         };
         img.onerror = () => showToast('QR generation failed. Retry.', 'error');
@@ -720,16 +720,16 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(qrItem.id, canvas.width / 2, canvas.height / 2 - 10);
-        
+
         ctx.textBaseline = 'top';
         ctx.fillStyle = '#2D3748';
         ctx.font = `500 ${parseInt(dims.nameFont) * 1.2}px Roboto, Helvetica Neue, Arial`;
         wrapText(ctx, qrItem.name, canvas.width / 2, canvas.height / 2 + 15, canvas.width - 40, parseInt(dims.nameFont) * 1.4, 3);
-        
+
         downloadPNG(canvas, qrItem.id);
       }
     }
-    
+
     function downloadPNG(canvas: HTMLCanvasElement, id: string) {
       const link = document.createElement('a');
       link.download = `asset-label-${id}.png`;
@@ -744,7 +744,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
       return;
     }
     if (!qrItem) return;
-    
+
     handlePrintMulti([qrItem], singleLabelPaperSize);
   };
 
@@ -795,10 +795,10 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
   const getConditionColor = (condition: string) => {
     switch(condition) {
-        case 'Baik': return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900';
-        case 'Rusak Ringan': return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900';
-        case 'Rusak Berat': return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900';
-        default: return 'bg-gray-100';
+        case 'Baik': return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200';
+        case 'Rusak Ringan': return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200';
+        case 'Rusak Berat': return 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200';
+        default: return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200';
     }
   };
 
@@ -808,9 +808,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
   const SortIcon = ({ columnKey }: { columnKey: keyof Equipment }) => {
     if (sortConfig?.key !== columnKey) return <ArrowUpDown className="w-3 h-3 ml-1 text-gray-400" />;
-    return sortConfig.direction === 'asc' 
-        ? <ArrowUp className="w-3 h-3 ml-1 text-blue-600" /> 
-        : <ArrowDown className="w-3 h-3 ml-1 text-blue-600" />;
+    return sortConfig.direction === 'asc'
+        ? <ArrowUp className="ml-1 h-3 w-3 text-slate-700 dark:text-slate-200" />
+        : <ArrowDown className="ml-1 h-3 w-3 text-slate-700 dark:text-slate-200" />;
   };
 
   if (isLoading) {
@@ -827,39 +827,41 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
         description={canManageInventory ? 'Kelola daftar aset dan barang FTI' : 'Lihat daftar aset dan barang FTI'}
         className="print:hidden"
         actions={canManageInventory ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:items-center">
             <div className="relative lg:col-span-1">
 
                 <Button onClick={() => setIsExportOpen(!isExportOpen)} variant="secondary" size="sm">
-                    <Download className="w-4 h-4 mr-2" /> Export <ChevronDown className="w-4 h-4 ml-1" />
+                    <Download className="h-4 w-4" /> Export <ChevronDown className="h-4 w-4" />
                 </Button>
                 {isExportOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-fade-in-up">
-                        <button onClick={handleExportExcel} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
+                    <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                        <button onClick={handleExportExcel} className="flex w-full items-center px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">
                             <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" /> Excel (.xlsx)
                         </button>
-                        <button onClick={handleExportCSV} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
+                        <button onClick={handleExportCSV} className="flex w-full items-center px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">
                             <FileText className="w-4 h-4 mr-2 text-blue-600" /> CSV
                         </button>
-                        <button onClick={() => { window.print(); setIsExportOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
+                        <button onClick={() => { window.print(); setIsExportOpen(false); }} className="flex w-full items-center px-4 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">
                             <Printer className="w-4 h-4 mr-2 text-gray-600" /> PDF (Print)
                         </button>
                     </div>
                 )}
             </div>
-            <button 
-                onClick={() => setIsPrintModalOpen(true)} 
+            <Button
+                onClick={() => setIsPrintModalOpen(true)}
                 disabled={selectedItems.length === 0}
-                className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center shadow-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="secondary"
+                size="sm"
+                className="justify-center"
                 title="Pilih barang untuk mencetak label"
             >
-                <Printer className="w-4 h-4 mr-2" /> Cetak Label ({selectedItems.length})
-            </button>
+                <Printer className="h-4 w-4" /> Cetak Label ({selectedItems.length})
+            </Button>
             <Button onClick={() => setIsScannerOpen(true)} variant="secondary" size="sm">
-                <Camera className="w-4 h-4 mr-2" /> Scan QR
+                <Camera className="h-4 w-4" /> Scan QR
             </Button>
             <Button onClick={() => handleOpenModal()} variant="primary" size="sm">
-                <Plus className="w-4 h-4 mr-2" /> Tambah Barang
+                <Plus className="h-4 w-4" /> Tambah Barang
             </Button>
         </div>
         ) : undefined}
@@ -867,63 +869,63 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
       <PageCard className="print:hidden" padding="md">
 
-         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-center mb-6">
+         <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-center">
 
-           <div className="flex lg:flex-1 lg:min-w-75 min-w-50 sm:min-w-62.5">
-             <SearchBar 
+           <div className="flex min-w-0">
+             <SearchBar
                 value={searchTerm}
                 onChange={setSearchTerm}
                 placeholder="Cari nama, Kode FTI, UKSW, atau SN..."
                 className="w-full"
              />
            </div>
-           
-           <div className="flex flex-row gap-3 items-center lg:shrink-0 shrink">
-               <div className="flex items-center gap-2">
-                   <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
-                   <select 
+
+           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:items-center">
+               <div className="relative">
+                   <select
                       value={filterCategory}
                       onChange={(e) => setFilterCategory(e.target.value)}
-                      className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none max-w-37.5"
+                      className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
                    >
                        <option value="All">Semua Kategori</option>
                        {categories.map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                        ))}
                    </select>
+                   <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                </div>
 
-               <div className="flex items-center gap-2">
-               <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
-               <select 
+               <div className="relative">
+               <select
                   value={filterCondition}
                   onChange={(e) => setFilterCondition(e.target.value as any)}
-                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
                >
                    <option value="All">Semua Kondisi</option>
                    <option value="Baik">Baik</option>
                    <option value="Rusak Ringan">Rusak Ringan</option>
                    <option value="Rusak Berat">Rusak Berat</option>
                </select>
+               <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
            </div>
         </div>
       </div>
       </PageCard>
 
 
-      <PageCard padding="none" className="max-w-full mx-auto flex flex-col overflow-hidden print:border-2 print:border-black print:shadow-none">
+      <PageCard padding="none" className="mx-auto flex max-w-full flex-col overflow-hidden print:border-2 print:border-black print:shadow-none">
             <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-left text-xs">
 
 
 
-                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 font-semibold border-b border-gray-200 dark:border-gray-700 print:bg-gray-200 print:text-black">
+                    <thead className="border-b border-slate-200 bg-slate-50 font-bold uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400 print:bg-gray-200 print:text-black">
                         <tr>
                             {canManageInventory && (
                             <th className="px-4 py-4 w-12 print:hidden shrink-0">
-                                <input 
+                                <input
                                     type="checkbox"
-                                    className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 w-4 h-4"
+                                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                                     onChange={handleSelectAll}
                                     checked={currentItems.length > 0 && currentItems.every(i => selectedItems.includes(i.id))}
                                     ref={input => {
@@ -935,16 +937,16 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                                 />
                             </th>
                             )}
-                            <th className="px-4 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group" onClick={() => handleSort('name')}>
+                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('name')}>
                                 <div className="flex items-center">Barang <SortIcon columnKey="name" /></div>
                             </th>
-                            <th className="px-4 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group" onClick={() => handleSort('id')}>
+                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('id')}>
                                 <div className="flex items-center">Identitas <SortIcon columnKey="id" /></div>
                             </th>
-                            <th className="px-4 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group" onClick={() => handleSort('condition')}>
+                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('condition')}>
                                 <div className="flex items-center">Kondisi & Lokasi <SortIcon columnKey="condition" /></div>
                             </th>
-                            <th className="px-4 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group" onClick={() => handleSort('isAvailable')}>
+                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('isAvailable')}>
                                 <div className="flex items-center">Status <SortIcon columnKey="isAvailable" /></div>
                             </th>
 
@@ -952,40 +954,40 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                         </tr>
 
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700 print:divide-gray-400">
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700 print:divide-gray-400">
                         {currentItems.length > 0 ? currentItems.map(item => (
-                            <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => setViewDetailItem(item)}>
+                            <tr key={item.id} className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => setViewDetailItem(item)}>
                                 {canManageInventory && (
                                 <td className="px-4 py-3 print:hidden shrink-0 w-12" onClick={(e) => e.stopPropagation()}>
-                                    <input 
+                                    <input
                                         type="checkbox"
-                                        className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 w-4 h-4 mx-auto"
+                                        className="mx-auto h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                                         checked={selectedItems.includes(item.id)}
                                         onChange={(e) => handleSelectItem(item.id, e.target.checked)}
                                     />
                                 </td>
                                 )}
                                 <td className="px-4 py-3">
-                                    <div className="font-bold text-gray-900 dark:text-white text-sm">{item.name}</div>
-                                    <div className="text-xs text-gray-500 mt-0.5">{item.category}</div>
+                                    <div className="text-sm font-bold text-slate-950 dark:text-white">{item.name}</div>
+                                    <div className="mt-0.5 text-xs text-slate-500">{item.category}</div>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <div className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">{item.id}</div>
-                                    <div className="font-mono text-xs text-gray-500 mt-0.5" title="Kode UKSW">{item.ukswCode || '-'}</div>
-                                    {item.serialNumber && <div className="font-mono text-xs text-gray-400 mt-0.5" title="Serial Number">SN: {item.serialNumber}</div>}
+                                    <div className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">{item.id}</div>
+                                    <div className="mt-0.5 font-mono text-xs text-slate-500" title="Kode UKSW">{item.ukswCode || '-'}</div>
+                                    {item.serialNumber && <div className="mt-0.5 font-mono text-xs text-slate-400" title="Serial Number">SN: {item.serialNumber}</div>}
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="mb-1.5">
-                                        <span className={`px-2 py-0.5 rounded text-xs font-medium border print:border-gray-400 ${getConditionColor(item.condition)}`}>
+                                        <span className={`rounded-md border px-2 py-0.5 text-xs font-bold print:border-gray-400 ${getConditionColor(item.condition)}`}>
                                         {item.condition}
                                     </span>
                                     </div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                                    <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                                         <MapPin className="w-3 h-3 mr-1" /> {item.location || '-'}
                                     </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium print:border print:border-gray-400 ${item.isAvailable ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                    <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold print:border-gray-400 ${item.isAvailable ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200' : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200'}`}>
                                         {item.isAvailable ? 'Tersedia' : 'Dipinjam'}
                                     </span>
                                 </td>
@@ -994,8 +996,8 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                                 <td className="px-4 py-3 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
 
                                     <div className="flex justify-end space-x-2">
-                                        <button onClick={() => handleShowQR(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-gray-600 dark:text-gray-400')} title="Lihat QR Code"><QrCode className="w-4 h-4"/></button>
-                                        <button onClick={() => handleOpenModal(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-blue-600 dark:text-blue-400')} title="Edit"><Edit className="w-4 h-4"/></button>
+                                        <button onClick={() => handleShowQR(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-slate-600 dark:text-slate-300')} title="Lihat QR Code"><QrCode className="w-4 h-4"/></button>
+                                        <button onClick={() => handleOpenModal(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-slate-600 dark:text-slate-300')} title="Edit"><Edit className="w-4 h-4"/></button>
                                         <button onClick={() => handleDeleteClick(item.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-red-600 dark:text-red-400')} title="Hapus"><Trash2 className="w-4 h-4"/></button>
                                     </div>
                                 </td>
@@ -1015,7 +1017,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                 </table>
             </div>
             <div className="print:hidden">
-              <Pagination 
+              <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={sortedItems.length}
@@ -1037,17 +1039,17 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                     <X className="w-5 h-5" />
                  </button>
               </div>
-              
+
               {!editingItem && (
                   <div className="flex border-b border-gray-200 dark:border-gray-700">
-                      <button 
+                      <button
                           type="button"
                           className={`flex-1 py-3 text-sm font-medium transition-colors ${addMode === 'manual' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                           onClick={() => setAddMode('manual')}
                       >
                           Input Manual
                       </button>
-                      <button 
+                      <button
                           type="button"
                           className={`flex-1 py-3 text-sm font-medium transition-colors ${addMode === 'excel' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                           onClick={() => setAddMode('excel')}
@@ -1061,9 +1063,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
               <form onSubmit={handleSave} className="p-6 space-y-4 animate-fade-in-up">
                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Barang</label>
-                    <input 
-                        type="text" required 
-                        value={formData.name} 
+                    <input
+                        type="text" required
+                        value={formData.name}
                         onChange={e => setFormData({...formData, name: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         placeholder="Contoh: Projector Epson X1"
@@ -1072,9 +1074,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                  <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode FTI (ID)</label>
-                        <input 
-                            type="text" required 
-                            value={formData.id} 
+                        <input
+                            type="text" required
+                            value={formData.id}
                             onChange={e => setFormData({...formData, id: e.target.value})}
                             disabled={!!editingItem}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono uppercase"
@@ -1083,9 +1085,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode UKSW</label>
-                        <input 
-                            type="text" required 
-                            value={formData.ukswCode} 
+                        <input
+                            type="text" required
+                            value={formData.ukswCode}
                             onChange={e => setFormData({...formData, ukswCode: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono uppercase"
                             placeholder="UKSW-INV-..."
@@ -1093,9 +1095,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serial Number</label>
-                        <input 
-                            type="text" 
-                            value={formData.serialNumber || ''} 
+                        <input
+                            type="text"
+                            value={formData.serialNumber || ''}
                             onChange={e => setFormData({...formData, serialNumber: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono uppercase"
                             placeholder="SN-XXXXX"
@@ -1103,19 +1105,19 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kategori</label>
-                        <input 
-                            type="text" required 
-                            value={formData.category} 
+                        <input
+                            type="text" required
+                            value={formData.category}
                             onChange={e => setFormData({...formData, category: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                             placeholder="Elektronik"
                         />
                     </div>
                  </div>
-                 
+
                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kondisi</label>
-                    <select 
+                    <select
                         value={formData.condition}
                         onChange={e => setFormData({...formData, condition: e.target.value as any})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
@@ -1129,9 +1131,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                  <div className="grid grid-cols-2 gap-4">
                      <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lokasi / Rak</label>
-                        <input 
-                            type="text" 
-                            value={formData.location || ''} 
+                        <input
+                            type="text"
+                            value={formData.location || ''}
                             onChange={e => setFormData({...formData, location: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                             placeholder="Contoh: Rak 1, Ruang 301"
@@ -1139,9 +1141,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                      </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor / Toko</label>
-                        <input 
-                            type="text" 
-                            value={formData.vendor || ''} 
+                        <input
+                            type="text"
+                            value={formData.vendor || ''}
                             onChange={e => setFormData({...formData, vendor: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                             placeholder="Contoh: CV. Komputer Maju"
@@ -1150,8 +1152,8 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                  </div>
 
                  <div className="flex items-center space-x-2 pt-2">
-                    <input 
-                        type="checkbox" 
+                    <input
+                        type="checkbox"
                         id="isAvailable"
                         checked={formData.isAvailable}
                         onChange={e => setFormData({...formData, isAvailable: e.target.checked})}
@@ -1182,7 +1184,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                             Gunakan file Excel (.xlsx) dengan header: <code>id, ukswCode, name, category, condition, serialNumber, location, vendor</code>.
                             Pastikan <strong>id</strong> (Kode FTI) unik dan belum ada di database.
                         </p>
-                        <button 
+                        <button
                             onClick={downloadTemplate}
                             className={cn(buttonVariants({ variant: 'secondary', size: 'xs' }), 'w-fit text-blue-600 dark:text-blue-400')}
                         >
@@ -1191,12 +1193,12 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                     </div>
 
                     <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                        <input 
-                            type="file" 
-                            id="csv-upload" 
+                        <input
+                            type="file"
+                            id="csv-upload"
                             accept=".xlsx, .xls"
                             onChange={handleExcelUpload}
-                            className="hidden" 
+                            className="hidden"
                         />
                         <label htmlFor="csv-upload" className="cursor-pointer flex flex-col items-center">
                             <div className="p-3 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full mb-3">
@@ -1261,7 +1263,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                 .sticker-label {
                   border: none !important; /* Hilangkan border saat print */
                 }
-                @page { 
+                @page {
                   size: ${paperSize};
                   margin: 0.5cm;
                 }
@@ -1291,17 +1293,17 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                         {items.filter(i => selectedItems.includes(i.id)).map(item => {
                             const previewDims = labelSize === '5x3' ? {width: '50mm', height: '30mm'} : labelSize === '8x6' ? {width: '80mm', height: '60mm'} : {width: '40mm', height: '20mm'};
                             return (
-                                <div key={item.id} className="sticker-label" style={{ 
-                                    width: previewDims.width, 
-                                    height: previewDims.height, 
-                                    padding: '2mm', 
-                                    boxSizing: 'border-box', 
-                                    border: '1px dashed #ccc', 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'center', 
-                                    overflow: 'hidden', 
+                                <div key={item.id} className="sticker-label" style={{
+                                    width: previewDims.width,
+                                    height: previewDims.height,
+                                    padding: '2mm',
+                                    boxSizing: 'border-box',
+                                    border: '1px dashed #ccc',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    overflow: 'hidden',
                                     pageBreakInside: 'avoid',
                                     marginBottom: '2mm'
                                 }}>
@@ -1333,7 +1335,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">{viewDetailItem.name}</h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">{viewDetailItem.category}</p>
                   </div>
-                  
+
                   <div className="space-y-3 text-sm">
                       <div className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
                           <span className="text-gray-500 dark:text-gray-400">Kode FTI (ID)</span>

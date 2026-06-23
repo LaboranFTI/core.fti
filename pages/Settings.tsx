@@ -3,6 +3,8 @@ import { Database, Server, Globe, Save, RefreshCw, Eye, EyeOff, CheckCircle, Ale
 import { api } from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 import { APP_VERSION, APP_NAME, APP_FULL_NAME, INSTITUTION_NAME } from '../config';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 
 interface SettingsProps {
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
@@ -425,19 +427,19 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pengaturan Sistem</h1>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">Konfigurasi aplikasi, integrasi, dan administrasi</p>
-      </div>
+      <PageHeader
+        title="Pengaturan Sistem"
+        description="Konfigurasi aplikasi, integrasi SSO, pemeliharaan, backup, dan pelacakan error operasional."
+      />
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-full md:w-fit">
+      <PageCard className="flex w-full flex-wrap gap-1 bg-slate-50 p-1.5 dark:bg-slate-900 md:w-fit">
         <button
           onClick={() => setActiveTab('admin')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center ${
+          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
             activeTab === 'admin'
-              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <SettingsIcon className="w-4 h-4 mr-2" />
@@ -445,10 +447,10 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
         </button>
         <button
           onClick={() => setActiveTab('sso')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center ${
+          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
             activeTab === 'sso'
-              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <Globe className="w-4 h-4 mr-2" />
@@ -456,10 +458,10 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
         </button>
         <button
           onClick={() => setActiveTab('sso-users')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center ${
+          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
             activeTab === 'sso-users'
-              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <LogIn className="w-4 h-4 mr-2" />
@@ -467,10 +469,10 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
         </button>
         <button
           onClick={() => setActiveTab('system')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center ${
+          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
             activeTab === 'system'
-              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <ShieldAlert className="w-4 h-4 mr-2" />
@@ -478,10 +480,10 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
         </button>
         <button
           onClick={() => setActiveTab('error-log')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center ${
+          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
             activeTab === 'error-log'
-              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <FileWarning className="w-4 h-4 mr-2" />
@@ -490,7 +492,7 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
             <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">{errorStats.unresolved}</span>
           )}
         </button>
-      </div>
+      </PageCard>
 
       {/* Admin Tab */}
       {activeTab === 'admin' && (

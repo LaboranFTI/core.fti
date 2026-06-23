@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Info, Warning, WarningCircle, X } from '@phosphor-icons/react';
 import { ToastMessage } from '../types';
 
 interface ToastProps {
@@ -8,114 +8,103 @@ interface ToastProps {
   isDarkMode?: boolean;
 }
 
-const Toast: React.FC<ToastProps> = ({ toasts, removeToast, isDarkMode }) => {
+const Toast: React.FC<ToastProps> = ({ toasts, removeToast }) => {
   return (
     <>
       <style>{`
         @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(100%);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
+          from { opacity: 0; transform: translateX(18px); }
+          to { opacity: 1; transform: translateX(0); }
         }
         @keyframes slideOut {
-          from {
-            opacity: 1;
-            transform: translateX(0);
-          }
-          to {
-            opacity: 0;
-            transform: translateX(100%);
-          }
+          from { opacity: 1; transform: translateX(0); }
+          to { opacity: 0; transform: translateX(18px); }
         }
         @keyframes progress {
           from { width: 100%; }
           to { width: 0%; }
         }
-        .animate-slide-in {
-          animation: slideIn 0.3s ease-out forwards;
-        }
-        .animate-slide-out {
-          animation: slideOut 0.3s ease-in forwards;
-        }
-        .animate-progress {
-          animation: progress 5s linear forwards;
-        }
-        .toast-item:hover .animate-progress {
-          animation-play-state: paused;
-        }
+        .animate-slide-in { animation: slideIn 0.22s ease-out forwards; }
+        .animate-slide-out { animation: slideOut 0.2s ease-in forwards; }
+        .animate-progress { animation: progress 5s linear forwards; }
+        .toast-item:hover .animate-progress { animation-play-state: paused; }
       `}</style>
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-2">
         {toasts.map((toast) => (
-          <ToastItem key={toast.id} toast={toast} removeToast={removeToast} isDarkMode={isDarkMode} />
+          <ToastItem key={toast.id} toast={toast} removeToast={removeToast} />
         ))}
       </div>
     </>
   );
 };
 
-const ToastItem = ({ toast, removeToast, isDarkMode }: { toast: ToastMessage; removeToast: (id: string) => void; isDarkMode?: boolean }) => {
-  const [isExiting, setIsExiting] = useState(false);
+const toneMap = {
+  success: {
+    icon: CheckCircle,
+    rail: 'bg-emerald-500',
+    iconClass: 'text-emerald-600 dark:text-emerald-200',
+    label: 'Berhasil'
+  },
+  error: {
+    icon: WarningCircle,
+    rail: 'bg-red-600 dark:bg-red-400',
+    iconClass: 'text-red-600 dark:text-red-200',
+    label: 'Gagal'
+  },
+  info: {
+    icon: Info,
+    rail: 'bg-fti-blue-600 dark:bg-fti-blue-300',
+    iconClass: 'text-fti-blue-600 dark:text-fti-blue-100',
+    label: 'Informasi'
+  },
+  warning: {
+    icon: Warning,
+    rail: 'bg-amber-500',
+    iconClass: 'text-amber-600 dark:text-amber-100',
+    label: 'Perhatian'
+  }
+};
 
-  // Hapus dari state setelah animasi selesai
+const ToastItem = ({ toast, removeToast }: { toast: ToastMessage; removeToast: (id: string) => void }) => {
+  const [isExiting, setIsExiting] = useState(false);
+  const tone = toneMap[toast.type];
+  const Icon = tone.icon;
+
   useEffect(() => {
     if (isExiting) {
-      const timer = setTimeout(() => {
-        removeToast(toast.id);
-      }, 300); // Sesuai durasi animasi (0.3s)
-      return () => clearTimeout(timer);
+      const timer = window.setTimeout(() => removeToast(toast.id), 220);
+      return () => window.clearTimeout(timer);
     }
-  }, [isExiting, toast.id, removeToast]);
-
-  const icons = {
-    success: <CheckCircle className={`w-5 h-5 ${isDarkMode ? 'text-green-400' : 'text-green-500'}`} />,
-    error: <AlertCircle className={`w-5 h-5 ${isDarkMode ? 'text-red-400' : 'text-red-500'}`} />,
-    info: <Info className={`w-5 h-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-500'}`} />,
-    warning: <AlertTriangle className={`w-5 h-5 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-500'}`} />,
-  };
-
-  const styles = isDarkMode ? {
-    success: 'bg-green-900/80 border-green-700 text-green-100',
-    error: 'bg-red-900/80 border-red-700 text-red-100',
-    info: 'bg-blue-900/80 border-blue-700 text-blue-100',
-    warning: 'bg-yellow-900/80 border-yellow-700 text-yellow-100',
-  } : {
-    success: 'bg-green-50 border-green-200 text-green-800',
-    error: 'bg-red-50 border-red-200 text-red-800',
-    info: 'bg-blue-50 border-blue-200 text-blue-800',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-  };
+  }, [isExiting, removeToast, toast.id]);
 
   return (
-    <div 
-      className={`
-        toast-item
-        pointer-events-auto flex items-start p-4 rounded-lg border shadow-lg 
-        transition-all duration-300 min-w-75 max-w-md relative overflow-hidden
-        ${isExiting ? 'animate-slide-out' : 'animate-slide-in'}
-        ${styles[toast.type]}
-      `}
+    <div
+      className={`toast-item pointer-events-auto relative min-w-75 max-w-md overflow-hidden rounded-lg border border-slate-200 bg-white p-4 pl-5 text-slate-900 shadow-lg shadow-slate-950/10 transition-all duration-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white ${
+        isExiting ? 'animate-slide-out' : 'animate-slide-in'
+      }`}
     >
-      <div className="shrink-0 mr-3 mt-0.5">
-        {icons[toast.type]}
+      <div className={`absolute inset-y-0 left-0 w-1 ${tone.rail}`} />
+      <div className="flex items-start gap-3">
+        <Icon size={20} weight="duotone" className={`mt-0.5 shrink-0 ${tone.iconClass}`} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+            {tone.label}
+          </p>
+          <p className="mt-1 wrap-break-words text-sm font-medium leading-5 text-slate-700 dark:text-slate-200">
+            {toast.message}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsExiting(true)}
+          className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500/30 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          aria-label="Tutup notifikasi"
+        >
+          <X size={16} weight="bold" />
+        </button>
       </div>
-      <div className="flex-1 text-sm font-medium wrap-break-words">
-        {toast.message}
-      </div>
-      <button
-        onClick={() => setIsExiting(true)}
-        className={`ml-3 transition-colors focus:outline-none ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
-        aria-label="Close"
-      >
-        <X className="w-4 h-4" />
-      </button>
       {!toast.sticky && (
-        <div 
-          className="absolute bottom-0 left-0 h-1 bg-current opacity-40 animate-progress" 
+        <div
+          className="absolute bottom-0 left-0 h-0.75 bg-slate-900/30 animate-progress dark:bg-white/30"
           onAnimationEnd={() => setIsExiting(true)}
         />
       )}

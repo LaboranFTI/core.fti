@@ -39,10 +39,20 @@ export default defineConfig(({ mode }) => {
         },
         rollupOptions: {
           output: {
-            manualChunks: {
-              // Split vendor libraries into separate chunks
-              'vendor-react': ['react', 'react-dom'],
-              'vendor-ui': ['lucide-react', 'recharts'],
+            manualChunks(id) {
+              if (!id.includes('node_modules')) {
+                return undefined;
+              }
+
+              if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+                return 'vendor-react';
+              }
+
+              if (/[\\/]node_modules[\\/](lucide-react|recharts)[\\/]/.test(id)) {
+                return 'vendor-ui';
+              }
+
+              return undefined;
             },
           },
         },

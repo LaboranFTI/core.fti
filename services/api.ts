@@ -12,6 +12,7 @@ const REFRESH_EXCLUDED_PREFIXES = [
   '/api/auth/refresh',
   '/api/login',
   '/api/register',
+  '/api/recaptcha/config',
   '/api/auth/google',
   '/api/check-user-exists',
   '/api/set-password',

@@ -133,6 +133,10 @@ export const ensureAuthSchema = async () => {
     'ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(50)',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_hash VARCHAR(255)',
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_access_token TEXT',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_refresh_token TEXT',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_token_expiry TIMESTAMPTZ',
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_granted_scopes TEXT',
     'ALTER TABLE staff ADD COLUMN IF NOT EXISTS keterangan TEXT',
     `CREATE TABLE IF NOT EXISTS staff_position_periods (
       id VARCHAR(50) PRIMARY KEY,
@@ -183,7 +187,7 @@ export const ensureAuthSchema = async () => {
         if (ssoCheck.rows.length > 0) {
           const currentSso = ssoCheck.rows[0];
           if (currentSso.client_id !== googleClientId) {
-            console.log(`🔄 Syncing Google SSO Client ID in database with .env: ${googleClientId}`);
+            console.log(`🔄 Syncing Google SSO Client ID in database`);
             await pool.query(
               'UPDATE sso_config SET client_id = $1, enabled = TRUE, updated_at = NOW() WHERE id = $2',
               [googleClientId, currentSso.id]

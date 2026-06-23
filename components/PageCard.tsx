@@ -24,7 +24,7 @@ const PageCard: React.FC<PageCardProps> = ({
   return (
     <Card
       className={cn(
-        'border border-gray-200 shadow-sm dark:border-gray-700',
+        'border border-slate-200 shadow-sm shadow-fti-blue-900/5 dark:border-slate-700 dark:shadow-black/10',
         paddingClasses[padding],
         className
       )}

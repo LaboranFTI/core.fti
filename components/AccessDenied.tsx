@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, LockKey, ShieldWarning } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 
 interface AccessDeniedProps {
@@ -8,38 +8,28 @@ interface AccessDeniedProps {
 
 const AccessDenied: React.FC<AccessDeniedProps> = ({ onNavigate }) => {
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center p-6 animate-fade-in-up">
-      <div className="relative mb-6">
-        {/* Animated Background Pulse */}
-        <div className="absolute inset-0 bg-red-100 dark:bg-red-900/30 rounded-full animate-pulse"></div>
-        
-        {/* Main Icon */}
-        <div className="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-lg border-2 border-red-100 dark:border-red-900">
-          <ShieldAlert className="w-16 h-16 text-red-500 dark:text-red-400" />
+    <div className="flex min-h-[80vh] items-center justify-center p-6 animate-fade-in-up">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="pointer-events-none absolute inset-y-6 left-0 w-1 rounded-r-full bg-red-600 dark:bg-red-400" />
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/35 dark:text-red-300">
+          <ShieldWarning className="h-7 w-7" weight="duotone" />
         </div>
-        
-        {/* Badge Icon */}
-        <div className="absolute -bottom-2 -right-2 bg-gray-900 dark:bg-gray-700 text-white p-1.5 rounded-full border-2 border-white dark:border-gray-800">
-           <Lock className="w-4 h-4" />
+        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Kode Akses 403</p>
+        <h1 className="mt-2 text-3xl font-bold text-slate-950 dark:text-white">Akses Ditolak</h1>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+          Anda tidak memiliki izin untuk membuka halaman ini. Halaman ini dibatasi untuk role tertentu.
+        </p>
+        <div className="mt-5 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300">
+          <LockKey className="mr-2 h-4 w-4" weight="bold" />
+          Permission required
+        </div>
+        <div className="mt-7">
+          <Button onClick={() => onNavigate('dashboard')} variant="primary" size="lg">
+            <ArrowLeft className="mr-2 h-4 w-4" weight="bold" />
+            Kembali ke Dashboard
+          </Button>
         </div>
       </div>
-      
-      <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2">403</h1>
-      <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Akses Ditolak</h2>
-      
-      <p className="text-gray-500 dark:text-gray-400 max-w-md mb-8">
-        Maaf, Anda tidak memiliki izin untuk mengakses halaman ini. 
-        Halaman ini terbatas hanya untuk role tertentu.
-      </p>
-
-      <Button 
-        onClick={() => onNavigate('dashboard')}
-        variant="primary"
-        size="lg"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Kembali ke Dashboard
-      </Button>
     </div>
   );
 };

@@ -11,17 +11,106 @@ const hashResetToken = (token) => crypto.createHash('sha256').update(token).dige
 const isResetTokenExpired = (expiresAt) => expiresAt && new Date(expiresAt) < new Date();
 const ACCESS_TOKEN_HOURS = 8;
 const REMEMBER_ME_DAYS = 30;
+const LOGIN_RECAPTCHA_THRESHOLD = 3;
+const FAILED_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const failedLoginAttempts = new Map();
 const createSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'));
 const createRefreshToken = () => crypto.randomBytes(48).toString('hex');
+
+const isRecaptchaConfigured = () => Boolean(process.env.RECAPTCHA_SITE_KEY && process.env.RECAPTCHA_SECRET_KEY);
+const getClientIp = (req) => {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  return typeof forwardedFor === 'string'
+    ? forwardedFor.split(',')[0].trim()
+    : req.socket?.remoteAddress || 'unknown';
+};
+const getLoginAttemptKey = (req, identifier = '') => `${getClientIp(req)}:${String(identifier || '').trim().toLowerCase()}`;
+const getFailedLoginCount = (key) => {
+  const record = failedLoginAttempts.get(key);
+  if (!record || Date.now() > record.expiresAt) {
+    failedLoginAttempts.delete(key);
+    return 0;
+  }
+  return record.count;
+};
+const incrementFailedLogin = (key) => {
+  const count = getFailedLoginCount(key) + 1;
+  failedLoginAttempts.set(key, {
+    count,
+    expiresAt: Date.now() + FAILED_LOGIN_WINDOW_MS,
+  });
+  return count;
+};
+const clearFailedLogin = (key) => failedLoginAttempts.delete(key);
+
+const verifyRecaptcha = async ({ token, remoteIp }) => {
+  if (!isRecaptchaConfigured()) {
+    return { success: true, skipped: true };
+  }
+
+  if (!token) {
+    return { success: false, error: 'Verifikasi reCAPTCHA wajib dilakukan.' };
+  }
+
+  try {
+    const params = new URLSearchParams({
+      secret: process.env.RECAPTCHA_SECRET_KEY,
+      response: token,
+    });
+    if (remoteIp && remoteIp !== 'unknown') {
+      params.append('remoteip', remoteIp);
+    }
+
+    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const data = await response.json();
+
+    if (!data.success) {
+      return { success: false, error: 'Verifikasi reCAPTCHA gagal. Silakan coba lagi.' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('reCAPTCHA verify error:', error);
+    return { success: false, error: 'Gagal memverifikasi reCAPTCHA.' };
+  }
+};
+
+const requireRecaptcha = async (req, res, next) => {
+  const result = await verifyRecaptcha({
+    token: req.body?.recaptchaToken,
+    remoteIp: getClientIp(req),
+  });
+
+  if (!result.success) {
+    return res.status(400).json({
+      error: result.error,
+      recaptchaRequired: isRecaptchaConfigured(),
+    });
+  }
+
+  next();
+};
+
+router.get('/recaptcha/config', (req, res) => {
+  res.json({
+    enabled: isRecaptchaConfigured(),
+    siteKey: process.env.RECAPTCHA_SITE_KEY || '',
+    loginThreshold: LOGIN_RECAPTCHA_THRESHOLD,
+  });
+});
 
 // Helper function to generate device name from user agent
 const getDeviceInfo = (userAgent) => {
   if (!userAgent) return { deviceName: 'Unknown Device', deviceType: 'desktop' };
-  
+
   const ua = userAgent.toLowerCase();
   let deviceName = 'Unknown Device';
   let deviceType = 'desktop';
-  
+
   if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
     deviceType = 'mobile';
     if (ua.includes('android')) deviceName = 'Android Phone';
@@ -37,7 +126,7 @@ const getDeviceInfo = (userAgent) => {
   } else if (ua.includes('linux')) {
     deviceName = 'Linux PC';
   }
-  
+
   return { deviceName, deviceType };
 };
 
@@ -116,17 +205,40 @@ const persistUserSession = async ({ req, user, token, expiresAt, deviceId, remem
 
 // Endpoint Login (Menyimpan sesi per perangkat, opsional dengan Remember Me)
 router.post('/login', apiLimiter, async (req, res) => {
-  const { email, password, deviceId } = req.body;
+  const { email, password, deviceId, recaptchaToken } = req.body;
+  const loginAttemptKey = getLoginAttemptKey(req, email);
+  const failedCount = getFailedLoginCount(loginAttemptKey);
+  const recaptchaRequired = isRecaptchaConfigured() && failedCount >= LOGIN_RECAPTCHA_THRESHOLD;
 
   try {
     console.log(`Login attempt for: ${email}`); // Debug log
 
+    if (recaptchaRequired) {
+      const recaptchaResult = await verifyRecaptcha({
+        token: recaptchaToken,
+        remoteIp: getClientIp(req),
+      });
+
+      if (!recaptchaResult.success) {
+        return res.status(400).json({
+          error: recaptchaResult.error,
+          recaptchaRequired: true,
+          failedAttempts: failedCount,
+        });
+      }
+    }
+
     // 1. Cari user berdasarkan email ATAU username - Case Insensitive (ILIKE)
     const result = await pool.query('SELECT * FROM users WHERE email = $1 OR username ILIKE $1', [email]);
-    
+
     if (result.rows.length === 0) {
       console.log('User not found in database'); // Debug log
-      return res.status(401).json({ error: 'Email atau Username tidak ditemukan.' });
+      const nextFailedCount = incrementFailedLogin(loginAttemptKey);
+      return res.status(401).json({
+        error: 'Email atau Username tidak ditemukan.',
+        recaptchaRequired: isRecaptchaConfigured() && nextFailedCount >= LOGIN_RECAPTCHA_THRESHOLD,
+        failedAttempts: nextFailedCount,
+      });
     }
 
     // 2. Bandingkan password (looping jika ada nama yang sama)
@@ -160,6 +272,7 @@ router.post('/login', apiLimiter, async (req, res) => {
     }
 
     if (user) {
+      clearFailedLogin(loginAttemptKey);
       // Update last_login on each login
       await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
 
@@ -182,12 +295,12 @@ router.post('/login', apiLimiter, async (req, res) => {
         rememberMe: isRememberMe
       });
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         token,
-        id: user.id, 
-        role: user.role, 
-        name: user.nama, 
+        id: user.id,
+        role: user.role,
+        name: user.nama,
         email: user.email,
         profileIncomplete: isProfileIncomplete,
         isRememberMe: isRememberMe,
@@ -197,7 +310,12 @@ router.post('/login', apiLimiter, async (req, res) => {
         refreshTokenExpiresAt: session.refreshTokenExpiresAt?.toISOString() || null
       });
     } else {
-      res.status(401).json({ error: 'Password salah.' });
+      const nextFailedCount = incrementFailedLogin(loginAttemptKey);
+      res.status(401).json({
+        error: 'Password salah.',
+        recaptchaRequired: isRecaptchaConfigured() && nextFailedCount >= LOGIN_RECAPTCHA_THRESHOLD,
+        failedAttempts: nextFailedCount,
+      });
     }
   } catch (err) {
     console.error('Login error:', err);
@@ -205,71 +323,90 @@ router.post('/login', apiLimiter, async (req, res) => {
   }
 });
 
-// **[BARU]** Endpoint Google SSO Login (Updated for Production Security)
-router.post('/auth/google', async (req, res) => {
-  const { accessToken, deviceId } = req.body;
-  const isRememberMe = req.body.rememberMe === true;
-  let config;
+// Endpoint GET /auth/google: Redirect user to Google OAuth Consent Page (SSO Only)
+router.get('/google', async (req, res) => {
+  const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback';
+  const clientId = process.env.GOOGLE_CLIENT_ID;
 
-  if (!accessToken) {
-    return res.status(400).json({ error: 'Access Token diperlukan.' });
+  const options = {
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    response_type: 'code',
+    prompt: 'select_account',
+    scope: [
+      'openid',
+      'email',
+      'profile'
+    ].join(' ')
+  };
+
+  const qs = new URLSearchParams(options);
+  res.redirect(`${rootUrl}?${qs.toString()}`);
+});
+
+// Endpoint GET /auth/google/callback: Menangani callback dari Google OAuth (SSO Only)
+router.get('/google/callback', async (req, res) => {
+  const code = req.query.code;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  if (!code) {
+    return res.redirect(`${frontendUrl}/login?error=Authorization+code+missing`);
   }
 
   try {
-    // 1. Ambil konfigurasi SSO
-    const configRes = await pool.query('SELECT * FROM sso_config LIMIT 1');
-    config = configRes.rows[0];
+    // 1. Tukar Authorization Code dengan Token Google
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const values = {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback',
+      grant_type: 'authorization_code'
+    };
 
-    if (!config || !config.enabled) {
-      return res.status(403).json({ error: 'SSO Login dinonaktifkan oleh administrator.' });
-    }
-
-    // 2. [SECURITY CHECK] Verifikasi Token & Client ID via TokenInfo
-    // Ini penting untuk production agar token dari aplikasi lain tidak bisa dipakai login kesini
-    const tokenInfoRes = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`);
-    
-    if (!tokenInfoRes.ok) {
-      return res.status(401).json({ error: 'Token Google tidak valid atau kadaluarsa.' });
-    }
-
-    const tokenInfo = await tokenInfoRes.json();
-
-    // Pastikan token ini diterbitkan KHUSUS untuk Client ID aplikasi kita
-    if (tokenInfo.aud !== config.client_id) {
-      console.error(`SSO Security Alert: Token audience mismatch. Expected ${config.client_id}, got ${tokenInfo.aud}`);
-      return res.status(403).json({ error: 'Validasi keamanan gagal. Token tidak dikenali.' });
-    }
-
-    // 3. Ambil Info Detail User (Nama, Foto) via UserInfo
-    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` }
+    const tokenRes = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(values).toString()
     });
 
-    if (!googleRes.ok) {
-      return res.status(401).json({ error: 'Token Google tidak valid.' });
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error('Error exchanging code:', errText);
+      return res.redirect(`${frontendUrl}/login?error=Failed+to+exchange+authorization+code`);
     }
 
-    const googleUser = await googleRes.json();
-    const { email, name, sub: googleId, picture } = googleUser;
+    const tokens = await tokenRes.json();
+    const { access_token } = tokens;
 
-    // 4. Validasi Domain (Support multiple domains, separated by comma)
-    // Jika domain dikosongkan di config, skip validasi (untuk development/testing)
-    if (config.domain && config.domain.trim() !== '') {
+    // 2. Ambil Profil Pengguna dari Google
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` }
+    });
+
+    if (!userRes.ok) {
+      return res.redirect(`${frontendUrl}/login?error=Failed+to+fetch+user+profile`);
+    }
+
+    const googleUser = await userRes.json();
+    const { email, name } = googleUser;
+
+    // 3. Validasi Domain SSO (jika dikonfigurasi di DB)
+    const configRes = await pool.query('SELECT * FROM sso_config LIMIT 1');
+    const config = configRes.rows[0];
+    if (config && config.enabled && config.domain && config.domain.trim() !== '') {
       const allowedDomains = config.domain.split(',').map(d => d.trim()).filter(d => d !== '');
       if (allowedDomains.length > 0) {
         const isAllowed = allowedDomains.some(domain => email.endsWith(`@${domain}`));
-        
         if (!isAllowed) {
           console.log(`SSO Domain validation failed for email: ${email}. Allowed domains: ${allowedDomains.join(', ')}`);
-          return res.status(403).json({ 
-            error: `Akses ditolak. Email harus menggunakan domain: ${allowedDomains.join(', ')}`,
-            details: `Email ${email} tidak memiliki domain yang diizinkan.`
-          });
+          return res.redirect(`${frontendUrl}/login?error=Domain+not+allowed`);
         }
       }
     }
 
-    // Sinkronisasi ke tabel sso_users hanya setelah token dan domain lolos validasi
+    // 4. Sinkronisasi ke tabel sso_users
     const ssoId = `SSO-${Date.now()}`;
     await pool.query(
       `INSERT INTO sso_users (id, email, name, status, updated_at)
@@ -279,88 +416,236 @@ router.post('/auth/google', async (req, res) => {
       [ssoId, email, name]
     );
 
-    // 5. Cek apakah user sudah ada di database
+    // 5. Cari atau Registrasi User Baru
     const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     let user = userCheck.rows[0];
 
     if (!user) {
-      // --- AUTO REGISTER USER BARU ---
+      // Auto register
       const newId = `USER-${Date.now()}`;
-      const username = email.split('@')[0]; // Gunakan bagian depan email sebagai username
-      
-      // Tentukan role berdasarkan domain email
-      let assignedRole = 'Mahasiswa'; // Default role
+      const username = email.split('@')[0];
+      let assignedRole = 'Mahasiswa';
       if (email.endsWith('@student.uksw.edu') || email.endsWith('@students.uksw.edu')) {
         assignedRole = 'Mahasiswa';
       } else if (email.endsWith('@uksw.edu')) {
         assignedRole = 'Dosen';
       }
 
-      // Insert User Baru (Role otomatis berdasarkan domain, Status: Aktif)
       const insertQuery = `
         INSERT INTO users (id, nama, email, username, password, role, identifier, status, created_at)
         VALUES ($1, $2, $3, $4, NULL, $5, $6, 'Aktif', NOW())
         RETURNING *
       `;
-      // Identifier default menggunakan bagian depan email (yang merupakan NIM untuk mahasiswa)
       const newUserRes = await pool.query(insertQuery, [newId, name, email, username, assignedRole, username]);
       user = newUserRes.rows[0];
 
-      // Buat Notifikasi untuk Admin (Info user baru via SSO)
+      // Buat Notifikasi Admin
       const notifId = `NOTIF-${Date.now()}`;
       await pool.query(
         "INSERT INTO notifications (id, user_id, title, message, type) VALUES ($1, NULL, $2, $3, 'info')",
         [notifId, 'User Baru via SSO', `User ${name} (${email}) telah mendaftar otomatis via Google SSO.`]
       );
     } else {
-      // Jika user ada tapi status Non-Aktif
       if (user.status !== 'Aktif') {
-        return res.status(403).json({ error: 'Akun Anda dinonaktifkan. Hubungi Admin.' });
+        return res.redirect(`${frontendUrl}/login?error=Account+is+disabled`);
       }
-      // Update last login
       await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
     }
 
-    // 6. Generate Token JWT (Sama seperti login biasa)
+    // 6. Buat Sesi JWT Lokal
     const { token, expiresAt } = createAccessToken(user);
     const session = await persistUserSession({
       req,
       user,
       token,
       expiresAt,
-      deviceId,
-      rememberMe: isRememberMe
+      deviceId: `device_${createSessionId()}`,
+      rememberMe: true
     });
 
-    res.json({
-      success: true,
+    // 7. Redirect ke Frontend dengan Parameter URL
+    const params = new URLSearchParams({
       token,
       id: user.id,
       role: user.role,
       name: user.nama,
       email: user.email,
-      expiresAt: expiresAt.toISOString(),
-      isRememberMe,
       deviceId: session.deviceId,
-      refreshToken: session.refreshToken,
-      refreshTokenExpiresAt: session.refreshTokenExpiresAt?.toISOString() || null
+      expiresAt: expiresAt.toISOString()
+    });
+    if (session.refreshToken) {
+      params.append('refreshToken', session.refreshToken);
+    }
+
+    return res.redirect(`${frontendUrl}/login?${params.toString()}`);
+  } catch (err) {
+    console.error('SSO Callback Error:', err);
+    return res.redirect(`${frontendUrl}/login?error=Callback+internal+server+error`);
+  }
+});
+
+// Endpoint GET /auth/google/calendar: Redirect user to Google OAuth for Calendar permission
+router.get('/google/calendar', async (req, res) => {
+  const token = req.query.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Token tidak disediakan.' });
+  }
+
+  try {
+    // Verifikasi JWT token local
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const userRole = decoded.role ? decoded.role.toUpperCase() : '';
+
+    const calendarWriteRoles = ['ADMIN', 'LABORAN', 'SUPERVISOR'];
+    if (!calendarWriteRoles.includes(userRole)) {
+      return res.status(403).json({ error: 'Akses ditolak. Peran Anda tidak diizinkan untuk menghubungkan Google Calendar.' });
+    }
+
+    // Generate state parameter signed with JWT to prevent CSRF and keep context
+    const state = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
+
+    const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+    const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || 'http://localhost:5000/api/auth/google/calendar/callback';
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    const options = {
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      access_type: 'offline',
+      response_type: 'code',
+      prompt: 'consent', // Pastikan consent agar mendapatkan refresh token
+      state: state,
+      scope: 'https://www.googleapis.com/auth/calendar.events'
+    };
+
+    const qs = new URLSearchParams(options);
+    res.redirect(`${rootUrl}?${qs.toString()}`);
+  } catch (err) {
+    console.error('Calendar Auth Initiating Error:', err);
+    return res.status(401).json({ error: 'Sesi tidak valid atau kadaluarsa.' });
+  }
+});
+
+// Endpoint GET /auth/google/calendar/callback: Google Calendar OAuth Callback
+router.get('/google/calendar/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  if (error) {
+    console.error('Google Calendar OAuth error:', error);
+    return res.redirect(`${frontendUrl}/jadwal-ruang?error=${encodeURIComponent(error)}`);
+  }
+
+  if (!code || !state) {
+    return res.redirect(`${frontendUrl}/jadwal-ruang?error=Missing+code+or+state`);
+  }
+
+  try {
+    // 1. Verifikasi state JWT untuk mendapatkan userId
+    const decoded = jwt.verify(state, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // 2. Tukar Authorization Code dengan Google Tokens
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const redirectUri = process.env.GOOGLE_CALENDAR_REDIRECT_URI || 'http://localhost:5000/api/auth/google/calendar/callback';
+    const values = {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code'
+    };
+
+    const tokenRes = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(values).toString()
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error('Error exchanging code for calendar:', errText);
+      return res.redirect(`${frontendUrl}/jadwal-ruang?error=Failed+to+exchange+calendar+token`);
+    }
+
+    const tokens = await tokenRes.json();
+    const { access_token, refresh_token, expires_in, scope } = tokens;
+    const expiryDate = new Date(Date.now() + (expires_in || 3600) * 1000);
+
+    // 3. Simpan token ke database user
+    if (refresh_token) {
+      await pool.query(
+        `UPDATE users
+         SET google_access_token = $1,
+             google_refresh_token = $2,
+             google_token_expiry = $3,
+             google_granted_scopes = $4
+         WHERE id = $5`,
+        [access_token, refresh_token, expiryDate, scope, userId]
+      );
+    } else {
+      // Jika refresh token tidak ada, update access token dan fields lainnya tanpa meng-overwrite refresh token yang lama
+      await pool.query(
+        `UPDATE users
+         SET google_access_token = $1,
+             google_token_expiry = $2,
+             google_granted_scopes = $3
+         WHERE id = $4`,
+        [access_token, expiryDate, scope, userId]
+      );
+    }
+
+    // 4. Redirect kembali ke frontend jadwal ruang dengan flag sukses
+    return res.redirect(`${frontendUrl}/jadwal-ruang?calendar_connected=true`);
+  } catch (err) {
+    console.error('Calendar Callback Error:', err);
+    return res.redirect(`${frontendUrl}/jadwal-ruang?error=Callback+internal+server+error`);
+  }
+});
+
+// Endpoint GET /auth/me: Mengambil data profil dan permission Calendar user yang login
+router.get('/me', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Akses ditolak. Silakan login terlebih dahulu.' });
+  }
+
+  try {
+    const result = await pool.query('SELECT id, nama, email, role, google_refresh_token FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
+    }
+
+    const calendarWriteRoles = ['ADMIN', 'LABORAN', 'SUPERVISOR'];
+    const hasWriteAccess = calendarWriteRoles.includes(user.role.toUpperCase());
+    const calendarConnected = !!user.google_refresh_token;
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.nama,
+        email: user.email,
+        role: user.role,
+        calendarConnected,
+        permissions: {
+          calendarRead: true,
+          calendarWrite: hasWriteAccess && calendarConnected,
+          canConnectCalendar: hasWriteAccess
+        }
+      }
     });
   } catch (err) {
-    console.error('SSO Login Error:', err);
-    console.error('Error details:', {
-      message: err.message,
-      stack: err.stack,
-      config: config ? { enabled: config.enabled, clientId: config.client_id ? `${config.client_id.substring(0, 10)}...` : 'not set', domain: config.domain } : 'no config'
-    });
-    res.status(500).json({ 
-      error: 'Terjadi kesalahan saat login dengan Google.',
-      details: err.message 
-    });
+    console.error('Error in /auth/me:', err);
+    res.status(500).json({ error: 'Gagal mengambil data user.' });
   }
 });
 
 // Endpoint Register (Buat Akun Baru)
-router.post('/register', apiLimiter, 
+router.post('/register', apiLimiter,
+  requireRecaptcha,
   // --- 6. Input Validation ---
   body('email', 'Format email tidak valid').isEmail().normalizeEmail(),
   body('password', 'Password minimal 8 karakter').isLength({ min: 8 }),
@@ -368,13 +653,13 @@ router.post('/register', apiLimiter,
   body('username', 'Username tidak boleh kosong').notEmpty().trim().escape(),
   body('username', 'Username tidak boleh mengandung spasi').custom(value => !/\s/.test(value)),
   async (req, res) => {
-  
+
   // Cek hasil validasi
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
   }
-    
+
   const { fullName, nim, email, password, username } = req.body;
 
   try {
@@ -397,7 +682,7 @@ router.post('/register', apiLimiter,
       VALUES ($1, $2, $3, $4, $5, 'Lembaga Kemahasiswaan', $6, 'Non-Aktif')
       RETURNING id, nama, email
     `;
-    
+
     await pool.query(query, [id, fullName, email, username, hashedPassword, nim]);
 
     // Buat Notifikasi untuk Admin
@@ -487,7 +772,7 @@ router.post('/set-password', apiLimiter, async (req, res) => {
 });
 
 // Endpoint Check User Existence (Untuk Lupa Password)
-router.post('/check-user-exists', async (req, res) => {
+router.post('/check-user-exists', requireRecaptcha, async (req, res) => {
   const { identifier } = req.body;
   try {
     const result = await pool.query('SELECT id, nama FROM users WHERE email = $1 OR username = $1', [identifier]);
@@ -536,16 +821,16 @@ router.post('/logout', async (req, res) => {
 });
 
 // **[BARU]** Endpoint Verify Session (Silent Verification)
-router.get('/auth/verify', async (req, res) => {
+router.get('/verify', async (req, res) => {
   try {
     // Token sudah divalidasi oleh middleware verifyToken
     // Cek kembali status user di database untuk memastikan akun belum dinonaktifkan
     const userCheck = await pool.query('SELECT id, nama, role, status, email FROM users WHERE id = $1', [req.user.id]);
-    
+
     if (userCheck.rows.length === 0 || userCheck.rows[0].status !== 'Aktif') {
       return res.status(401).json({ error: 'Akun tidak aktif atau tidak ditemukan.' });
     }
-    
+
     res.json({
       success: true,
       user: {
@@ -562,7 +847,7 @@ router.get('/auth/verify', async (req, res) => {
 });
 
 // **[BARU]** Endpoint Refresh Token (for Remember Me auto-login)
-router.post('/auth/refresh', async (req, res) => {
+router.post('/refresh', async (req, res) => {
   const { refreshToken, deviceId } = req.body;
 
   if (!refreshToken || !deviceId) {
@@ -573,8 +858,8 @@ router.post('/auth/refresh', async (req, res) => {
     // Find the session with this refresh token and device ID
     const result = await pool.query(
       `SELECT ut.*, u.role, u.nama, u.status, u.email
-       FROM user_tokens ut 
-       JOIN users u ON ut.user_id = u.id 
+       FROM user_tokens ut
+       JOIN users u ON ut.user_id = u.id
        WHERE ut.refresh_token = $1 AND ut.device_id = $2 AND ut.is_active = TRUE`,
 
        [refreshToken, deviceId]

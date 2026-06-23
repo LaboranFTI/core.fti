@@ -11,6 +11,8 @@ import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import { formatDateID } from '../src/utils/formatters';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 
 interface ItemMovementsProps {
   role: Role;
@@ -359,28 +361,28 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Perpindahan Barang</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Tracking perpindahan dan lokasi inventaris</p>
-        </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center text-sm font-medium shadow-sm transition-all hover:scale-105"
-        >
-          <Plus className="w-4 h-4 mr-2" /> Input Manual
-        </button>
-      </div>
+      <PageHeader
+        title="Perpindahan Barang"
+        description="Lacak posisi terakhir inventaris, riwayat perpindahan, dan input pemindahan manual dari satu halaman."
+        actions={
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 sm:w-auto"
+          >
+            <Plus className="mr-2 h-4 w-4" /> Input Manual
+          </button>
+        }
+      />
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col xl:flex-row gap-4 justify-between items-stretch xl:items-center">
+      <PageCard className="flex flex-col items-stretch justify-between gap-4 xl:flex-row xl:items-center">
         <div className="flex flex-col gap-4 w-full xl:w-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-full sm:w-fit">
+          <div className="grid w-full grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 sm:w-fit sm:grid-cols-2">
             <button
               onClick={() => setViewMode('latest')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 viewMode === 'latest'
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               Posisi Terakhir
@@ -389,8 +391,8 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
               onClick={() => setViewMode('history')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 viewMode === 'history'
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               Riwayat Lengkap
@@ -409,7 +411,7 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
             <select 
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as any)}
-              className="w-full sm:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 sm:w-auto"
             >
               <option value="All">Semua Jenis</option>
               <option value="Peminjaman">Peminjaman</option>
@@ -423,7 +425,7 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
             <select 
               value={filterInventory}
               onChange={(e) => setFilterInventory(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 sm:max-w-50"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 sm:w-auto sm:max-w-50"
             >
               <option value="All">Semua Barang</option>
               {equipment.map(item => (
@@ -432,12 +434,12 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
             </select>
           </div>
         </div>
-      </div>
+      </PageCard>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <PageCard padding="none" className="overflow-hidden">
         <div className="md:hidden space-y-3 p-3">
           {currentMovements.length > 0 ? currentMovements.map((movement) => (
-            <div key={movement.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div key={movement.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-base font-semibold text-gray-900 dark:text-white">{movement.inventoryName || getEquipmentName(movement.inventoryId)}</p>
@@ -500,9 +502,9 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
           )}
         </div>
 
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium">
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
               <tr>
                 <th className="px-6 py-4">Barang</th>
                 <th className="px-6 py-4">Jenis</th>
@@ -511,9 +513,9 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
                 <th className="px-6 py-4 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {currentMovements.length > 0 ? currentMovements.map((movement) => (
-                <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <tr key={movement.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
                   <td className="px-6 py-4">
                     <div className="font-medium text-gray-900 dark:text-white">{movement.inventoryName || getEquipmentName(movement.inventoryId)}</div>
                     <div className="text-xs font-mono text-blue-600 dark:text-blue-400 mt-0.5">{movement.inventoryId}</div>
@@ -587,7 +589,7 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
           onPageChange={setCurrentPage}
           onItemsPerPageChange={setItemsPerPage}
         />
-      </div>
+      </PageCard>
 
       {isModalOpen && (
         <div className="mobile-modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">

@@ -7,6 +7,7 @@ import { allowedOrigins } from './backend/config/cors.js';
 import { pool, testConnection, createIndexes, ensureAuthSchema } from './backend/config/database.js';
 import { verifyToken } from './backend/middleware/auth.js';
 import authRoutes from './backend/routes/auth.routes.js';
+import calendarRoutes from './backend/routes/calendar.routes.js';
 import userRoutes from './backend/routes/user.routes.js';
 import inventoryRoutes from './backend/routes/inventory.routes.js';
 import roomRoutes from './backend/routes/room.routes.js';
@@ -76,6 +77,8 @@ app.delete('/api/error-logs', async (req, res) => {
 
 // Mount all route modules under /api
 app.use('/api', authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/calendar', calendarRoutes);
 app.use('/api', userRoutes);
 app.use('/api', inventoryRoutes);
 app.use('/api', roomRoutes);

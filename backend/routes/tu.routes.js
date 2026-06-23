@@ -6,6 +6,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
+import {
+  DEFAULT_FACULTY,
+  DEFAULT_UNIVERSITY,
+  getStudyProgramCodeFromNim,
+  mapStudyProgramRow
+} from '../utils/activeStudentLetter.js';
 
 const router = express.Router();
 
@@ -89,6 +95,12 @@ const mapActiveStudentRow = (row) => ({
   stampBase64: row.stamp_base64,
   letterNumber: row.letter_number,
   letterGeneratedAt: row.letter_generated_at,
+  birthPlace: row.birth_place,
+  birthDate: row.birth_date,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
+  faculty: row.faculty,
+  university: row.university,
   createdAt: row.created_at
 });
 
@@ -143,6 +155,18 @@ const getSemesterMeta = (semesterCode) => {
   return currentMonth >= 7
     ? { semesterName: 'Ganjil', academicYear: `${currentYear}/${currentYear + 1}` }
     : { semesterName: 'Genap', academicYear: `${currentYear - 1}/${currentYear}` };
+};
+
+const getStudyProgramByNim = async (nim, queryable = pool) => {
+  const studyProgramCode = getStudyProgramCodeFromNim(nim);
+  if (!studyProgramCode) return null;
+
+  const result = await queryable.query(
+    'SELECT id, name, level FROM study_programs WHERE id = $1 LIMIT 1',
+    [studyProgramCode]
+  );
+
+  return mapStudyProgramRow(result.rows[0]);
 };
 
 const formatLetterNumber = (type, sequence, date) => {
@@ -249,14 +273,57 @@ const ensureLetterNumber = async (client, type, requestData) => {
 // --- SISTEM SURAT AKTIF KULIAH ---
 
 router.post('/active-student', async (req, res) => {
-  const { name, nim, email, transcriptBase64, transcriptName } = req.body;
+  const {
+    name,
+    nim,
+    email,
+    birthPlace,
+    birthDate,
+    faculty,
+    university,
+    transcriptBase64,
+    transcriptName
+  } = req.body;
 
   try {
     const id = `REQ-${Date.now()}`;
+    const studyProgram = await getStudyProgramByNim(nim);
+
+    if (!studyProgram) {
+      return res.status(400).json({ error: 'Kode program studi dari NIM belum terdaftar di database.' });
+    }
+
     await pool.query(
-      `INSERT INTO active_student_requests (id, name, nim, email, transcript_base64, transcript_name, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
-      [id, name, nim, email, transcriptBase64, transcriptName]
+      `INSERT INTO active_student_requests (
+         id,
+         name,
+         nim,
+         email,
+         birth_place,
+         birth_date,
+         study_program_level,
+         study_program_name,
+         faculty,
+         university,
+         transcript_base64,
+         transcript_name,
+         status
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending')`,
+      [
+        id,
+        name,
+        nim,
+        email,
+        birthPlace || null,
+        birthDate || null,
+        studyProgram.studyProgramLevel,
+        studyProgram.studyProgramName,
+        faculty || DEFAULT_FACULTY,
+        university || DEFAULT_UNIVERSITY,
+        transcriptBase64,
+        transcriptName
+      ]
     );
     res.json({ success: true, id });
   } catch (err) {
@@ -482,14 +549,26 @@ const letterConfig = {
       <p>Permohonan Surat Keterangan Aktif Kuliah Anda telah disetujui dan diproses oleh Tata Usaha.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
     `,
-    getPlaceholders: (data) => ({
-      '{{programStudi}}': 'Teknik Informatika / Sistem Informasi', // TODO: Ambil dari data SIASAT
-      '{{semester}}': 'Ganjil/Genap', // TODO: Ambil dari data SIASAT
-      '{{tahunAkademik}}': '20XX/20XX', // TODO: Ambil dari data SIASAT
-      '{{nomorSurat}}': data.letter_number || '-',
-      '{{lampiran}}': '-',
-      '{{letterPurpose}}': 'Keterangan Aktif Kuliah'
-    })
+    getPlaceholders: async (data, semesterMeta) => {
+      const studyProgram = data.study_program_level && data.study_program_name
+        ? {
+            studyProgramLevel: data.study_program_level,
+            studyProgramName: data.study_program_name
+          }
+        : await getStudyProgramByNim(data.nim);
+
+      return {
+        '{{jenjangProgram}}': data.study_program_level || data.studyProgramLevel || studyProgram?.studyProgramLevel || '',
+        '{{programStudi}}': data.study_program_name || data.studyProgramName || studyProgram?.studyProgramName || '',
+        '{{fakultas}}': data.faculty || DEFAULT_FACULTY,
+        '{{universitas}}': data.university || DEFAULT_UNIVERSITY,
+        '{{semester}}': semesterMeta.semesterName,
+        '{{tahunAkademik}}': semesterMeta.academicYear,
+        '{{nomorSurat}}': data.letter_number || '-',
+        '{{lampiran}}': '-',
+        '{{letterPurpose}}': 'Keterangan Aktif Kuliah'
+      };
+    }
   },
   'observation': {
     table: 'observation_requests',
@@ -529,6 +608,8 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
       return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
     }
     const requestData = result.rows[0];
+    const tuSettings = await getTuSettingsPayload();
+    const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
 
     // 2. Baca template HTML dari file
     const templatePath = path.join(__dirname, '..', 'templates', 'email', config.template);
@@ -543,7 +624,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
                              .replace(/{{stampImage}}/g, requestData.stamp_base64 || '');
 
     // 4. Ganti placeholder spesifik per jenis surat
-    const specificPlaceholders = config.getPlaceholders(requestData);
+    const specificPlaceholders = await config.getPlaceholders(requestData, semesterMeta);
     for (const key in specificPlaceholders) {
       htmlContent = htmlContent.replace(new RegExp(key, 'g'), specificPlaceholders[key]);
     }

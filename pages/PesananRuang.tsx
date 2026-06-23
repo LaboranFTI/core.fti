@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Booking, BookingStatus, Room, Role } from "../types";
 import {
-  Search,
-  Filter,
   CheckCircle,
   XCircle,
   Calendar,
@@ -38,6 +36,10 @@ import BookingDetailModal from "../components/BookingDetailModal";
 import { formatDateID } from "../src/utils/formatters";
 import Pagination from "../components/Pagination";
 import { usePagination } from "../hooks/usePagination";
+import PageHeader from "../components/PageHeader";
+import PageCard from "../components/PageCard";
+import SearchBar from "../components/SearchBar";
+import { Button } from "../components/ui/button";
 
 declare global {
   interface Window {
@@ -212,32 +214,37 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     const calendarId = getCalendarId(room.googleCalendarUrl);
     if (!calendarId)
       return { success: false, message: "ID Kalender Tidak Valid" };
-    if (!googleApi.isAuthenticated) {
-      googleApi.login();
+    if (!googleApi.calendarConnected) {
+      googleApi.connectCalendar();
       return {
         success: false,
-        message: "Harap otorisasi Google Calendar lalu coba lagi.",
+        message: "Harap hubungkan Google Calendar lalu coba lagi.",
       };
     }
-    return await performDelete(calendarId, booking, room.name, option);
+    return await deleteCalendarEvent(calendarId, booking, room.name, option);
   };
 
-  const performDelete = async (
+  const deleteCalendarEvent = async (
     calendarId: string,
-    booking: Booking,
+    booking: any,
     roomName: string,
     option: "single" | "thisAndFollowing" | "all",
   ) => {
     try {
       const timeMin = new Date(`${booking.date}T00:00:00Z`).toISOString();
       const timeMax = new Date(`${booking.date}T23:59:59Z`).toISOString();
-      const response = await window.gapi.client.calendar.events.list({
+      const queryParams = new URLSearchParams({
         calendarId,
         timeMin,
         timeMax,
-        q: `[BOOKED] ${booking.purpose}`,
+        q: `[BOOKED] ${booking.purpose}`
       });
-      const events = response.result.items;
+      const res = await api(`/api/calendar/events?${queryParams.toString()}`);
+      if (!res.ok) {
+        return { success: false, message: "Gagal memproses request Google Calendar di server" };
+      }
+      const data = await res.json();
+      const events = data.items;
       if (!events || events.length === 0)
         return {
           success: true,
@@ -245,36 +252,30 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         };
       if (option === "all") {
         for (const event of events) {
-          await window.gapi.client.calendar.events.delete({
-            calendarId,
-            eventId: event.id,
-          });
+          await googleApi.deleteEvent(calendarId, event.id);
         }
         return {
           success: true,
           message: `Menghapus ${events.length} event dari Google Calendar`,
         };
       } else if (option === "thisAndFollowing") {
-        const allEvents = await window.gapi.client.calendar.events.list({
+        const queryParams2 = new URLSearchParams({
           calendarId,
           timeMin,
-          q: `[BOOKED] ${booking.purpose}`,
+          q: `[BOOKED] ${booking.purpose}`
         });
-        for (const event of allEvents.result.items) {
-          await window.gapi.client.calendar.events.delete({
-            calendarId,
-            eventId: event.id,
-          });
+        const res2 = await api(`/api/calendar/events?${queryParams2.toString()}`);
+        if (!res2.ok) return { success: false, message: "Gagal memproses request Google Calendar di server" };
+        const data2 = await res2.json();
+        for (const event of (data2.items || [])) {
+          await googleApi.deleteEvent(calendarId, event.id);
         }
         return {
           success: true,
           message: "Menghapus event ini dan event selanjutnya",
         };
       } else {
-        await window.gapi.client.calendar.events.delete({
-          calendarId,
-          eventId: events[0].id,
-        });
+        await googleApi.deleteEvent(calendarId, events[0].id);
         return { success: true, message: "Event dihapus dari Google Calendar" };
       }
     } catch (error: any) {
@@ -335,11 +336,11 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     const calendarId = getCalendarId(room.googleCalendarUrl);
     if (!calendarId)
       return { success: false, message: "ID Kalender Tidak Valid" };
-    if (!googleApi.isAuthenticated) {
-      googleApi.login();
+    if (!googleApi.calendarConnected) {
+      googleApi.connectCalendar();
       return {
         success: false,
-        message: "Harap otorisasi Google Calendar lalu coba lagi.",
+        message: "Harap hubungkan Google Calendar lalu coba lagi.",
       };
     }
     return await insertEvent(calendarId, booking, room.name);
@@ -353,22 +354,24 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     try {
       const startDateTime = new Date(`${booking.date}T${booking.startTime}:00`);
       const endDateTime = new Date(`${booking.date}T${booking.endTime}:00`);
-      await window.gapi.client.calendar.events.insert({
-        calendarId,
-        resource: {
-          summary: `[BOOKED] ${booking.purpose}`,
-          location: roomName,
-          description: `Peminjam: ${booking.userName}\nPJ: ${booking.responsiblePerson}\nKontak: ${booking.contactPerson}\n\nDisetujui via CORE.FTI.`,
-          start: { dateTime: startDateTime.toISOString() },
-          end: { dateTime: endDateTime.toISOString() },
-        },
-      });
-      return { success: true, message: "Disinkronkan ke Google Calendar" };
+      const resource = {
+        summary: `[BOOKED] ${booking.purpose}`,
+        location: roomName,
+        description: `Peminjam: ${booking.userName}\nPJ: ${booking.responsiblePerson}\nKontak: ${booking.contactPerson}\n\nDisetujui via CORE.FTI.`,
+        start: { dateTime: startDateTime.toISOString() },
+        end: { dateTime: endDateTime.toISOString() },
+      };
+      const success = await googleApi.createEvent(calendarId, resource);
+      if (success) {
+        return { success: true, message: "Disinkronkan ke Google Calendar" };
+      } else {
+        return { success: false, message: "Gagal mensinkronkan ke Google Calendar" };
+      }
     } catch (error: any) {
       console.error("GAPI Error:", error);
       return {
         success: false,
-        message: error.result?.error?.message || "Kesalahan GAPI",
+        message: error.message || "Kesalahan Calendar API",
       };
     }
   };
@@ -795,58 +798,46 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Pesanan Ruang
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Kelola persetujuan peminjaman ruangan
-          </p>
-        </div>
-        <div className="flex w-full flex-col sm:w-auto sm:flex-row sm:items-center gap-3">
-          {pendingCount > 0 && (
-            <div className="flex items-center justify-center bg-yellow-100 text-yellow-800 px-3 py-2 rounded-lg text-sm font-medium animate-pulse">
-              <AlertCircle className="w-4 h-4 mr-2" />
-              {pendingCount} Permintaan Menunggu Konfirmasi
-            </div>
-          )}
-          <button
-            onClick={handleCreateBooking}
-            className="w-full sm:w-auto justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center text-sm font-medium shadow-sm transition-all hover:scale-105"
-          >
-            <Plus className="w-4 h-4 mr-2" /> Buat Pesanan
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* Toolbar */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cari nama peminjam atau keperluan..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm w-full dark:text-white focus:ring-2 focus:ring-blue-500"
-            />
+    <div className="space-y-5">
+      <PageHeader
+        title="Pesanan Ruang"
+        description="Kelola verifikasi, jadwal, dokumen, dan dukungan teknis peminjaman ruangan."
+        actionsClassName="w-full md:w-auto"
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            {pendingCount > 0 && (
+              <div className="inline-flex h-10 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-bold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200">
+                <AlertCircle className="mr-2 h-4 w-4" />
+                {pendingCount} menunggu
+              </div>
+            )}
+            <Button onClick={handleCreateBooking} size="sm" className="w-full sm:w-auto">
+              <Plus className="h-4 w-4" /> Buat Pesanan
+            </Button>
           </div>
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 w-full sm:w-auto">
+        }
+      />
+
+      <PageCard className="print:hidden" padding="md">
+        <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-center">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Cari nama peminjam atau keperluan"
+            className="w-full"
+          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:items-center">
             <input
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+              className="h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-auto"
               title="Filter Tanggal"
             />
             <select
               value={filterRoom}
               onChange={(e) => setFilterRoom(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer sm:max-w-35 truncate"
+              className="h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
               title="Filter Ruangan"
             >
               <option value="All">Semua Ruang</option>
@@ -856,28 +847,32 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                 </option>
               ))}
             </select>
-            <Filter className="w-4 h-4 text-gray-400 hidden lg:block" />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="w-full sm:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+              className="h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-auto"
             >
               <option value="All">Semua Status</option>
               <option value={BookingStatus.PENDING}>Pending</option>
               <option value={BookingStatus.APPROVED}>Disetujui</option>
               <option value={BookingStatus.REJECTED}>Ditolak</option>
             </select>
-            <button
+            <Button
               onClick={handleExportExcel}
-              className="w-full sm:w-auto justify-center flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors shadow-sm"
+              variant="secondary"
+              size="sm"
+              className="w-full justify-center sm:w-auto"
               title="Download Laporan Excel"
             >
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Export Excel
-            </button>
+              <FileSpreadsheet className="h-4 w-4" /> Export Excel
+            </Button>
           </div>
         </div>
 
         {/* Desktop Table — Expandable Master-Detail */}
+      </PageCard>
+
+      <PageCard padding="none" className="max-w-full overflow-hidden print:border-2 print:border-black print:shadow-none">
         <div className="md:hidden space-y-3 p-3">
           {currentGroups.length > 0 ? (
             currentGroups.map((group) => {
@@ -887,11 +882,11 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
               return (
                 <div
                   key={group.key}
-                  className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                  className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         {group.master.userName.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -906,10 +901,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                         group.status === BookingStatus.APPROVED
-                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                          ? "rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200"
                           : group.status === BookingStatus.REJECTED
-                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            ? "rounded-md border border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200"
+                            : "rounded-md border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200"
                       }`}
                     >
                       {group.status}
@@ -1076,10 +1071,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
           )}
         </div>
 
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm text-left">
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full text-left text-sm">
             {/* ── Table Head ── */}
-            <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
               <tr>
                 {/* chevron column — no label */}
                 <th className="pl-4 pr-2 py-3 w-10" />
@@ -1116,11 +1111,11 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                       <tr
                         onClick={() => openBookingDetail(group.master)}
                         className={`
-                        border-t border-gray-200 dark:border-gray-700
+                        border-t border-slate-200 dark:border-slate-700
                         cursor-pointer transition-colors duration-150
                         group/master
-                        hover:bg-gray-50 dark:hover:bg-gray-700/40
-                        ${isExpanded ? "bg-blue-50/40 dark:bg-blue-950/20" : ""}
+                        hover:bg-slate-50 dark:hover:bg-slate-800/60
+                        ${isExpanded ? "bg-slate-50 dark:bg-slate-900/70" : ""}
                       `}
                       >
                         {/* ── Expand / Collapse Chevron ── */}
@@ -1140,7 +1135,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                             p-1 rounded-md transition-all duration-150
                             ${
                               hasDetails
-                                ? "text-gray-400 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 dark:hover:text-blue-400"
+                                ? "text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
                                 : "text-gray-200 dark:text-gray-600 cursor-default"
                             }
                           `}
@@ -1148,7 +1143,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                             <ChevronDown
                               className={`
                               w-4 h-4 transition-transform duration-300 ease-in-out
-                              ${isExpanded ? "rotate-180 text-blue-500 dark:text-blue-400" : ""}
+                              ${isExpanded ? "rotate-180 text-slate-700 dark:text-slate-200" : ""}
                             `}
                             />
                           </button>
@@ -1157,11 +1152,11 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                         {/* ── Peminjam ── */}
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                               {group.master.userName.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900 dark:text-white group-hover/master:text-blue-600 transition-colors">
+                              <p className="font-semibold text-slate-950 transition-colors group-hover/master:text-slate-700 dark:text-white">
                                 {group.master.userName}
                               </p>
                               <p className="text-xs text-gray-400 mt-0.5">
@@ -1188,14 +1183,14 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                         <td className="px-4 py-4">
                           <div className="flex flex-wrap gap-1.5">
                             {/* Room pill: show name if only one, else count */}
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
                               <MapPin className="w-3 h-3 shrink-0" />
                               {group.roomCount === 1
                                 ? getRoomName(group.master.roomId)
                                 : `${group.roomCount} Ruangan`}
                             </span>
                             {/* Schedule pill */}
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                               <Calendar className="w-3 h-3 shrink-0" />
                               {group.totalSchedules} Jadwal
                             </span>
@@ -1500,7 +1495,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
-      </div>
+      </PageCard>
 
       {/* Detail Modal */}
       <BookingDetailModal

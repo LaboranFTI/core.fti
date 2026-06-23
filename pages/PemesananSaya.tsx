@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Booking, BookingStatus, Room } from '../types';
-import { Calendar, Clock, MapPin, Search, FileText, XCircle, AlertCircle, CheckCircle, Hourglass, Trash2, Download, Plus, X, Edit } from 'lucide-react';
+import {
+  CalendarBlank,
+  CheckCircle,
+  Clock,
+  DownloadSimple,
+  FileText,
+  Hourglass,
+  MapPin,
+  PencilSimpleLine,
+  Plus,
+  Trash,
+  X,
+  XCircle,
+} from '@phosphor-icons/react';
 import { api } from '../services/api';
 import QRCode from "react-qr-code";
 import nocLogo from "../src/assets/noc.png";
@@ -8,6 +21,10 @@ import BookingForm from '../components/BookingForm';
 import ConfirmModal from '../components/ConfirmModal';
 import { useRooms } from '../hooks/useRooms';
 import { formatDateID } from '../src/utils/formatters';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
+import SearchBar from '../components/SearchBar';
+import MetricCard from '../components/MetricCard';
 
 interface PemesananSayaProps {
   userId: string;
@@ -69,11 +86,11 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
   const getStatusConfig = (status: BookingStatus) => {
     switch (status) {
       case BookingStatus.APPROVED:
-        return { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle };
+        return { color: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/35 dark:text-emerald-300', icon: CheckCircle };
       case BookingStatus.REJECTED:
-        return { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle };
+        return { color: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/35 dark:text-red-300', icon: XCircle };
       default:
-        return { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Hourglass };
+        return { color: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/35 dark:text-amber-300', icon: Hourglass };
     }
   };
 
@@ -184,63 +201,53 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pemesanan Saya</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Riwayat dan status peminjaman ruangan Anda</p>
-        </div>
-        <button onClick={handleCreateBooking} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center text-sm font-medium shadow-sm transition-all hover:scale-105">
-          <Plus className="w-4 h-4 mr-2" /> Buat Pesanan Baru
-        </button>
+      <PageHeader
+        title="Pemesanan Saya"
+        description="Pantau status pengajuan ruangan, unduh bukti persetujuan, dan revisi permohonan yang masih menunggu."
+        actions={
+          <button onClick={handleCreateBooking} className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+            <Plus className="mr-2 h-4 w-4" weight="bold" /> Buat Pesanan Baru
+          </button>
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <MetricCard
+            label="Total Pengajuan"
+            value={myBookings.length}
+            icon={FileText}
+            tone="blue"
+            description="Seluruh riwayat pemesanan ruang"
+          />
+          <MetricCard
+            label="Menunggu"
+            value={myBookings.filter(b => b.status === BookingStatus.PENDING).length}
+            icon={Hourglass}
+            tone="amber"
+            description="Masih perlu diverifikasi admin"
+          />
+          <MetricCard
+            label="Disetujui"
+            value={myBookings.filter(b => b.status === BookingStatus.APPROVED).length}
+            icon={CheckCircle}
+            tone="emerald"
+            description="Siap digunakan sebagai bukti"
+          />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center">
-             <div className="p-3 bg-blue-100 text-blue-600 rounded-lg mr-4">
-                <FileText className="w-6 h-6" />
-             </div>
-             <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total Pengajuan</p>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{myBookings.length}</h3>
-             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center">
-             <div className="p-3 bg-yellow-100 text-yellow-600 rounded-lg mr-4">
-                <Hourglass className="w-6 h-6" />
-             </div>
-             <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Menunggu</p>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{myBookings.filter(b => b.status === BookingStatus.PENDING).length}</h3>
-             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center">
-             <div className="p-3 bg-green-100 text-green-600 rounded-lg mr-4">
-                <CheckCircle className="w-6 h-6" />
-             </div>
-             <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Disetujui</p>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{myBookings.filter(b => b.status === BookingStatus.APPROVED).length}</h3>
-             </div>
-          </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="relative w-full md:w-96">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="Cari berdasarkan kegiatan atau ruangan..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm w-full dark:text-white focus:ring-2 focus:ring-blue-500"
-                />
-            </div>
+      <PageCard padding="none" className="overflow-hidden">
+        <div className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/60">
+            <SearchBar
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Cari kegiatan atau ruangan..."
+              className="w-full md:w-96"
+            />
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
               <tr>
                 <th className="px-6 py-4">Detail Kegiatan</th>
                 <th className="px-6 py-4">Ruangan & Waktu</th>
@@ -249,96 +256,96 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
                 <th className="px-6 py-4 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredBookings.length > 0 ? filteredBookings.map((booking) => {
                 const statusConfig = getStatusConfig(booking.status);
                 const StatusIcon = statusConfig.icon;
 
                 return (
-                  <tr key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <tr key={booking.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
                      <td className="px-6 py-4">
-                        <div className="font-bold text-gray-900 dark:text-white text-base mb-1">{booking.purpose}</div>
-                        <div className="text-xs text-gray-500 flex flex-col gap-1">
+                        <div className="mb-1 text-base font-bold text-slate-950 dark:text-white">{booking.purpose}</div>
+                        <div className="flex flex-col gap-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
                             <span>PJ: {booking.responsiblePerson}</span>
                             <span>Kontak: {booking.contactPerson}</span>
                             {booking.status === BookingStatus.REJECTED && booking.rejectionReason && (
-                                <span className="text-red-600 dark:text-red-400 font-medium mt-1 bg-red-50 dark:bg-red-900/20 p-1 rounded border border-red-100 dark:border-red-800">
+                                <span className="mt-1 rounded-md border border-red-200 bg-red-50 p-2 font-semibold text-red-700 dark:border-red-900/70 dark:bg-red-950/35 dark:text-red-300">
                                     Alasan: {booking.rejectionReason}
                                 </span>
                             )}
                         </div>
                      </td>
                      <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900 dark:text-white mb-1 flex items-center">
-                           <MapPin className="w-3.5 h-3.5 mr-1.5 text-blue-500" /> {getRoomName(booking.roomId)}
+                        <div className="mb-1 flex items-center font-semibold text-slate-900 dark:text-white">
+                           <MapPin className="mr-1.5 h-3.5 w-3.5 text-slate-500" weight="bold" /> {getRoomName(booking.roomId)}
                         </div>
-                        <div className="flex flex-col space-y-1 text-xs text-gray-500">
-                           <span className="flex items-center"><Calendar className="w-3.5 h-3.5 mr-1.5"/> {formatDateID(booking.date)}</span>
-                           <span className="flex items-center"><Clock className="w-3.5 h-3.5 mr-1.5"/> {booking.startTime} - {booking.endTime}</span>
+                        <div className="flex flex-col space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                           <span className="flex items-center"><CalendarBlank className="mr-1.5 h-3.5 w-3.5" weight="bold"/> {formatDateID(booking.date)}</span>
+                           <span className="flex items-center"><Clock className="mr-1.5 h-3.5 w-3.5" weight="bold"/> {booking.startTime} - {booking.endTime}</span>
                         </div>
                      </td>
                      <td className="px-6 py-4">
                      {(booking as any).hasFile ? (
-                           <button 
-                           onClick={() => handleViewFile(booking.id)} 
-                              className="flex items-center text-blue-600 hover:underline text-xs bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded w-fit"
+                           <button
+                           onClick={() => handleViewFile(booking.id)}
+                              className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/70 dark:bg-blue-950/35 dark:text-blue-300"
                            >
-                              <FileText className="w-3 h-3 mr-1" /> Lihat File
+                              <FileText className="mr-1 h-3.5 w-3.5" weight="bold" /> Lihat File
                            </button>
                         ) : (
-                           <span className="text-gray-400 text-xs italic">Tidak ada file</span>
+                           <span className="text-xs italic text-slate-400">Tidak ada file</span>
                         )}
                      </td>
                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
-                           <StatusIcon className="w-3.5 h-3.5 mr-1.5" />
+                        <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold ${statusConfig.color}`}>
+                           <StatusIcon className="mr-1.5 h-3.5 w-3.5" weight="duotone" />
                            {booking.status}
                         </span>
                      </td>
                      <td className="px-6 py-4 text-right">
                         {booking.status === BookingStatus.PENDING ? (
                            <div className="flex items-center justify-end space-x-2">
-                             <button 
+                             <button
                                 onClick={() => handleEditBooking(booking)}
-                                className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center"
+                                className="inline-flex items-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
                              >
-                                <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
+                                <PencilSimpleLine className="mr-1.5 h-3.5 w-3.5" weight="bold" /> Edit
                              </button>
-                             <button 
+                             <button
                                 onClick={() => handleCancelClick(booking.id)}
-                                className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center"
+                                className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/70 dark:bg-red-950/35 dark:text-red-300"
                              >
-                                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Batalkan
+                                <Trash className="mr-1.5 h-3.5 w-3.5" weight="bold" /> Batalkan
                              </button>
                            </div>
                         ) : booking.status === BookingStatus.APPROVED ? (
-                           <button 
+                           <button
                               onClick={() => handleDownloadProof(booking)}
-                              className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center ml-auto"
+                              className="ml-auto inline-flex items-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
                            >
-                              <Download className="w-3.5 h-3.5 mr-1.5" /> Download Bukti
+                              <DownloadSimple className="mr-1.5 h-3.5 w-3.5" weight="bold" /> Download Bukti
                            </button>
                         ) : booking.status === BookingStatus.REJECTED ? (
-                           <button 
+                           <button
                               onClick={() => handleDeleteClick(booking.id)}
-                              className="text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center ml-auto"
+                              className="ml-auto inline-flex items-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-white"
                            >
-                              <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Hapus
+                              <Trash className="mr-1.5 h-3.5 w-3.5" weight="bold" /> Hapus
                            </button>
                         ) : (
-                           <span className="text-gray-400 text-xs italic">Tidak dapat diubah</span>
+                           <span className="text-xs italic text-slate-400">Tidak dapat diubah</span>
                         )}
                      </td>
                   </tr>
                 );
               }) : (
                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                        <div className="flex flex-col items-center justify-center">
-                          <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-full mb-3">
-                             <FileText className="w-8 h-8 text-gray-400" />
+                          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
+                             <FileText className="h-7 w-7 text-slate-400" weight="duotone" />
                           </div>
-                          <p>Belum ada riwayat pemesanan.</p>
+                          <p className="font-semibold">Belum ada riwayat pemesanan.</p>
                        </div>
                     </td>
                  </tr>
@@ -346,7 +353,7 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
             </tbody>
           </table>
         </div>
-      </div>
+      </PageCard>
 
       <div className="absolute -left-2499.75 top-0 opacity-0 invisible pointer-events-none">
         <div ref={proofRef} className="w-full text-black">
@@ -475,14 +482,14 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
 
       {isBookingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-3xl overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up max-h-[90vh] flex flex-col">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 shrink-0">
-                 <h3 className="font-bold text-gray-900 dark:text-white flex items-center text-base">
-                    <Plus className="w-5 h-5 mr-2 text-blue-600" />
+           <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 animate-fade-in-up dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/40">
+                 <h3 className="flex items-center text-base font-bold text-slate-950 dark:text-white">
+                    <Plus className="mr-2 h-5 w-5 text-slate-600 dark:text-slate-300" weight="duotone" />
                     {editingBooking ? 'Edit Pesanan Ruangan' : 'Buat Pesanan Ruangan'}
                  </h3>
-                 <button onClick={closeBookingModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                    <X className="w-5 h-5" />
+                 <button onClick={closeBookingModal} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Tutup modal">
+                    <X className="h-5 w-5" weight="bold" />
                  </button>
               </div>
               <div className="overflow-y-auto flex-1 p-0">

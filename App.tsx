@@ -4,6 +4,7 @@ import AppShell from './components/AppShell';
 import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import ProtectedRoute from './components/ProtectedRoute';
+import { GoogleAuthProvider } from './src/context/GoogleAuthContext';
 import { api } from './services/api';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
@@ -807,7 +808,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AppContent />
+      <GoogleAuthProvider>
+        <AppContent />
+      </GoogleAuthProvider>
     </Router>
   );
 };

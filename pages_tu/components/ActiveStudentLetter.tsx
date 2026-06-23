@@ -5,8 +5,7 @@ import { id } from 'date-fns/locale';
 import {
   buildBirthPlaceAndDate,
   DEFAULT_FACULTY,
-  DEFAULT_UNIVERSITY,
-  deriveStudyProgramFromNim
+  DEFAULT_UNIVERSITY
 } from './activeStudentUtils';
 
 import { useLecturers } from '../../hooks/useLecturers';
@@ -23,7 +22,7 @@ interface ActiveStudentLetterProps {
 export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStudentLetterProps>(({ data }, ref) => {
   const { lecturers } = useLecturers();
   const dean = lecturers.find(l => l.jabatan && l.jabatan.toLowerCase().startsWith('dekan'));
-  const derivedDeanName = dean ? dean.nama : 'Prof. Ir. Daniel H.F. Manongga, M.Sc., Ph.D.';
+  const derivedDeanName = dean ? dean.nama : 'Nama Dekan Belum Diatur';
   const derivedDeanTitle = dean ? dean.jabatan : 'Dekan';
 
   const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
@@ -33,9 +32,8 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
   const academicYear = data.academicYear || (currentMonth >= 7 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`);
   const letterNumber = data.letterNumber || `AUTO/FTI/S.Ket/${format(new Date(), 'MM/yyyy')}`;
   const layout = data.layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
-  const derivedStudyProgram = deriveStudyProgramFromNim(data.nim);
-  const studyProgramLevel = data.studyProgramLevel || derivedStudyProgram?.studyProgramLevel || '[Jenjang Program]';
-  const studyProgramName = data.studyProgramName || derivedStudyProgram?.studyProgramName || '[Program Studi]';
+  const studyProgramLevel = data.studyProgramLevel || '[Jenjang Program]';
+  const studyProgramName = data.studyProgramName || '[Program Studi]';
   const birthPlaceAndDate = buildBirthPlaceAndDate(data.birthPlace, data.birthDate) || '[Tempat & Tanggal Lahir]';
   const faculty = data.faculty || DEFAULT_FACULTY;
   const university = data.university || DEFAULT_UNIVERSITY;

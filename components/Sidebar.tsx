@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, PanelLeftClose, X } from 'lucide-react';
+import { CaretDown, CaretRight, SidebarSimple, X } from '@phosphor-icons/react';
 import { Role } from '../types';
 import {
   getVisibleMainItems,
@@ -47,34 +47,34 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
   const effectiveCollapsed = isCollapsed && !isHovered;
 
   return (
-    <aside 
+    <aside
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed bottom-0 left-0 top-14 z-40 flex h-[calc(100dvh-3.5rem)] w-[min(21rem,90vw)] flex-col border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-200 dark:border-gray-700 dark:bg-gray-900/95 md:relative md:top-auto md:h-full md:translate-x-0 md:shadow-none ${effectiveCollapsed ? 'md:w-24' : 'md:w-72'} print:hidden`}
+      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed bottom-0 left-0 top-14 z-40 flex h-[calc(100dvh-3.5rem)] w-[min(21rem,90vw)] flex-col border-r border-slate-100 bg-slate-50/90 shadow-2xl shadow-fti-blue-900/10 backdrop-blur-md transition-all duration-200 dark:border-slate-800/80 dark:bg-slate-950/90 md:relative md:top-auto md:h-full md:translate-x-0 md:shadow-none ${effectiveCollapsed ? 'md:w-[5.25rem]' : 'md:w-[18.5rem]'} print:hidden`}
     >
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700 md:hidden">
-        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-900/60 md:hidden">
+        <span className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
           Navigasi
         </span>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-100 bg-white/50 text-slate-500 shadow-sm transition-colors hover:border-slate-200 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-slate-700 dark:hover:text-white"
           aria-label="Tutup menu"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4.5 w-4.5" weight="bold" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-8 pt-4 md:pt-5">
+      <div className="flex-1 overflow-y-auto px-3 pb-8 pt-4 md:pt-5 scrollbar-thin">
         {/* Main Items */}
-        <div className="mb-8">
+        <div className="mb-6">
           {!effectiveCollapsed && (
-            <div className="mb-3 px-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-gray-400 transition-opacity duration-200">
+            <div className="mb-2 px-3 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">
               Utama
             </div>
           )}
-          <nav className="space-y-1">
+          <nav className="space-y-0.5">
             {mainItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentPage === item.id;
@@ -95,14 +95,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                     }
                   }}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className={`group flex w-full min-h-12 items-center rounded-2xl py-3 text-sm font-semibold transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-2.5' : 'px-4'} ${
+                  className={`group relative flex w-full min-h-10 items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-2' : 'px-3'} ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-900/60'
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                      ? 'bg-fti-blue-600 text-white shadow-sm shadow-fti-blue-900/20 dark:bg-fti-blue-300 dark:text-fti-ink dark:shadow-none'
+                      : 'text-slate-600 hover:bg-fti-blue-50 hover:text-fti-blue-700 dark:text-slate-400 dark:hover:bg-fti-blue-500/10 dark:hover:text-fti-blue-200'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 ${effectiveCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-all duration-200`} />
-                  {!effectiveCollapsed && <span className="overflow-hidden whitespace-nowrap transition-all duration-200">{item.label}</span>}
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveCollapsed ? '' : 'mr-3'} ${isActive ? 'text-current' : 'text-slate-400 group-hover:text-fti-blue-700 dark:group-hover:text-fti-blue-200'}`}>
+                    <Icon className="h-4.5 w-4.5" weight={isActive ? 'duotone' : 'regular'} />
+                  </span>
+                  {!effectiveCollapsed && <span className="overflow-hidden whitespace-nowrap transition-all duration-250">{item.label}</span>}
                 </button>
               );
             })}
@@ -116,12 +118,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
           const GroupIcon = group.icon;
 
           return (
-            <div key={group.id} className="mb-4">
+            <div key={group.id} className="mb-2">
               <button
                 onClick={() => {
                   if (isCollapsed && onToggleCollapse) {
-                    onToggleCollapse(); // Otomatis lebarkan sidebar
-                    // Buka dropdown untuk kategori yang diklik
+                    onToggleCollapse();
                     const newExpanded = new Set(expandedGroups);
                     newExpanded.add(group.id);
                     setExpandedGroups(newExpanded);
@@ -142,20 +143,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                   }
                 }}
                 onMouseLeave={() => setHoveredItem(null)}
-                className={`group flex w-full min-h-12 items-center rounded-2xl py-3 text-sm font-semibold transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-2.5' : 'px-4'} ${
+                className={`group relative flex w-full min-h-10 items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-2' : 'px-3'} ${
                   isActiveGroup
-                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-900/60'
+                    ? 'bg-fti-blue-50 text-fti-blue-700 font-semibold dark:bg-fti-blue-500/10 dark:text-fti-blue-200'
                     : isExpanded
-                      ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                      ? 'bg-slate-100/60 text-slate-900 dark:bg-slate-900/35 dark:text-slate-200'
+                      : 'text-slate-600 hover:bg-fti-blue-50 hover:text-fti-blue-700 dark:text-slate-400 dark:hover:bg-fti-blue-500/10 dark:hover:text-fti-blue-200'
                 }`}
               >
-                <GroupIcon className={`h-5 w-5 ${effectiveCollapsed ? '' : 'mr-3'} ${isActiveGroup || isExpanded ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-all duration-200`} />
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveCollapsed ? '' : 'mr-3'} ${isActiveGroup ? 'text-fti-blue-700 dark:text-fti-blue-200' : isExpanded ? 'text-slate-900 dark:text-white' : 'text-slate-400 group-hover:text-fti-blue-700 dark:group-hover:text-fti-blue-200'}`}>
+                  <GroupIcon className="h-4.5 w-4.5" weight={isActiveGroup || isExpanded ? 'duotone' : 'regular'} />
+                </span>
                 {!effectiveCollapsed && <span className="flex-1 text-left">{group.title}</span>}
-                {!effectiveCollapsed && <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />}
+                {!effectiveCollapsed && <CaretDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-250 ${isExpanded ? 'rotate-180' : ''}`} weight="bold" />}
               </button>
               {isExpanded && !effectiveCollapsed && (
-                <nav className="mt-2 space-y-1 border-l border-gray-200 pl-3 dark:border-gray-800 md:ml-4">
+                <nav className="ml-5.5 mt-1.5 space-y-0.5 border-l border-slate-200/60 pl-3.5 dark:border-slate-800">
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const isActive = currentPage === item.id;
@@ -169,13 +172,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
                             onNavigate(item.id);
                           }
                         }}
-                        className={`group flex w-full min-h-11 items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        className={`group flex w-full min-h-9 items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
                           isActive
-                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+                            ? 'bg-fti-blue-50 text-fti-blue-700 font-semibold dark:bg-fti-blue-500/10 dark:text-fti-blue-200'
+                            : 'text-slate-500 hover:bg-fti-blue-50 hover:text-fti-blue-700 dark:text-slate-400 dark:hover:bg-fti-blue-500/10 dark:hover:text-fti-blue-200'
                         }`}
                       >
-                        <Icon className={`mr-3 h-4 w-4 shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'} transition-colors`} />
+                        <Icon className={`mr-2 h-3.5 w-3.5 shrink-0 ${isActive ? 'text-fti-blue-600 dark:text-fti-blue-300' : 'text-slate-400 group-hover:text-fti-blue-700 dark:group-hover:text-fti-blue-200'} transition-colors`} weight={isActive ? 'duotone' : 'regular'} />
                         <span>{item.label}</span>
                       </button>
                     );
@@ -192,19 +195,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
       <button
         onClick={onToggleCollapse}
         title={isCollapsed ? "Expand" : "Collapse"}
-        className="absolute -right-3 top-6 z-50 hidden items-center justify-center rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-md transition-colors hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 md:flex"
+        className="absolute -right-3 top-6 z-50 hidden h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-all hover:border-slate-300 hover:text-slate-700 hover:scale-110 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500 dark:hover:text-slate-300 md:flex"
       >
-        {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        {isCollapsed ? <CaretRight className="h-3.5 w-3.5" weight="bold" /> : <SidebarSimple className="h-3.5 w-3.5" weight="duotone" />}
       </button>
 
       {/* Custom Tooltip for Collapsed Mode */}
       {effectiveCollapsed && hoveredItem && (
         <div 
-          className="pointer-events-none fixed left-24 z-50 ml-2 whitespace-nowrap rounded-md bg-gray-900 px-3 py-2 text-xs font-medium text-white shadow-lg animate-fade-in-up dark:bg-gray-700"
+          className="pointer-events-none fixed left-[5.5rem] z-50 ml-2 whitespace-nowrap rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-lg animate-fade-in-up dark:border-slate-600 dark:bg-slate-800"
           style={{ top: hoveredItem.top, transform: 'translateY(-50%)' }}
         >
           {hoveredItem.label}
-          <div className="absolute top-1/2 -left-1 w-2 h-2 bg-gray-900 dark:bg-gray-700 transform -translate-y-1/2 rotate-45"></div>
+          <div className="absolute top-1/2 -left-1 h-2 w-2 -translate-y-1/2 rotate-45 border-b border-l border-slate-700 bg-slate-950 dark:border-slate-600 dark:bg-slate-800"></div>
         </div>
       )}
     </aside>

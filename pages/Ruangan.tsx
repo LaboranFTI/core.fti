@@ -8,7 +8,7 @@ import BookingForm from '../components/BookingForm';
 import { Skeleton } from '../components/Skeleton';
 import { useRooms } from '../hooks/useRooms';
 import RoomList from '../components/RoomList';
-import { CLIENT_ID, API_KEY, DISCOVERY_DOCS, SCOPES } from '../src/config/google';
+import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 import SearchBar from '../components/SearchBar';
 import PageHeader from '../components/PageHeader';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -135,9 +135,7 @@ const Ruangan: React.FC<RoomsProps> = ({ role, isDarkMode, onNavigate, showToast
   const [isPanoramaLoading, setIsPanoramaLoading] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<GoogleEvent[]>([]);
   const [isCalendarLoading, setIsCalendarLoading] = useState(false);
-  const [isGapiReady, setIsGapiReady] = useState(false);
-  const [tokenClient, setTokenClient] = useState<any>(null);
-  const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
+  const googleApi = useGoogleCalendar(role, showToast);
 
   // Computer Specs State (Summary Only)
   const [dominantSpec, setDominantSpec] = useState<any>(null);
@@ -324,65 +322,8 @@ room.facilities.forEach((fac: string) => allFacs.add(fac));
     } catch (e) { console.error(e); }
   };
 
-  useEffect(() => {
-    const loadScripts = () => {
-      if (typeof window.gapi === 'undefined') {
-          const script1 = document.createElement('script');
-          script1.src = 'https://apis.google.com/js/api.js';
-          script1.onload = () => {
-            window.gapi.load('client', initializeGapiClient);
-          };
-          document.body.appendChild(script1);
-      } else {
-          window.gapi.load('client', initializeGapiClient);
-      }
-
-      if (typeof window.google === 'undefined') {
-          const script2 = document.createElement('script');
-          script2.src = 'https://accounts.google.com/gsi/client';
-          script2.onload = () => initializeGisClient();
-          document.body.appendChild(script2);
-      } else {
-          initializeGisClient();
-      }
-    };
-    loadScripts();
-  }, []);
-
-  const initializeGapiClient = async () => {
-    try {
-        await window.gapi.client.init({
-            apiKey: API_KEY,
-            discoveryDocs: DISCOVERY_DOCS,
-        });
-        setIsGapiReady(true);
-    } catch (error) {
-        console.error("Error initializing GAPI:", error);
-    }
-  };
-
-  const initializeGisClient = () => {
-    try {
-        const client = window.google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: async (resp: any) => {
-                if (resp.error !== undefined) {
-                    throw resp;
-                }
-                setIsGoogleAuthenticated(true);
-            },
-        });
-        setTokenClient(client);
-    } catch (error) {
-        console.error("Error initializing GIS", error);
-    }
-  };
-
   const handleAuthClick = () => {
-    if (tokenClient) {
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    }
+    googleApi.connectCalendar();
   };
 
 
@@ -434,23 +375,29 @@ room.facilities.forEach((fac: string) => allFacs.add(fac));
   };
 
   const fetchRoomEvents = async () => {
-      if (!selectedRoom?.googleCalendarUrl || !isGapiReady) return;
+      if (!selectedRoom?.googleCalendarUrl) return;
       
       const calendarId = getCalendarId(selectedRoom.googleCalendarUrl);
       if (!calendarId) return;
 
       setIsCalendarLoading(true);
       try {
-          const request = {
-              'calendarId': calendarId,
-              'timeMin': (new Date()).toISOString(),
-              'showDeleted': false,
-              'singleEvents': true,
-              'maxResults': 5, // Limit for small view
-              'orderBy': 'startTime',
-          };
-          const response = await window.gapi.client.calendar.events.list(request);
-          setCalendarEvents(response.result.items);
+          const query = new URLSearchParams({
+              calendarId,
+              timeMin: (new Date()).toISOString(),
+              maxResults: '5'
+          });
+          const res = await api(`/api/calendar/events?${query.toString()}`);
+          if (res.ok) {
+              const data = await res.json();
+              setCalendarEvents(data.items || []);
+          } else {
+              const err = await res.json().catch(() => ({}));
+              console.error("Gagal mengambil event:", err);
+              if (err.code === 'REAUTH_REQUIRED' || err.code === 'MISSING_TOKEN') {
+                  googleApi.connectCalendar();
+              }
+          }
       } catch (e) {
           console.error(e);
       } finally {
@@ -460,10 +407,10 @@ room.facilities.forEach((fac: string) => allFacs.add(fac));
 
   // Fetch events when dependencies change
   useEffect(() => {
-      if (viewMode === 'detail' && selectedRoom && isGapiReady) {
+      if (viewMode === 'detail' && selectedRoom && googleApi.isGapiInitialized) {
           fetchRoomEvents();
       }
-  }, [viewMode, selectedRoom, isGapiReady]);
+  }, [viewMode, selectedRoom, googleApi.isGapiInitialized]);
 
   const formatEventTime = (dateTime?: string, date?: string) => {
     if (dateTime) {
@@ -954,7 +901,7 @@ const handleEdit = async (room: Room) => {
                           <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
                               <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white flex items-center justify-between shrink-0">
                                   <span className="flex items-center"><Calendar className="w-5 h-5 mr-2 text-blue-500"/> Jadwal Ruangan</span>
-                                  {isGapiReady && (
+                                  {googleApi.isGapiInitialized && (
                                      <button onClick={fetchRoomEvents} className="text-gray-500 hover:text-blue-500" title="Refresh">
                                         <RefreshCw className={`w-4 h-4 ${isCalendarLoading ? 'animate-spin' : ''}`}/>
                                      </button>

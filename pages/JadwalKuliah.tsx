@@ -1,6 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Role, Room } from '../types';
-import { Search, Plus, Filter, Edit, Trash2, X, Check, RefreshCw, Loader2, Users, BookOpen, Calendar, Clock, MapPin, Download, FileSpreadsheet, AlertTriangle, LogIn, LogOut } from 'lucide-react';
+import {
+  ArrowClockwise as RefreshCw,
+  BookOpen,
+  CalendarCheck as Calendar,
+  CaretDown as ChevronDown,
+  Check,
+  Clock,
+  DownloadSimple as Download,
+  FileXls as FileSpreadsheet,
+  Funnel as Filter,
+  MapPin,
+  PencilSimpleLine as Edit,
+  Plus,
+  SignIn as LogIn,
+  SignOut as LogOut,
+  SpinnerGap as Loader2,
+  Trash,
+  UsersThree as Users,
+  WarningCircle as AlertTriangle,
+  X,
+} from '@phosphor-icons/react';
 import { api } from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
 import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
@@ -8,7 +28,11 @@ import SearchBar from '../components/SearchBar';
 import { useLecturers } from '../hooks/useLecturers';
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 import { Button, buttonVariants } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { cn } from '../lib/utils';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
 
 declare global {
   interface Window {
@@ -112,8 +136,8 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
   // Google Calendar API
   const googleApi = useGoogleCalendar(role, showToast);
 
-  const canManage = role.toString().toUpperCase() === 'ADMIN' || 
-                    role.toString().toUpperCase() === 'LABORAN' || 
+  const canManage = role.toString().toUpperCase() === 'ADMIN' ||
+                    role.toString().toUpperCase() === 'LABORAN' ||
                     role.toString().toUpperCase() === 'SUPERVISOR';
 
   const getCalendarId = (input: string) => {
@@ -124,12 +148,53 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
 
   // Days options
   const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  
+
   // Semester options
   const semesters = ['Ganjil', 'Antara', 'Genap'];
-  
+
   // Academic years
   const [academicYears, setAcademicYears] = useState<string[]>([]);
+
+  // Memoized select items for Base UI Select
+  const roomFilterSelectItems = useMemo(() => {
+    return [
+      { label: 'Semua', value: 'All' },
+      ...rooms.map(r => ({ label: r.name, value: r.id }))
+    ];
+  }, [rooms]);
+
+  const semesterFilterSelectItems = useMemo(() => {
+    return [
+      { label: 'Semua Semester', value: '' },
+      ...semesters.map(s => ({ label: s, value: s }))
+    ];
+  }, [semesters]);
+
+  const academicYearFilterSelectItems = useMemo(() => {
+    return [
+      { label: 'Semua Tahun', value: '' },
+      ...academicYears.map(ay => ({ label: ay, value: ay }))
+    ];
+  }, [academicYears]);
+
+  const dayFilterSelectItems = useMemo(() => {
+    return [
+      { label: 'Semua Hari', value: 'All' },
+      ...days.map(d => ({ label: d, value: d }))
+    ];
+  }, [days]);
+
+  const dayFormItems = useMemo(() => {
+    return days.map(d => ({ label: d, value: d }));
+  }, [days]);
+
+  const semesterFormItems = useMemo(() => {
+    return semesters.map(s => ({ label: s, value: s }));
+  }, [semesters]);
+
+  const academicYearFormItems = useMemo(() => {
+    return academicYears.map(ay => ({ label: ay, value: ay }));
+  }, [academicYears]);
 
   const { lecturers } = useLecturers();
   const lecturerOptions: SelectOption[] = lecturers.map(l => ({
@@ -145,12 +210,12 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
       const params = new URLSearchParams();
       if (filterSemester) params.append('semester', filterSemester);
       if (filterAcademicYear) params.append('academicYear', filterAcademicYear);
-      
+
       const response = await api(`/api/class-schedules?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
-        
+
         setAcademicYears(prev => {
           const fetchedYears = data.map((s: ClassSchedule) => s.academicYear).filter(Boolean);
           return Array.from(new Set([...prev, ...fetchedYears])).sort((a, b) => b.localeCompare(a));
@@ -186,7 +251,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
 
   const filteredSchedules = useMemo(() => {
     return schedules.filter(schedule => {
-      const matchesSearch = 
+      const matchesSearch =
         schedule.courseCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
         schedule.courseName.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDay = filterDay === 'All' || schedule.dayOfWeek === filterDay;
@@ -243,7 +308,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
           existing.dayOfWeek === newSchedule.dayOfWeek &&
           existing.semester === newSchedule.semester &&
           existing.academicYear === newSchedule.academicYear) {
-        
+
         const newStart = newSchedule.startTime;
         const newEnd = newSchedule.endTime;
         const existStart = existing.startTime;
@@ -260,10 +325,10 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
 // Helper to parse legacy Jam format to startTime/endTime (used in handleExcelUpload)
   const parseJamToTimes = (jamStr: string): { startTime: string; endTime: string } | null => {
     if (!jamStr || typeof jamStr !== 'string') return null;
-    
+
     const cleaned = jamStr.trim().replace(/\s+/g, '');
     let times: string[];
-    
+
     // Handle : separator (07:00:09:00)
     if (cleaned.includes(':')) {
       const parts = cleaned.split(':');
@@ -273,7 +338,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
         return { startTime: start, endTime: end };
       }
     }
-    
+
     // Handle - separator (07:00-09:00)
     if (cleaned.includes('-')) {
       times = cleaned.split('-');
@@ -285,7 +350,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
         }
       }
     }
-    
+
     return null;
   };
 
@@ -306,7 +371,7 @@ const handleDownloadTemplate = async () => {
 
     worksheet.addRow({
       Kode: "TI401",
-      'Nama Matakuliah': "Jaringan Komputer", 
+      'Nama Matakuliah': "Jaringan Komputer",
       Hari: "Senin",
       Jam: "07:00:09:00", // Legacy format: start:end atau start-end
       Pengajar: "John Doe, M.Kom",
@@ -352,7 +417,7 @@ const handleDownloadTemplate = async () => {
           const room = rooms.find(r => r.id === schedule.roomId);
           if (room && room.googleCalendarUrl && schedule.startDate && schedule.endDate) {
             const calendarId = getCalendarId(room.googleCalendarUrl);
-            if (calendarId && googleApi.isGapiInitialized && googleApi.isAuthenticated) {
+            if (calendarId && googleApi.isGapiInitialized && googleApi.calendarConnected) {
               const dayMap: Record<string, number> = { 'Minggu': 0, 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6 };
               const targetDay = dayMap[schedule.dayOfWeek] ?? 1;
               const semesterStart = new Date(schedule.startDate);
@@ -387,7 +452,7 @@ const handleDownloadTemplate = async () => {
     } else {
       showToast("Gagal mengimport data.", "error");
     }
-    
+
     if (unmatchedRooms.size > 0) {
       setTimeout(() => {
         showToast(`Peringatan: Beberapa jadwal ditolak karena ruangan (${Array.from(unmatchedRooms).join(', ')}) tidak ditemukan di sistem.`, "warning");
@@ -423,7 +488,7 @@ const handleDownloadTemplate = async () => {
         const unmatchedLecturers = new Set<string>();
         const unmatchedRooms = new Set<string>();
         const headers: {[key: number]: string} = {};
-        
+
         worksheet.getRow(1).eachCell((cell, colNumber) => {
           headers[colNumber] = cell.value ? cell.value.toString() : '';
         });
@@ -469,7 +534,7 @@ const handleDownloadTemplate = async () => {
           const academicYear = rowData['Tahun Ajaran'] || rowData['tahun ajaran'] || '';
           const startDate = rowData['Tanggal Mulai'] || rowData['tanggal mulai'] || '';
           const endDate = rowData['Tanggal Selesai'] || rowData['tanggal selesai'] || '';
-          
+
           if (courseCode && courseName) {
             // Parse Jam column
             const times = parseJamToTimes(jam);
@@ -480,7 +545,7 @@ const handleDownloadTemplate = async () => {
 
             // Pencocokan otomatis nama ruangan ke ID Ruangan
             let matchedRoomId = '';
-            
+
             if (roomName) {
               const searchName = String(roomName).toLowerCase().trim();
               const foundRoom = rooms.find(r => r.name.toLowerCase().trim() === searchName);
@@ -591,7 +656,7 @@ const handleDownloadTemplate = async () => {
       const updatedYears = Array.from(new Set([...academicYears, formData.academicYear])).sort((a, b) => b.localeCompare(a));
       setAcademicYears(updatedYears);
     }
-    
+
     try {
       if (editingSchedule) {
         // Update
@@ -602,13 +667,13 @@ const handleDownloadTemplate = async () => {
         if (res.ok) {
           showToast("Jadwal kelas berhasil diperbarui!", "success");
           fetchSchedules();
-          
+
           // Update integrasi Google Calendar
           if (!googleApi.isGapiInitialized) {
             showToast('Google API belum siap, jadwal tersimpan namun sinkronisasi Calendar gagal.', 'warning');
-          } else if (!googleApi.isAuthenticated) {
-            googleApi.login();
-            showToast('Mohon login ke Google untuk mensinkronkan perubahan ini ke Calendar.', 'info');
+          } else if (!googleApi.calendarConnected) {
+            googleApi.connectCalendar();
+            showToast('Mohon hubungkan Google Calendar untuk mensinkronkan perubahan ini ke Calendar.', 'info');
           } else {
             if (!formData.startDate || !formData.endDate) {
               showToast('Tanggal periode mulai & selesai wajib diisi untuk sinkronisasi Calendar!', 'warning');
@@ -620,9 +685,13 @@ const handleDownloadTemplate = async () => {
                 if (oldCalendarId) {
                   try {
                     const q = `${editingSchedule.courseCode} ${editingSchedule.courseName}-${editingSchedule.lecturerName || ''}`;
-                    const response = await window.gapi.client.calendar.events.list({ calendarId: oldCalendarId, q });
-                    if (response.result.items && response.result.items.length > 0) {
-                      await googleApi.deleteEvent(oldCalendarId, response.result.items[0].id);
+                    const queryParams = new URLSearchParams({ calendarId: oldCalendarId, q });
+                    const resList = await api(`/api/calendar/events?${queryParams.toString()}`);
+                    if (resList.ok) {
+                      const dataList = await resList.json();
+                      if (dataList.items && dataList.items.length > 0) {
+                        await googleApi.deleteEvent(oldCalendarId, dataList.items[0].id);
+                      }
                     }
                   } catch (e) {
                     console.error("Gagal hapus event lama di Google Calendar", e);
@@ -647,7 +716,7 @@ const handleDownloadTemplate = async () => {
                     const startDateTime = new Date(`${dateStr}T${formData.startTime}:00`);
                     const endDateTime = new Date(`${dateStr}T${formData.endTime}:00`);
                     const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                    
+
                     const semesterEnd = new Date(formData.endDate);
                     semesterEnd.setUTCHours(23, 59, 59, 999);
                     const untilStr = semesterEnd.toISOString().replace(/[-:.]/g, '').substring(0, 15) + 'Z';
@@ -673,7 +742,7 @@ const handleDownloadTemplate = async () => {
         if (res.ok) {
           showToast("Jadwal kelas berhasil ditambahkan!", "success");
           fetchSchedules();
-          
+
           // Tambah ke Google Calendar
           const room = rooms.find(r => r.id === formData.roomId);
           if (room && room.googleCalendarUrl) {
@@ -684,9 +753,9 @@ const handleDownloadTemplate = async () => {
               if (calendarId) {
                 if (!googleApi.isGapiInitialized) {
                   showToast('Google API belum siap, gagal sinkronisasi ke Calendar.', 'warning');
-                } else if (!googleApi.isAuthenticated) {
-                  googleApi.login();
-                  showToast('Mohon login ke Google untuk sinkronisasi Calendar.', 'info');
+                } else if (!googleApi.calendarConnected) {
+                  googleApi.connectCalendar();
+                  showToast('Mohon hubungkan Google Calendar untuk sinkronisasi Calendar.', 'info');
                 } else {
                   const dayMap: Record<string, number> = { 'Minggu': 0, 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6 };
                   const targetDay = dayMap[formData.dayOfWeek] ?? 1;
@@ -719,7 +788,7 @@ const handleDownloadTemplate = async () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validasi Format Tahun Akademik
     if (!/^\d{4}\/\d{4}$/.test(formData.academicYear)) {
       showToast('Format Tahun Akademik harus YYYY/YYYY (contoh: 2024/2025).', 'warning');
@@ -731,7 +800,7 @@ const handleDownloadTemplate = async () => {
       showToast('Jam selesai harus lebih besar dari jam mulai.', 'warning');
       return;
     }
-    
+
     const conflict = checkConflict(formData, schedules, editingSchedule?.id);
     if (conflict) {
       setConflictModal({
@@ -760,20 +829,24 @@ const handleDownloadTemplate = async () => {
         await api(`/api/class-schedules/${id}`, { method: 'DELETE' });
         showToast("Jadwal kelas berhasil dihapus!", "success");
         fetchSchedules();
-        
+
         // Hapus dari Google Calendar
         if (scheduleToDelete) {
           const room = rooms.find(r => r.id === scheduleToDelete.roomId);
-          if (room && room.googleCalendarUrl && googleApi.isGapiInitialized && googleApi.isAuthenticated) {
+          if (room && room.googleCalendarUrl && googleApi.isGapiInitialized && googleApi.calendarConnected) {
             const calendarId = getCalendarId(room.googleCalendarUrl);
             if (calendarId) {
               try {
                 const q = `${scheduleToDelete.courseCode} ${scheduleToDelete.courseName}-${scheduleToDelete.lecturerName || ''}`;
-                const response = await window.gapi.client.calendar.events.list({ calendarId, q });
-                const events = response.result.items;
-                if (events && events.length > 0) {
-                  await googleApi.deleteEvent(calendarId, events[0].id);
-                  showToast('Jadwal terkait di Google Calendar juga telah dihapus.', 'info');
+                const queryParams = new URLSearchParams({ calendarId, q });
+                const resList = await api(`/api/calendar/events?${queryParams.toString()}`);
+                if (resList.ok) {
+                  const dataList = await resList.json();
+                  const events = dataList.items;
+                  if (events && events.length > 0) {
+                    await googleApi.deleteEvent(calendarId, events[0].id);
+                    showToast('Jadwal terkait di Google Calendar juga telah dihapus.', 'info');
+                  }
                 }
               } catch (e) {
                 console.error("Gagal hapus dari Google Calendar", e);
@@ -790,14 +863,14 @@ const handleDownloadTemplate = async () => {
 
   const handleBulkDelete = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Check Google admin auth
-    if (!googleApi.isAuthenticated) {
-      googleApi.login();
-      showToast('Login akun Google admin terlebih dahulu untuk melakukan hapus semua jadwal.', 'warning');
+    if (!googleApi.calendarConnected) {
+      googleApi.connectCalendar();
+      showToast('Hubungkan akun Google Calendar terlebih dahulu untuk melakukan hapus semua jadwal.', 'warning');
       return;
     }
-    
+
     if (!bulkDeleteModal.semester || !bulkDeleteModal.academicYear) {
       showToast('Semester dan Tahun Akademik harus diisi.', 'warning');
       return;
@@ -814,7 +887,7 @@ const handleDownloadTemplate = async () => {
       const params = new URLSearchParams();
       params.append('semester', bulkDeleteModal.semester);
       params.append('academicYear', bulkDeleteModal.academicYear);
-      
+
       const res = await api(`/api/class-schedules?${params.toString()}`, {
         method: 'DELETE'
       });
@@ -853,184 +926,229 @@ const handleDownloadTemplate = async () => {
         ))}
       </datalist>
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jadwal Kuliah</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Kelola jadwal mata kuliah per semester</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canManage && googleApi.isGapiInitialized && !googleApi.isAuthenticated && (
-            <button onClick={() => googleApi.login()} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors shadow-sm">
-              <LogIn className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Login Google</span>
-            </button>
-          )}
-          {canManage && googleApi.isAuthenticated && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg shadow-sm">
-              <Check className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
-              <span className="text-sm font-medium text-green-700 dark:text-green-300 max-w-37.5 truncate">
-                {googleApi.googleUserEmail || "Terhubung"}
-              </span>
-              <button onClick={() => googleApi.logout()} className="p-1 hover:bg-green-100 dark:hover:bg-green-900/40 rounded transition-colors" title="Logout Google Calendar">
-                <LogOut className="w-4 h-4 text-green-600 dark:text-green-400" />
-              </button>
-            </div>
-          )}
-          <Button onClick={handleDownloadTemplate} variant="secondary" size="sm">
-            <Download className="w-4 h-4 mr-2" /> Template
-          </Button>
-          <label className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'cursor-pointer')}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" /> Import
-            <input type="file" accept=".xlsx" className="hidden" onChange={handleExcelUpload} />
-          </label>
-{canManage && (
-            <button 
-              onClick={() => setBulkDeleteModal({ isOpen: true, semester: filterSemester || 'Ganjil', academicYear: filterAcademicYear || (academicYears.length > 0 ? academicYears[0] : '') })} 
-              disabled={!googleApi.isAuthenticated}
-              className={cn(buttonVariants({ variant: 'destructive', size: 'sm' }), 'disabled:hover:scale-100')}
-              title={!googleApi.isAuthenticated ? "Login Google admin terlebih dahulu" : ""}
-            >
-              <Trash2 className="w-4 h-4 mr-2" /> Hapus Semua
-            </button>
-          )}
-          <Button onClick={() => handleOpenModal()} variant="primary" size="sm">
-             <Plus className="w-4 h-4 mr-2" /> Tambah Jadwal
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Jadwal Kuliah"
+        description="Kelola jadwal mata kuliah per semester"
+        actionsClassName="w-full md:w-auto"
+        actions={
+          <div className="grid w-full grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 sm:grid-cols-2 lg:flex lg:w-auto lg:items-center">
+            {canManage && googleApi.isGapiInitialized && !googleApi.calendarConnected && (
+              <Button onClick={() => googleApi.connectCalendar()} variant="secondary" size="sm" className="justify-center">
+                <LogIn className="w-4 h-4 mr-2" /> Hubungkan Calendar
+              </Button>
+            )}
+            {canManage && googleApi.calendarConnected && (
+              <div className="flex h-9 items-center justify-between gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-1 shadow-sm dark:border-green-800 dark:bg-green-900/20">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                  <span className="text-xs font-semibold text-green-700 dark:text-green-300 max-w-30 truncate">
+                    {googleApi.googleUserEmail || "Calendar Terhubung"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => googleApi.logout()}
+                  className="p-1 hover:bg-green-100 dark:hover:bg-green-900/40 rounded transition-colors"
+                  title="Putuskan Google Calendar"
+                >
+                  <LogOut className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </button>
+              </div>
+            )}
+            <Button onClick={handleDownloadTemplate} variant="secondary" size="sm" className="justify-center">
+              <Download className="w-4 h-4 mr-2" /> Template
+            </Button>
+            <label className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'cursor-pointer flex items-center justify-center')}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Import
+              <input type="file" accept=".xlsx" className="hidden" onChange={handleExcelUpload} />
+            </label>
+            {canManage && (
+              <Button
+                onClick={() => setBulkDeleteModal({
+                  isOpen: true,
+                  semester: filterSemester || 'Ganjil',
+                  academicYear: filterAcademicYear || (academicYears.length > 0 ? academicYears[0] : '')
+                })}
+                disabled={!googleApi.calendarConnected}
+                variant="destructive"
+                size="sm"
+                className="justify-center"
+                title={!googleApi.calendarConnected ? "Hubungkan Google Calendar terlebih dahulu" : ""}
+              >
+                <Trash className="w-4 h-4 mr-2" /> Hapus Semua
+              </Button>
+            )}
+            <Button onClick={() => handleOpenModal()} variant="primary" size="sm" className="justify-center">
+              <Plus className="w-4 h-4 mr-2" /> Tambah Jadwal
+            </Button>
+          </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-4 justify-between items-center">
-         <SearchBar 
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Cari kode/nama matakuliah..."
-         />
-         <SearchBar 
-            value={filterLecturer}
-            onChange={setFilterLecturer}
-            placeholder="Cari nama dosen..."
-         />
-         <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
-             <button 
-                onClick={fetchSchedules} 
-                disabled={isLoading}
-                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors disabled:opacity-50"
-                title="Refresh Data"
-             >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-             </button>
-             
-             <div className="flex items-center space-x-2">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-500">Ruangan:</span>
-                <select 
-                    value={filterRoom}
-                    onChange={(e) => setFilterRoom(e.target.value)}
-                    className="px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer w-24 sm:w-auto"
-                >
-                    <option value="All">Semua</option>
-                    {rooms.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                </select>
-             </div>
-             
-             <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Semester:</span>
-                <select 
-                    value={filterSemester}
-                    onChange={(e) => setFilterSemester(e.target.value)}
-                    className="px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
-                >
-                    <option value="">Semua Semester</option>
-                    {semesters.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                </select>
-             </div>
-             
-             <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Thn Akademik:</span>
-                <select 
-                    value={filterAcademicYear}
-                    onChange={(e) => setFilterAcademicYear(e.target.value)}
-                    className="px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
-                >
-                    <option value="">Semua Tahun</option>
-                    {academicYears.map(ay => (
-                      <option key={ay} value={ay}>{ay}</option>
-                    ))}
-                </select>
-             </div>
-             
-             <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Hari:</span>
-                <select 
-                    value={filterDay}
-                    onChange={(e) => setFilterDay(e.target.value)}
-                    className="px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
-                >
-                    <option value="All">Semua Hari</option>
-                    {days.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                </select>
-             </div>
-         </div>
-      </div>
+      <PageCard className="print:hidden" padding="md">
+        <div className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <SearchBar
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Cari kode/nama matakuliah..."
+              className="w-full"
+            />
+            <SearchBar
+              value={filterLecturer}
+              onChange={setFilterLecturer}
+              placeholder="Cari nama dosen..."
+              className="w-full"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:items-center">
+            <button
+              type="button"
+              onClick={fetchSchedules}
+              disabled={isLoading}
+              className="flex h-11 w-full lg:w-11 items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 transition-colors disabled:opacity-50"
+              title="Refresh Data"
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+            </button>
+
+            <div className="relative w-full lg:w-40">
+              <select
+                value={filterRoom}
+                onChange={(e) => setFilterRoom(e.target.value)}
+                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 shadow-sm outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300"
+              >
+                <option value="All">Semua Ruangan</option>
+                {rooms.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+
+            <div className="relative w-full lg:w-40">
+              <select
+                value={filterSemester}
+                onChange={(e) => setFilterSemester(e.target.value)}
+                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 shadow-sm outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300"
+              >
+                <option value="">Semua Semester</option>
+                {semesters.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+
+            <div className="relative w-full lg:w-40 col-span-2 sm:col-span-1">
+              <select
+                value={filterAcademicYear}
+                onChange={(e) => setFilterAcademicYear(e.target.value)}
+                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 shadow-sm outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300"
+              >
+                <option value="">Semua Tahun</option>
+                {academicYears.map(ay => (
+                  <option key={ay} value={ay}>{ay}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+
+            <div className="relative w-full lg:w-40 col-span-2 sm:col-span-1">
+              <select
+                value={filterDay}
+                onChange={(e) => setFilterDay(e.target.value)}
+                className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 shadow-sm outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300"
+              >
+                <option value="All">Semua Hari</option>
+                {days.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+          </div>
+        </div>
+      </PageCard>
 
       {/* Schedule Cards by Day */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {days.map(day => {
           const daySchedules = groupedByDay[day] || [];
           if (filterDay !== 'All' && filterDay !== day) return null;
-          
+
           return (
-            <div key={day} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="bg-blue-600 dark:bg-blue-700 px-4 py-3">
-                <h3 className="font-bold text-white">{day}</h3>
-                <p className="text-blue-100 text-xs">{daySchedules.length} matakuliah</p>
+            <div key={day} className="bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm flex flex-col min-h-64">
+              <div className="bg-slate-100/80 dark:bg-slate-800/80 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Calendar className="w-4.5 h-4.5 text-sky-600 dark:text-sky-400" weight="duotone" />
+                  {day}
+                </h3>
+                <span className="rounded-full bg-sky-100 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-900/60 px-2 py-0.5 text-xs font-bold text-sky-800 dark:text-sky-300">
+                  {daySchedules.length} MK
+                </span>
               </div>
-              <div className="p-2 space-y-2 max-h-100 overflow-y-auto">
+              <div className="p-3.5 space-y-3 overflow-y-auto max-h-120 flex-1">
                 {daySchedules.length > 0 ? daySchedules.map(schedule => (
-                  <div key={schedule.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 hover:shadow-md hover:bg-blue-50 dark:hover:bg-gray-600 transition-all duration-200 border border-transparent hover:border-blue-200 dark:hover:border-gray-500">
+                  <div
+                    key={schedule.id}
+                    className="group/card bg-white dark:bg-slate-900 rounded-lg p-3.5 border border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-500 hover:shadow-md transition-all duration-200 relative overflow-hidden"
+                  >
+                    <div className="absolute inset-y-0 left-0 w-1 bg-transparent group-hover/card:bg-sky-500 transition-colors" />
+
                     <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{schedule.courseCode}</span>
-                      </div>
-                      <div className="flex space-x-1">
-                        <button onClick={() => handleOpenModal(schedule)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')}>
-                          <Edit className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => handleDelete(schedule.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')}>
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
+                      <span className="inline-flex rounded-md border border-sky-100 bg-sky-50 dark:border-sky-950/50 dark:bg-sky-950/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-sky-700 dark:text-sky-400">
+                        {schedule.courseCode}
+                      </span>
+                      {canManage && (
+                        <div className="flex items-center gap-1 opacity-60 group-hover/card:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModal(schedule)}
+                            className="p-1 text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(schedule.id)}
+                            className="p-1 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                            title="Hapus"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <p className="font-semibold text-sm text-gray-900 dark:text-white mb-1 line-clamp-2">{schedule.courseName}</p>
-                    <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                      <div className="flex items-center">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {schedule.startTime} - {schedule.endTime}
+
+                    <p className="font-bold text-sm text-slate-950 dark:text-white mb-2 line-clamp-2 leading-snug">
+                      {schedule.courseName}
+                    </p>
+
+                    <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" weight="duotone" />
+                        <span className="font-medium text-slate-800 dark:text-slate-300">{schedule.startTime} - {schedule.endTime}</span>
                       </div>
                       {schedule.roomName && (
-                        <div className="flex items-center">
-                          <MapPin className="w-3 h-3 mr-1" />
-                          {schedule.roomName}
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" weight="duotone" />
+                          <span className="truncate">{schedule.roomName}</span>
                         </div>
                       )}
                       {schedule.lecturerName && (
-                        <div className="flex items-center">
-                          <Users className="w-3 h-3 mr-1" />
-                          {schedule.lecturerName}
+                        <div className="flex items-center gap-2">
+                          <Users className="w-3.5 h-3.5 text-slate-400" weight="duotone" />
+                          <span className="truncate">{schedule.lecturerName}</span>
                         </div>
                       )}
                     </div>
                   </div>
                 )) : (
-                  <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <div className="text-center py-10 text-slate-400 dark:text-slate-500">
+                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" weight="duotone" />
                     <p className="text-sm">Tidak ada jadwal</p>
                   </div>
                 )}
@@ -1055,26 +1173,25 @@ const handleDownloadTemplate = async () => {
               <form onSubmit={handleSave} className="p-3 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto flex-1">
                  <div>
                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode Matakuliah</label>
-                     <input 
-                         type="text" required 
-                         value={formData.courseCode} 
+                     <Input
+                         type="text" required
+                         value={formData.courseCode}
                          onChange={e => setFormData({...formData, courseCode: e.target.value.toUpperCase()})}
-                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
+                         className="font-mono"
                          placeholder="Contoh: DC502"
                      />
                  </div>
-                 
+
                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Matakuliah</label>
-                    <input 
-                        type="text" required 
-                        value={formData.courseName} 
+                    <Input
+                        type="text" required
+                        value={formData.courseName}
                         onChange={e => setFormData({...formData, courseName: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         placeholder="Jaringan Komputer"
                     />
                  </div>
-                 
+
                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruangan</label>
                     <SearchableSelect
@@ -1085,93 +1202,90 @@ const handleDownloadTemplate = async () => {
                         searchPlaceholder="Cari ruangan..."
                     />
                  </div>
-                 
+
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari</label>
-                        <select 
-                            value={formData.dayOfWeek}
-                            onChange={e => setFormData({...formData, dayOfWeek: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
-                        >
+                        <Select value={formData.dayOfWeek || ''} onValueChange={val => setFormData({...formData, dayOfWeek: val})} items={dayFormItems}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih Hari" />
+                          </SelectTrigger>
+                          <SelectContent>
                             {days.map(d => (
-                              <option key={d} value={d}>{d}</option>
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
                             ))}
-                        </select>
+                          </SelectContent>
+                        </Select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Mulai</label>
-                        <input 
-                            type="time" required 
-                            value={formData.startTime} 
+                        <Input
+                            type="time" required
+                            value={formData.startTime}
                             onChange={e => setFormData({...formData, startTime: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Selesai</label>
-                        <input 
-                            type="time" required 
-                            value={formData.endTime} 
+                        <Input
+                            type="time" required
+                            value={formData.endTime}
                             onChange={e => setFormData({...formData, endTime: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
                  </div>
-                 
+
                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semester</label>
-                        <select 
-                            value={formData.semester}
-                            onChange={e => setFormData({...formData, semester: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
-                        >
+                        <Select value={formData.semester || ''} onValueChange={val => setFormData({...formData, semester: val})} items={semesterFormItems}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih Semester" />
+                          </SelectTrigger>
+                          <SelectContent>
                             {semesters.map(s => (
-                              <option key={s} value={s}>{s}</option>
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
                             ))}
-                        </select>
+                          </SelectContent>
+                        </Select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tahun Akademik</label>
-                     <input 
+                     <Input
                          type="text"
                          list="academic-years-list"
-                         required 
+                         required
                          value={formData.academicYear}
                          onChange={e => setFormData({...formData, academicYear: e.target.value})}
                          pattern="\d{4}/\d{4}"
                          title="Format harus YYYY/YYYY (contoh: 2024/2025)"
-                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                          placeholder="Contoh: 2024/2025"
                      />
                     </div>
                  </div>
-                 
+
                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tgl Mulai Periode</label>
-                        <input 
-                            type="date" 
-                            value={formData.startDate} 
+                        <Input
+                            type="date"
+                            value={formData.startDate}
                             onChange={e => setFormData({...formData, startDate: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tgl Selesai Periode</label>
-                        <input 
-                            type="date" 
-                            value={formData.endDate} 
+                        <Input
+                            type="date"
+                            value={formData.endDate}
                             onChange={e => setFormData({...formData, endDate: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
                  </div>
 
                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dosen Pengampu <span className="text-xs font-normal text-gray-400">(Opsional)</span></label>
-                    <SearchableSelect 
+                    <SearchableSelect
                         options={lecturerOptions}
                         value={formData.lecturerId || ''}
                         onChange={val => {
@@ -1205,10 +1319,10 @@ const handleDownloadTemplate = async () => {
             </div>
             <form onSubmit={(e) => {
               e.preventDefault();
-              
-              if (canManage && googleApi.isGapiInitialized && !googleApi.isAuthenticated) {
-                googleApi.login();
-                showToast("Silakan login ke Google Calendar terlebih dahulu sebelum mengeksekusi import data.", "info");
+
+              if (canManage && googleApi.isGapiInitialized && !googleApi.calendarConnected) {
+                googleApi.connectCalendar();
+                showToast("Silakan hubungkan Google Calendar terlebih dahulu sebelum mengeksekusi import data.", "info");
                 return;
               }
 
@@ -1244,25 +1358,25 @@ const handleDownloadTemplate = async () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semester Default</label>
-                  <select 
-                      value={bulkFormData.semester}
-                      onChange={e => setBulkFormData({...bulkFormData, semester: e.target.value as any})}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
-                  >
-                      {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <Select value={bulkFormData.semester} onValueChange={(val: any) => setBulkFormData({...bulkFormData, semester: val})} items={semesterFormItems}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih Semester" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {semesters.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tahun Akademik Default</label>
-                  <input 
+                  <Input
                       type="text"
                       list="academic-years-list"
-                      required 
+                      required
                       value={bulkFormData.academicYear}
                       onChange={e => setBulkFormData({...bulkFormData, academicYear: e.target.value})}
                       pattern="\d{4}/\d{4}"
                       title="Format harus YYYY/YYYY (contoh: 2024/2025)"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                       placeholder="Contoh: 2024/2025"
                   />
                 </div>
@@ -1270,20 +1384,18 @@ const handleDownloadTemplate = async () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tgl Mulai Periode Default</label>
-                  <input 
-                      type="date" required 
-                      value={bulkFormData.startDate} 
+                  <Input
+                      type="date" required
+                      value={bulkFormData.startDate}
                       onChange={e => setBulkFormData({...bulkFormData, startDate: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tgl Selesai Periode Default</label>
-                  <input 
-                      type="date" required 
-                      value={bulkFormData.endDate} 
+                  <Input
+                      type="date" required
+                      value={bulkFormData.endDate}
                       onChange={e => setBulkFormData({...bulkFormData, endDate: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1337,7 +1449,7 @@ const handleDownloadTemplate = async () => {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20 flex justify-between items-center">
               <h3 className="font-bold text-red-800 dark:text-red-400 flex items-center">
-                <Trash2 className="w-5 h-5 mr-2" /> Hapus Jadwal Massal
+                <Trash className="w-5 h-5 mr-2" /> Hapus Jadwal Massal
               </h3>
               <button onClick={() => setBulkDeleteModal(prev => ({ ...prev, isOpen: false }))} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-gray-500 dark:text-gray-300')}>
                 <X className="w-5 h-5" />
@@ -1348,43 +1460,42 @@ const handleDownloadTemplate = async () => {
                 <p className="font-bold mb-1">⚠️ Perhatian!</p>
                 <p className="text-yellow-700 dark:text-yellow-500">Tindakan ini akan menghapus permanen <b>seluruh</b> data jadwal kelas di database pada semester dan tahun akademik yang dipilih.</p>
                 <p className="text-yellow-700 dark:text-yellow-500 mt-1">
-                  {googleApi.isAuthenticated ? (
-                    '✅ Sudah login akun Google admin.'
+                  {googleApi.calendarConnected ? (
+                    '✅ Google Calendar terhubung.'
                   ) : (
-                    '❌ Login akun Google admin diperlukan sebelum hapus semua jadwal.'
+                    '❌ Hubungkan Google Calendar diperlukan sebelum hapus semua jadwal.'
                   )}
                 </p>
                 <p className="mt-2 text-xs italic text-yellow-700 dark:text-yellow-500">* Event di Google Calendar tidak akan terhapus otomatis.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semester</label>
-                <select 
-                    value={bulkDeleteModal.semester}
-                    onChange={e => setBulkDeleteModal({...bulkDeleteModal, semester: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
-                    required
-                >
-                    {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <Select value={bulkDeleteModal.semester || ''} onValueChange={val => setBulkDeleteModal({...bulkDeleteModal, semester: val})} items={semesterFormItems}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tahun Akademik</label>
-                <select 
-                    required 
-                    value={bulkDeleteModal.academicYear}
-                    onChange={e => setBulkDeleteModal({...bulkDeleteModal, academicYear: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
-                >
-                    <option value="">-- Pilih Tahun --</option>
+                <Select value={bulkDeleteModal.academicYear || ''} onValueChange={val => setBulkDeleteModal({...bulkDeleteModal, academicYear: val})} items={academicYearFormItems}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="-- Pilih Tahun --" />
+                  </SelectTrigger>
+                  <SelectContent>
                     {academicYears.map(ay => (
-                      <option key={ay} value={ay}>{ay}</option>
+                      <SelectItem key={ay} value={ay}>{ay}</SelectItem>
                     ))}
-                </select>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="pt-4 flex justify-end space-x-3 border-t border-gray-200 dark:border-gray-700 mt-4">
                 <Button type="button" onClick={() => setBulkDeleteModal(prev => ({ ...prev, isOpen: false }))} variant="secondary">Batal</Button>
                 <Button type="submit" disabled={isLoading} variant="destructive">
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} Hapus Semua
+                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash className="w-4 h-4 mr-2" />} Hapus Semua
                 </Button>
               </div>
             </form>

@@ -1,34 +1,35 @@
 import {
   Archive,
-  ArrowRightLeft,
-  BookOpen,
-  Box,
+  ArrowsLeftRight,
   Backpack,
-  CalendarDays,
-  CalendarRange,
-  ClipboardCheck,
-  ClipboardList,
+  BookOpen,
+  Books,
+  CalendarBlank,
+  CalendarCheck,
+  CalendarDots,
+  ClipboardText,
   Cpu,
+  Cube,
   DoorOpen,
   FileText,
+  Gauge,
+  GearSix,
   GraduationCap,
-  LibraryBig,
   Info,
-  LayoutDashboard,
-  LucideIcon,
+  ShieldCheck,
   SlidersHorizontal,
-  Settings,
-  Shield,
-  UserCog,
-  Users,
-} from "lucide-react";
+  UserCircle,
+  UserGear,
+  UsersThree,
+  type Icon,
+} from "@phosphor-icons/react";
 
 import { Role } from "../types";
 
 export interface NavigationItem {
   id: string;
   label: string;
-  icon: LucideIcon;
+  icon: Icon;
   roles: Role[];
   url?: string;
 }
@@ -36,7 +37,7 @@ export interface NavigationItem {
 export interface NavigationGroup {
   id: string;
   title: string;
-  icon: LucideIcon;
+  icon: Icon;
   items: NavigationItem[];
 }
 
@@ -47,7 +48,7 @@ export const mainNavigationItems: NavigationItem[] = [
   {
     id: "dashboard",
     label: "Dashboard",
-    icon: LayoutDashboard,
+    icon: Gauge,
     roles: [
       Role.ADMIN,
       Role.LABORAN,
@@ -74,7 +75,7 @@ export const mainNavigationItems: NavigationItem[] = [
   {
     id: "pesanan-ruang",
     label: "Pesanan Ruang",
-    icon: ClipboardCheck,
+    icon: CalendarCheck,
     roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
   },
   {
@@ -86,7 +87,7 @@ export const mainNavigationItems: NavigationItem[] = [
   {
     id: "pemesanan-saya",
     label: "Pemesanan Saya",
-    icon: ClipboardList,
+    icon: ClipboardText,
     roles: [Role.LEMBAGA_KEMAHASISWAAN, Role.ADMIN_TU],
   },
   {
@@ -105,7 +106,7 @@ export const mainNavigationItems: NavigationItem[] = [
   {
     id: "labguard",
     label: "LabGuard (Testing)",
-    icon: Shield,
+    icon: ShieldCheck,
     url: "http://192.168.68.246:3000",
     roles: [
       Role.ADMIN,
@@ -119,12 +120,12 @@ export const navigationGroups: NavigationGroup[] = [
   {
     id: "jadwal",
     title: "Jadwal",
-    icon: CalendarRange,
+    icon: CalendarBlank,
     items: [
       {
         id: "jadwal-ruang",
         label: "Ruang",
-        icon: CalendarRange,
+        icon: CalendarBlank,
         roles: [
           Role.MAHASISWA,
           Role.ADMIN,
@@ -144,7 +145,7 @@ export const navigationGroups: NavigationGroup[] = [
       {
         id: "acara",
         label: "Acara",
-        icon: CalendarDays,
+        icon: CalendarDots,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
     ],
@@ -157,25 +158,25 @@ export const navigationGroups: NavigationGroup[] = [
       {
         id: "manajemen-user",
         label: "User",
-        icon: Users,
+        icon: UsersThree,
         roles: [Role.ADMIN],
       },
       {
         id: 'manajemen-dosen',
         label: 'Dosen',
-        icon: GraduationCap, // Anda bisa menggantinya dengan ikon GraduationCap atau yang lain
+        icon: GraduationCap,
         roles: [Role.ADMIN, Role.ADMIN_TU] // Restriksi Role
       },
       {
         id: "manajemen-program-studi",
         label: "Program Studi",
-        icon: LibraryBig,
+        icon: Books,
         roles: [Role.ADMIN, Role.ADMIN_TU],
       },
       {
         id: "manajemen-laboran",
         label: "Laboran",
-        icon: UserCog,
+        icon: UserGear,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
       {
@@ -196,18 +197,18 @@ export const navigationGroups: NavigationGroup[] = [
   {
     id: "transaksi",
     title: "Transaksi",
-    icon: Box,
+    icon: Cube,
     items: [
       {
         id: "peminjaman-barang",
         label: "Peminjaman Barang",
-        icon: Box,
+        icon: Cube,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
       {
         id: "perpindahan-barang",
         label: "Perpindahan Barang",
-        icon: ArrowRightLeft,
+        icon: ArrowsLeftRight,
         roles: [Role.ADMIN, Role.LABORAN, Role.SUPERVISOR],
       },
     ],
@@ -215,18 +216,18 @@ export const navigationGroups: NavigationGroup[] = [
   {
     id: "pengaturan",
     title: "Pengaturan",
-    icon: Settings,
+    icon: GearSix,
     items: [
       {
         id: "pengaturan",
         label: "Pengaturan",
-        icon: Settings,
+        icon: GearSix,
         roles: [Role.ADMIN],
       },
       {
         id: "profil",
         label: "Profile",
-        icon: Users,
+        icon: UserCircle,
         roles: [
           Role.MAHASISWA,
           Role.ADMIN,

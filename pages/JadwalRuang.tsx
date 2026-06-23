@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Role, Room } from '../types';
-import { 
-  Filter, ExternalLink
-} from 'lucide-react';
+import { Role } from '../types';
+import { Funnel as Filter } from '@phosphor-icons/react';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import RoomCalendar from '../components/RoomCalendar';
-import { useGoogleCalendar, GoogleEvent } from '../hooks/useGoogleCalendar';
+import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 import { useRooms } from '../hooks/useRooms';
+import PageHeader from '../components/PageHeader';
 
 // Declare global types for Google API
 declare global {
@@ -26,6 +26,9 @@ const JadwalRuang: React.FC<ScheduleProps> = ({ role, showToast, isDarkMode }) =
   const [filterRoom, setFilterRoom] = useState<string>(''); 
   const selectedRoom = rooms.find(r => r.id === filterRoom);
 
+  const roomSelectItems = React.useMemo(() => {
+    return rooms.map(r => ({ label: r.name, value: r.id }));
+  }, [rooms]);
 
   useEffect(() => {
     if (rooms.length > 0 && !filterRoom) {
@@ -58,17 +61,17 @@ const JadwalRuang: React.FC<ScheduleProps> = ({ role, showToast, isDarkMode }) =
 
   return (
     <div className="space-y-6">
-      {/* Header Section - Room Selection */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jadwal Ruang</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Jadwal Resmi Ruangan: <span className="font-bold text-blue-600 dark:text-blue-400">
+      <PageHeader
+        title="Jadwal Ruangan"
+        description={
+          <span>
+            Jadwal Resmi Ruangan:{' '}
+            <span className="font-bold text-sky-600 dark:text-sky-400">
               {selectedRoom?.name || 'Pilih Ruangan'}
             </span>
-          </p>
-        </div>
-      </div>
+          </span>
+        }
+      />
 
       {/* RoomCalendar Component - handles all calendar rendering and modals */}
       <RoomCalendar
@@ -78,19 +81,25 @@ const JadwalRuang: React.FC<ScheduleProps> = ({ role, showToast, isDarkMode }) =
         showToast={showToast}
         getCalendarId={getCalendarId}
         filterComponent={
-          <div className="flex items-center gap-2 w-full sm:w-64 md:w-72">
-            <Filter className="w-4 h-4 text-gray-400 shrink-0" />
-            <select
-              value={filterRoom}
-              onChange={(e) => setFilterRoom(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+          <div className="w-full sm:w-64 md:w-72">
+            <Select
+              value={filterRoom || null}
+              onValueChange={(val) => setFilterRoom(val ?? '')}
               disabled={isLoading}
+              items={roomSelectItems}
             >
-              {isLoading && <option value="">Memuat ruangan...</option>}
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-500 shrink-0" />
+                  <SelectValue placeholder={isLoading ? "Memuat ruangan..." : "Pilih Ruangan"} />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {rooms.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         }
       />

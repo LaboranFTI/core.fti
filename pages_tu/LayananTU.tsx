@@ -7,7 +7,9 @@ import { ObservationForm } from './components/ObservationForm';
 import { LetterPreview } from './components/LetterPreview';
 import { PageTabs, PageTabItem, PageTabSummary } from '../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../components/ui/tabs';
-import { Archive, FileText, LayoutPanelTop, PenSquare, Shield } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
+import { TUSegmentedControl } from './components/TUPageComponents';
+import { Archive, FileText, Layout, NotePencil, ShieldCheck } from '@phosphor-icons/react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
 
@@ -107,7 +109,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       description: isMahasiswa
         ? 'Role Mahasiswa hanya dapat melihat template dan preview surat observasi pada halaman ini.'
         : 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.',
-      icon: observationView === 'form' ? PenSquare : LayoutPanelTop
+      icon: observationView === 'form' ? NotePencil : Layout
     },
     'arsip-surat': {
       title: 'Arsip Surat',
@@ -117,7 +119,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     'panel-admin': {
       title: 'Panel Admin TU',
       description: 'Kelola pengajuan, atur semester berjalan, dan siapkan pengesahan surat dari satu tempat.',
-      icon: Shield
+      icon: ShieldCheck
     }
   };
 
@@ -231,21 +233,18 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const ActiveTabIcon = activeTabMeta[activeTab]?.icon || FileText;
   const serviceTabs: PageTabItem[] = [
     !isMahasiswa && { value: 'aktif', label: 'Surat Aktif Kuliah', icon: FileText },
-    { value: 'observasi', label: 'Surat Ijin Observasi', icon: PenSquare },
+    { value: 'observasi', label: 'Surat Ijin Observasi', icon: NotePencil },
     isTUAdmin && { value: 'arsip-surat', label: 'Arsip Surat', icon: Archive },
-    isTUAdmin && { value: 'panel-admin', label: 'Panel Admin', icon: Shield }
+    isTUAdmin && { value: 'panel-admin', label: 'Panel Admin', icon: ShieldCheck }
   ].filter(Boolean) as PageTabItem[];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Layanan Tata Usaha</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Layanan pengajuan Surat Keterangan Aktif Kuliah dan Surat Observasi
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Layanan Tata Usaha"
+        description="Layanan pengajuan Surat Keterangan Aktif Kuliah dan Surat Observasi."
+        className="print:hidden"
+      />
 
       {/* Konten Utama berdasarkan Role */}
       <div className="pt-2 print:p-0">
@@ -264,27 +263,19 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
           </TabsContent>
           
           <TabsContent value="observasi" className="print:m-0 focus:outline-none">
-            <div className="mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm dark:border-gray-700 dark:bg-gray-800/70 xl:hidden print:hidden">
+            <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:hidden print:hidden">
               <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                {observationView === "form" ? <PenSquare className="w-4 h-4 text-blue-600" /> : <LayoutPanelTop className="w-4 h-4 text-blue-600" />}
+                {observationView === "form" ? <NotePencil className="h-4 w-4 text-slate-600 dark:text-slate-300" /> : <Layout className="h-4 w-4 text-slate-600 dark:text-slate-300" />}
                 {observationView === "form" ? 'Mode Formulir' : 'Mode Preview'}
               </div>
-              <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-gray-900">
-                <button
-                  type="button"
-                  onClick={() => setObservationView("form")}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${observationView === "form" ? 'bg-white text-slate-900 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                  Form
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setObservationView("preview")}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${observationView === "preview" ? 'bg-white text-slate-900 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                  Preview
-                </button>
-              </div>
+              <TUSegmentedControl
+                value={observationView}
+                options={[
+                  { value: 'form', label: 'Form' },
+                  { value: 'preview', label: 'Preview' }
+                ]}
+                onChange={(value) => setObservationView(value)}
+              />
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
               <div className={`${observationView === "preview" ? 'hidden xl:block' : 'block'} xl:col-span-5 print:hidden`}>

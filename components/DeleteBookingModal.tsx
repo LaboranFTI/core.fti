@@ -1,52 +1,113 @@
 import React from 'react';
-import { Room, BookingStatus } from '../types';
-import { Trash2, Loader2 } from 'lucide-react';
+import { SpinnerGap, Trash, WarningCircle } from '@phosphor-icons/react';
+import { BookingStatus, Room } from '../types';
 import { formatDateID } from '../src/utils/formatters';
 import { Button } from './ui/button';
 
-const DeleteBookingModal = ({ isOpen, booking, rooms, isDeleting, deleteOption, setDeleteOption, onClose, onConfirm }: any) => {
+const DeleteBookingModal = ({
+  isOpen,
+  booking,
+  rooms,
+  isDeleting,
+  deleteOption,
+  setDeleteOption,
+  onClose,
+  onConfirm
+}: any) => {
   if (!isOpen || !booking) return null;
+
   const getRoomName = (roomId: string) => rooms.find((r: Room) => r.id === roomId)?.name || 'Ruangan Tidak Diketahui';
+
+  const detailRows = [
+    ['Peminjam', booking.userName],
+    ['Ruangan', getRoomName(booking.roomId)],
+    ['Tanggal', formatDateID(booking.date)],
+    ['Keperluan', booking.purpose]
+  ];
+
   return (
-    <div className="mobile-modal-shell fixed inset-0 z-80 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
-          <h3 className="font-bold text-red-800 dark:text-red-400 flex items-center">
-            <Trash2 className="w-5 h-5 mr-2" /> Hapus Data Peminjaman
-          </h3>
+    <div className="mobile-modal-shell fixed inset-0 z-80 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <div className="mobile-modal-panel flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl animate-fade-in-up dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-red-200 bg-red-50 px-5 py-4 dark:border-red-500/20 dark:bg-red-500/10">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+              <Trash size={22} weight="duotone" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700 dark:text-red-200">
+                Penghapusan Data
+              </p>
+              <h3 className="text-base font-semibold text-slate-950 dark:text-white">Hapus Data Peminjaman</h3>
+            </div>
+          </div>
         </div>
-        <div className="mobile-modal-body p-4 sm:p-6 space-y-4">
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">⚠️ Peringatan! Tindakan ini tidak dapat dibatalkan.</p>
+
+        <div className="mobile-modal-body space-y-4 p-5 sm:p-6">
+          <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+            <WarningCircle size={20} weight="duotone" className="mt-0.5 shrink-0" />
+            <p className="text-sm font-medium">Tindakan ini tidak dapat dibatalkan.</p>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-300">Anda akan menghapus data peminjaman berikut secara permanen:</p>
-          <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600 space-y-2">
-            <div className="flex justify-between"><span className="text-xs text-gray-500">Peminjam:</span><span className="text-sm font-medium text-gray-900 dark:text-white">{booking.userName}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-gray-500">Ruangan:</span><span className="text-sm font-medium text-gray-900 dark:text-white">{getRoomName(booking.roomId)}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-gray-500">Tanggal:</span><span className="text-sm font-medium text-gray-900 dark:text-white">{formatDateID(booking.date)}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-gray-500">Keperluan:</span><span className="text-sm font-medium text-gray-900 dark:text-white">{booking.purpose}</span></div>
+
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Data peminjaman berikut akan dihapus secara permanen dari sistem.
+          </p>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+            <dl className="space-y-3">
+              {detailRows.map(([label, value]) => (
+                <div key={label} className="grid grid-cols-[92px_1fr] gap-3 text-sm">
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    {label}
+                  </dt>
+                  <dd className="font-medium text-slate-950 dark:text-white">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
+
           {booking.status === BookingStatus.APPROVED && (
-            <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Hapus dari Google Calendar:</p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Hapus dari Google Calendar</p>
               <div className="space-y-2">
                 {(['single', 'thisAndFollowing', 'all'] as const).map((opt) => (
-                  <label key={opt} className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${deleteOption === opt ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                    <input type="radio" name="deleteOption" value={opt} checked={deleteOption === opt} onChange={() => setDeleteOption(opt)} className="mr-3 h-4 w-4 accent-red-600 focus:ring-red-500/30" />
-                    <div>
-                      {opt === 'single' && <p className="text-sm text-gray-900 dark:text-white">Hapus event ini saja</p>}
-                      {opt === 'thisAndFollowing' && <p className="text-sm text-gray-900 dark:text-white">Ini dan event selanjutnya</p>}
-                      {opt === 'all' && <p className="text-sm text-gray-900 dark:text-white">Semua event terkait</p>}
-                    </div>
+                  <label
+                    key={opt}
+                    className={`flex cursor-pointer items-center rounded-lg border p-3 transition ${
+                      deleteOption === opt
+                        ? 'border-red-400 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="deleteOption"
+                      value={opt}
+                      checked={deleteOption === opt}
+                      onChange={() => setDeleteOption(opt)}
+                      className="mr-3 h-4 w-4 accent-red-600 focus:ring-red-500/30"
+                    />
+                    <span className="text-sm">
+                      {opt === 'single' && 'Hapus event ini saja'}
+                      {opt === 'thisAndFollowing' && 'Ini dan event selanjutnya'}
+                      {opt === 'all' && 'Semua event terkait'}
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
           )}
+
           <div className="mobile-modal-actions flex justify-end gap-3 pt-2">
-            <Button onClick={onClose} variant="secondary">Batal</Button>
+            <Button onClick={onClose} variant="secondary">
+              Batal
+            </Button>
             <Button onClick={onConfirm} disabled={isDeleting} variant="destructive">
-              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} Hapus Permanen
+              {isDeleting ? (
+                <SpinnerGap size={17} weight="bold" className="mr-2 animate-spin" />
+              ) : (
+                <Trash size={17} weight="bold" className="mr-2" />
+              )}
+              Hapus Permanen
             </Button>
           </div>
         </div>

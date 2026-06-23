@@ -1,25 +1,27 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { Card } from "./ui/card";
 import { Role, Room } from "../types";
 import {
-  Calendar as CalendarIcon,
+  CalendarBlank as CalendarIcon,
   Clock,
   Plus,
-  ChevronLeft,
-  ChevronRight,
+  CaretLeft as ChevronLeft,
+  CaretRight as ChevronRight,
   X,
-  Save,
-  Trash2,
-  Edit,
-  ExternalLink,
-  Type,
-  AlignLeft,
-  LogIn,
-  LogOut,
+  FloppyDisk as Save,
+  Trash as Trash2,
+  PencilSimpleLine as Edit,
+  ArrowSquareOut as ExternalLink,
+  TextT as Type,
+  TextAlignLeft as AlignLeft,
+  SignIn as LogIn,
+  SignOut as LogOut,
   CheckCircle,
-  Loader2,
-  RefreshCw,
+  SpinnerGap as Loader2,
+  ArrowClockwise as RefreshCw,
   MapPin,
-} from "lucide-react";
+} from "@phosphor-icons/react";
+import { Button } from "./ui/button";
 
 interface GoogleEvent {
   id: string;
@@ -172,6 +174,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
     createEvent,
     updateEvent,
     deleteEvent,
+    calendarConnected,
+    connectCalendar,
   } = googleApi;
 
   /** True for roles that can create / edit / delete calendar events. */
@@ -246,8 +250,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
     if (!day.isCurrentMonth) return;
     const canAdd = role === Role.ADMIN || role === Role.LABORAN;
     if (canAdd && day.events.length === 0) {
-      if (!isAuthenticated) {
-        login();
+      if (!calendarConnected) {
+        connectCalendar();
         return;
       }
       setEventForm({
@@ -266,8 +270,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const handleOpenAddEventModal = () => {
-    if (!isAuthenticated) {
-      login();
+    if (!calendarConnected) {
+      connectCalendar();
       return;
     }
     let defaultDate =
@@ -332,8 +336,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const handleDeleteEventClick = (event: GoogleEvent) => {
-    if (!isAuthenticated) {
-      login();
+    if (!calendarConnected) {
+      connectCalendar();
       return;
     }
     setEventToDelete(event);
@@ -357,8 +361,8 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const handleEditEventClick = (event: GoogleEvent) => {
-    if (!isAuthenticated) {
-      login();
+    if (!calendarConnected) {
+      connectCalendar();
       return;
     }
     const startDateTime = event.start.dateTime
@@ -538,67 +542,155 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
     return days;
   }, [currentDate, events]);
 
+  const renderDayEvents = (dayEvents: GoogleEvent[]) => {
+    // Separate all-day events from standard timed events
+    const timedEvents = dayEvents.filter(e => e.start.dateTime);
+    const allDayEvents = dayEvents.filter(e => !e.start.dateTime);
+
+    // Sort timed events by start time
+    const sortedTimedEvents = [...timedEvents].sort((a, b) => {
+      const timeA = new Date(a.start.dateTime!).getTime();
+      const timeB = new Date(b.start.dateTime!).getTime();
+      return timeA - timeB;
+    });
+
+    const elements: React.ReactNode[] = [];
+
+    // All-day events first
+    allDayEvents.forEach(event => {
+      elements.push(
+        <div
+          key={event.id}
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setSelectedEvent(event);
+          }}
+          className="block text-[10px] p-1 pl-2 rounded-md bg-emerald-50 dark:bg-slate-800 text-emerald-800 dark:text-emerald-100 border border-emerald-200/80 dark:border-slate-700 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 truncate hover:shadow-xs transition-all cursor-pointer font-semibold"
+          title={event.summary}
+        >
+          {event.summary}
+        </div>
+      );
+    });
+
+    // Timed events with gap calculations
+    let prevEndTime: Date | null = null;
+    sortedTimedEvents.forEach((event, idx) => {
+      const isOverlapping = checkOverlap(event, dayEvents);
+      const startTime = new Date(event.start.dateTime!);
+      const endTime = new Date(event.end.dateTime!);
+
+      // Calculate gap if we had a previous timed event
+      if (prevEndTime && !isOverlapping) {
+        const gapMs = startTime.getTime() - prevEndTime.getTime();
+        const gapMinutes = gapMs / (1000 * 60);
+
+        if (gapMinutes > 15) { // Only render a spacer if the gap is more than 15 minutes
+          // Map gap size to height
+          const heightStyle = gapMinutes >= 120
+            ? { height: '24px' }
+            : gapMinutes >= 60
+              ? { height: '16px' }
+              : { height: '10px' };
+
+          elements.push(
+            <div
+              key={`gap-${idx}`}
+              style={heightStyle}
+              className="w-full rounded border border-dashed border-slate-200/40 dark:border-slate-700/40 bg-slate-50/10 dark:bg-slate-900/10 flex items-center justify-center shrink-0"
+              title={`Kosong (${Math.round(gapMinutes)} m)`}
+            >
+              {gapMinutes >= 60 && (
+                <span className="text-[8px] text-slate-400 dark:text-slate-500 scale-90 font-medium select-none">
+                  {Math.round(gapMinutes / 60)}j Kosong
+                </span>
+              )}
+            </div>
+          );
+        }
+      }
+
+      elements.push(
+        <div
+          key={event.id}
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setSelectedEvent(event);
+          }}
+          className={`block text-[10px] sm:text-xs p-1.5 pl-3 rounded-md border truncate hover:shadow-xs transition-all cursor-pointer relative overflow-hidden group/item ${
+            isOverlapping
+              ? "bg-amber-50 dark:bg-slate-800 text-amber-900 dark:text-amber-100 border-amber-200/80 dark:border-slate-700"
+              : "bg-sky-50 dark:bg-slate-800 text-sky-900 dark:text-sky-100 border-sky-200/80 dark:border-slate-700"
+          }`}
+          title={`${event.summary}\n${formatEventTime(event.start.dateTime, event.start.date)}${isOverlapping ? "\n(Jadwal Bersamaan)" : ""}`}
+        >
+          {/* Colored accent strip — always visible for quick visual scanning */}
+          <div className={`absolute left-0 inset-y-0 w-1 rounded-l-md ${isOverlapping ? "bg-amber-500 dark:bg-amber-400" : "bg-sky-500 dark:bg-sky-400"}`} />
+
+          <div className="flex items-center pl-0.5 truncate">
+            {isOverlapping && (
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 shrink-0" />
+            )}
+            {event.start.dateTime && (
+              <span className="font-mono text-[9px] mr-1 shrink-0 font-medium text-slate-500 dark:text-slate-400">
+                {new Date(event.start.dateTime).toLocaleTimeString("id-ID", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+            <span className="truncate font-semibold">{event.summary}</span>
+          </div>
+        </div>
+      );
+
+      // Only advance the previous end time if the current event does not overlap with a future one,
+      // or if its end time is later than the tracked one.
+      if (!prevEndTime || endTime.getTime() > prevEndTime.getTime()) {
+        prevEndTime = endTime;
+      }
+    });
+
+    return elements;
+  };
+
   const MonthView = () => (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-      <div className="grid grid-cols-7 bg-linear-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-700">
+    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+      <div className="grid grid-cols-7 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
         {/* Use the shared DAY_LABELS + getDowColour tokens (same as DayWeekView) */}
         {DAY_LABELS.map((label, idx) => (
           <div
             key={label}
-            className={`py-3 text-center text-sm font-bold ${getDowColour(idx)}`}
+            className={`py-3.5 text-center text-xs font-bold uppercase tracking-wider ${getDowColour(idx)}`}
           >
             {label}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 auto-rows-fr bg-white dark:bg-gray-800">
+      <div className="grid grid-cols-7 auto-rows-fr bg-white dark:bg-slate-900">
         {calendarGrid.map((day, idx) => (
           <div
             key={idx}
             onClick={() => handleDayClick(day)}
-            className={`min-h-30 border-b border-r border-gray-100 dark:border-gray-700 p-2 transition-colors ${!day.isCurrentMonth ? "bg-gray-50/50 dark:bg-gray-900/30" : "hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"}`}
+            className={`min-h-[140px] border-b border-r border-slate-100 dark:border-slate-850 p-2.5 transition-colors ${!day.isCurrentMonth ? "bg-slate-50/30 dark:bg-slate-950/10 text-slate-400 dark:text-slate-600" : "hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer"}`}
           >
-            {day.isCurrentMonth && (
+            {day.isCurrentMonth ? (
               <>
                 <div
-                  className={`text-sm font-medium mb-2 ${day.fullDate === new Date().toISOString().split("T")[0] ? "bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full" : "text-gray-700 dark:text-gray-300"}`}
+                  className={`text-xs font-bold mb-2 flex items-center justify-center w-6 h-6 rounded-full transition-colors ${
+                    day.fullDate === new Date().toISOString().split("T")[0]
+                      ? "bg-sky-600 text-white shadow-sm"
+                      : "text-slate-700 dark:text-slate-300"
+                  }`}
                 >
                   {day.date}
                 </div>
-                <div className="space-y-1">
-                  {day.events.map((event) => {
-                    const isOverlapping = checkOverlap(event, day.events);
-                    return (
-                      <div
-                        key={event.id}
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setSelectedEvent(event);
-                        }}
-                        className={`block text-xs p-1.5 rounded border truncate hover:opacity-80 transition-opacity cursor-pointer ${isOverlapping ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-800"}`}
-                        title={`${event.summary}\n${formatEventTime(event.start.dateTime, event.start.date)}${isOverlapping ? "\n(Jadwal Bersamaan)" : ""}`}
-                      >
-                        <div className="flex items-center">
-                          {isOverlapping && (
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mr-1.5 shrink-0" />
-                          )}
-                          {event.start.dateTime && (
-                            <span className="font-mono text-[10px] mr-1 opacity-75 shrink-0">
-                              {new Date(
-                                event.start.dateTime,
-                              ).toLocaleTimeString("id-ID", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          )}
-                          <span className="truncate">{event.summary}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-1.5">
+                  {renderDayEvents(day.events)}
                 </div>
               </>
+            ) : (
+              <div className="text-xs font-medium text-slate-300 dark:text-slate-700">{day.date || ""}</div>
             )}
           </div>
         ))}
@@ -639,27 +731,19 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
     const allDayEvents = events.filter((e: GoogleEvent) => e.start.date);
 
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="flex sticky top-0 z-10 bg-linear-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-700">
-          {/* Spacer inherits the gradient from its parent — only border-r is needed,
-              upgraded to border-gray-200 so it visually matches the column cell borders. */}
-          <div className="w-16 shrink-0 border-r border-gray-200 dark:border-gray-700" />
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="flex sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 backdrop-blur-xs">
+          <div className="w-16 shrink-0 border-r border-slate-200 dark:border-slate-700" />
           <div
             className="flex-1 grid"
             style={{
               gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
             }}
           >
-            {/* DayColumnHeader mirrors MonthView typography exactly:
-                  – coloured weekday abbreviation (red / blue / grey)
-                  – today = solid bg-blue-600 circle with white text          */}
-            {/* border-b is now on the parent container, so only border-r is needed here.
-                Removing the per-cell border-b prevents a doubled bottom border and
-                keeps the gradient band clean all the way to the right edge. */}
             {days.map((date) => (
               <div
                 key={date.toISOString()}
-                className="border-r border-gray-200 dark:border-gray-700"
+                className="border-r border-slate-200 dark:border-slate-700 last:border-r-0"
               >
                 <DayColumnHeader date={date} />
               </div>
@@ -668,9 +752,9 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
         </div>
 
         {allDayEvents.length > 0 && (
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
-            <div className="w-16 shrink-0 border-r border-gray-100 dark:border-gray-700 text-center py-1">
-              <span className="text-xs text-gray-400">All-day</span>
+          <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-950/20">
+            <div className="w-16 shrink-0 border-r border-slate-200 dark:border-slate-700 text-center py-1.5">
+              <span className="text-[10px] font-bold uppercase text-slate-400">All-day</span>
             </div>
             <div
               className="flex-1 grid"
@@ -682,17 +766,17 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                 const dateStr = date.toISOString().split("T")[0];
                 const dayEvents = allDayEvents.filter(
                   (e: { start: { date: string; }; }) => e.start.date === dateStr,
-              );
+                );
                 return (
                   <div
                     key={dateStr}
-                    className="border-r border-gray-100 dark:border-gray-700 p-1 space-y-1"
+                    className="border-r border-slate-200 dark:border-slate-700 last:border-r-0 p-1 space-y-1"
                   >
                     {dayEvents.map((event: GoogleEvent) => (
                       <div
                         key={event.id}
                         onClick={() => setSelectedEvent(event)}
-                        className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs p-1 rounded truncate cursor-pointer"
+                        className="text-[10px] p-1 pl-2 rounded-md bg-emerald-50 dark:bg-slate-800 text-emerald-800 dark:text-emerald-100 border border-emerald-200/80 dark:border-slate-700 border-l-[3px] border-l-emerald-500 dark:border-l-emerald-400 truncate cursor-pointer hover:shadow-xs font-semibold transition-all"
                       >
                         {event.summary}
                       </div>
@@ -704,12 +788,12 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
           </div>
         )}
 
-        <div className="flex overflow-auto max-h-[70vh]">
-          <div className="w-16 shrink-0 text-right pr-2 -mt-2">
+        <div className="flex overflow-auto max-h-[70vh] scrollbar-thin">
+          <div className="w-16 shrink-0 text-right pr-2.5 -mt-2.5 select-none bg-white dark:bg-slate-900 z-5">
             {timeSlots.map((time) => (
               <div
                 key={time}
-                className="h-16 flex items-start justify-end text-xs text-gray-400 pt-1"
+                className="h-16 flex items-start justify-end text-[11px] font-semibold text-slate-400 dark:text-slate-500 pt-1"
               >
                 <span>{time}</span>
               </div>
@@ -729,29 +813,40 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               return (
                 <div
                   key={index}
-                  className="relative border-r border-gray-100 dark:border-gray-700"
+                  className="relative border-r border-slate-150 dark:border-slate-800 last:border-r-0"
                 >
-                  {/* border-gray-700 (no opacity) keeps grid lines consistent with MonthView */}
                   {timeSlots.map((time) => (
                     <div
                       key={time}
-                      className="h-16 border-t border-gray-100 dark:border-gray-700"
+                      className="h-16 border-t border-slate-100 dark:border-slate-800/60 first:border-t-0"
                     ></div>
                   ))}
                   {dayEvents.map((event: GoogleEvent) => {
                     const { top, height } = calculateEventPosition(event);
+                    const isOverlapping = checkOverlap(event, dayEvents);
+
+                    const colorClass = isOverlapping
+                      ? "bg-amber-50 dark:bg-slate-800 text-amber-900 dark:text-amber-100 border-amber-200/80 dark:border-slate-700 hover:border-amber-400 dark:hover:border-slate-600"
+                      : "bg-sky-50 dark:bg-slate-800 text-sky-900 dark:text-sky-100 border-sky-200/80 dark:border-slate-700 hover:border-sky-400 dark:hover:border-slate-600";
+
+                    const stripColorClass = isOverlapping ? "bg-amber-500 dark:bg-amber-400" : "bg-sky-500 dark:bg-sky-400";
+
                     return (
                       <div
                         key={event.id}
                         onClick={() => setSelectedEvent(event)}
                         style={{ top, height }}
-                        className="absolute w-full px-1 cursor-pointer group"
+                        className="absolute w-full px-1 cursor-pointer group/item transition-all duration-200"
                       >
-                        <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 h-full rounded-lg p-2 overflow-hidden border border-blue-200 dark:border-blue-800 group-hover:border-blue-400 transition-all">
-                          <p className="text-xs font-bold line-clamp-1">
+                        <div className={`h-full rounded-lg p-2 overflow-hidden border transition-all duration-200 relative pl-3.5 shadow-2xs hover:shadow-xs ${colorClass}`}>
+                          {/* Accent left indicator strip */}
+                          <div className={`absolute left-0 inset-y-0 w-1 rounded-l-lg ${stripColorClass}`} />
+
+                          <p className="text-xs font-bold line-clamp-2 leading-tight">
                             {event.summary}
                           </p>
-                          <p className="text-[10px] opacity-80">
+                          <p className="text-[9px] opacity-75 mt-1 font-semibold flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 shrink-0" weight="bold" />
                             {new Date(event.start.dateTime!).toLocaleTimeString(
                               "id-ID",
                               { hour: "2-digit", minute: "2-digit" },
@@ -810,9 +905,10 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
         isGapiInitialized ||
         !!selectedRoom?.googleCalendarUrl ||
         filterComponent) && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
+        <Card className="border border-slate-200 shadow-sm dark:border-slate-700">
+          <div className="mx-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 md:flex-row md:items-center md:justify-between">
           {/* ── Left cluster: Filter + Add Event + Refresh ── */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
             {filterComponent}
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -829,7 +925,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               {isGapiInitialized && (
                 <button
                   onClick={fetchCurrentEvents}
-                  className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                   title="Refresh Jadwal"
                 >
                   <RefreshCw
@@ -841,12 +937,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
           </div>
 
           {/* ── Right cluster: Google Calendar link + Auth ── */}
-          <div className="flex items-center gap-3 flex-wrap w-full md:w-auto justify-start md:justify-end">
-            {/*  External Google Calendar link.
-                 Visible to ALL roles whenever the room has a calendar URL.
-                 Previously this only appeared in JadwalRuang's filter card,
-                 which meant it was missing on pages that embed RoomCalendar
-                 directly.  Placing it here ensures it renders in every view. */}
+          <div className="flex items-center gap-3 flex-wrap">
             {selectedRoom?.googleCalendarUrl && (
               <a
                 href={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(
@@ -863,38 +954,39 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
             )}
 
             {/* Auth status / login for roles allowed to access private calendars. */}
-            {canAuthenticate && (
+            {canManage && (
               <div className="flex items-center">
-                {isAuthenticated ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
-                    <span className="text-xs text-green-700 dark:text-green-300 font-medium max-w-37.5 truncate">
-                      {googleUserEmail || "Terhubung"}
+                {calendarConnected ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium max-w-37.5 truncate">
+                      {googleUserEmail || "Calendar Terhubung"}
                     </span>
                     <button
                       onClick={logout}
-                      className="p-1 hover:bg-green-100 dark:hover:bg-green-900/40 rounded transition-colors"
-                      title="Logout Google"
+                      className="p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded transition-colors"
+                      title="Putuskan Google Calendar"
                     >
-                      <LogOut className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                      <LogOut className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     </button>
                   </div>
                 ) : (
                   <button
-                    onClick={login}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    title="Login dengan Google untuk menambahkan jadwal"
+                    onClick={connectCalendar}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 border border-blue-500 rounded-lg hover:bg-blue-700 transition-colors text-white"
+                    title="Hubungkan dengan Google Calendar untuk mengedit jadwal"
                   >
-                    <LogIn className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    <span className="text-xs text-gray-600 dark:text-gray-300">
-                      Login Google
+                    <LogIn className="w-4 h-4 text-white" />
+                    <span className="text-xs font-medium text-white">
+                      Hubungkan Calendar
                     </span>
                   </button>
                 )}
               </div>
             )}
           </div>
-        </div>
+          </div>
+        </Card>
       )}
 
       <div className="animate-fade-in-up">
@@ -914,50 +1006,51 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
           <div>
             <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1 shadow-sm">
+                <div className="flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1 shadow-2xs">
                   <button
                     onClick={handlePrev}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors text-gray-600 dark:text-gray-300"
+                    className="p-1.5 hover:bg-slate-200/50 dark:hover:bg-slate-700 rounded-md transition-colors text-slate-600 dark:text-slate-300"
                   >
-                    <ChevronLeft className="w-5 h-5" />
+                    <ChevronLeft className="w-4.5 h-4.5" />
                   </button>
-                  <span className="px-4 text-base font-bold text-gray-900 dark:text-white capitalize min-w-50 text-center select-none">
+                  <span className="px-4 text-sm font-bold text-slate-800 dark:text-slate-205 capitalize min-w-[180px] text-center select-none tracking-tight">
                     {formatDateHeader()}
                   </span>
                   <button
                     onClick={handleNext}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors text-gray-600 dark:text-gray-300"
+                    className="p-1.5 hover:bg-slate-200/50 dark:hover:bg-slate-700 rounded-md transition-colors text-slate-600 dark:text-slate-300"
                   >
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-4.5 h-4.5" />
                   </button>
                 </div>
                 {isLoading && (
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-sky-600 dark:text-sky-400" />
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button
+              <div className="flex items-center gap-3">
+                <Button
                   onClick={goToToday}
-                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  variant="secondary"
+                  size="sm"
                 >
                   Hari Ini
-                </button>
-                <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
+                </Button>
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 p-1 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
                   <button
                     onClick={() => setViewMode("day")}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "day" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "day" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"}`}
                   >
                     Hari
                   </button>
                   <button
                     onClick={() => setViewMode("week")}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "week" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "week" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"}`}
                   >
                     Minggu
                   </button>
                   <button
                     onClick={() => setViewMode("month")}
-                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === "month" ? "bg-white dark:bg-gray-700 shadow text-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "month" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"}`}
                   >
                     Bulan
                   </button>
@@ -976,11 +1069,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
           onClick={() => setSelectedDayDetail(null)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up"
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
-              <h3 className="font-bold text-gray-900 dark:text-white flex items-center pr-4">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700/50">
+              <h3 className="font-bold text-slate-900 dark:text-white flex items-center pr-4">
                 <CalendarIcon className="w-5 h-5 mr-2 text-blue-600 shrink-0" />
                 {new Date(selectedDayDetail.fullDate).toLocaleDateString(
                   "id-ID",
@@ -994,7 +1087,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               </h3>
               <button
                 onClick={() => setSelectedDayDetail(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1066,17 +1159,17 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col"
+            className="mobile-modal-panel bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up flex flex-col"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
-              <h3 className="font-bold text-gray-900 dark:text-white flex items-center pr-4">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700/50">
+              <h3 className="font-bold text-slate-900 dark:text-white flex items-center pr-4">
                 <CalendarIcon className="w-5 h-5 mr-2 text-blue-600 shrink-0" />
                 Detail Kegiatan
               </h3>
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1123,7 +1216,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                 </div>
               </div>
             </div>
-            <div className="mobile-modal-actions p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center gap-3 bg-gray-50 dark:bg-gray-700/50">
+            <div className="mobile-modal-actions p-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3 bg-slate-50 dark:bg-slate-700/50">
               {(role === Role.ADMIN || role === Role.LABORAN) &&
               isAuthenticated ? (
                 <div className="flex gap-2">
@@ -1161,22 +1254,22 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
 
       {isAddEventModalOpen && (
         <div className="mobile-modal-shell fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
-          <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-full sm:max-w-lg overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
+          <div className="mobile-modal-panel bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-full sm:max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700/50">
               <h3 className="font-bold text-gray-900 dark:text-white flex items-center">
                 <CalendarIcon className="w-5 h-5 mr-2 text-blue-600" />
                 Tambah Jadwal Baru
               </h3>
               <button
                 onClick={() => setIsAddEventModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleSaveEvent} className="mobile-modal-body p-4 sm:p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Judul Kegiatan
                 </label>
                 <div className="relative">
@@ -1188,14 +1281,14 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     onChange={(e) =>
                       setEventForm({ ...eventForm, summary: e.target.value })
                     }
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                     placeholder="Contoh: Praktikum Jarkom A"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Deskripsi
                 </label>
                 <div className="relative">
@@ -1209,7 +1302,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         description: e.target.value,
                       })
                     }
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                     placeholder="Tambahkan detail kegiatan..."
                   />
                 </div>
@@ -1217,7 +1310,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Tanggal
                   </label>
                   <input
@@ -1227,11 +1320,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     onChange={(e) =>
                       setEventForm({ ...eventForm, startDate: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Jam Mulai
                   </label>
                   <input
@@ -1241,11 +1334,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     onChange={(e) =>
                       setEventForm({ ...eventForm, startTime: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Jam Selesai
                   </label>
                   <input
@@ -1255,13 +1348,13 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     onChange={(e) =>
                       setEventForm({ ...eventForm, endTime: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Pengulangan (Repeat)
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1270,7 +1363,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                     onChange={(e) =>
                       setEventForm({ ...eventForm, recurrence: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="NONE">Tidak Berulang</option>
                     <option value="DAILY">Harian (Daily)</option>
@@ -1279,7 +1372,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                   </select>
                   {eventForm.recurrence !== "NONE" && (
                     <div className="animate-fade-in">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Berakhir Pada (Opsional)
                       </label>
                       <input
@@ -1291,7 +1384,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                             recurrenceEnd: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Kosongkan jika ingin berulang selamanya.
@@ -1305,7 +1398,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddEventModalOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Batal
                 </button>
@@ -1329,7 +1422,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
 
       {isDeleteModalOpen && eventToDelete && (
         <div className="mobile-modal-shell fixed inset-0 z-10000 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
+          <div className="mobile-modal-panel bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
               <h3 className="font-bold text-red-800 dark:text-red-400 flex items-center">
                 <Trash2 className="w-5 h-5 mr-2" />
@@ -1435,22 +1528,22 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
 
       {isEditEventModalOpen && selectedEvent && (
         <div className="mobile-modal-shell fixed inset-0 z-10000 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
-          <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-full sm:max-w-lg overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
+          <div className="mobile-modal-panel bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-full sm:max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700/50">
               <h3 className="font-bold text-gray-900 dark:text-white flex items-center">
                 <Edit className="w-5 h-5 mr-2 text-blue-600" />
                 Edit Jadwal
               </h3>
               <button
                 onClick={() => setIsEditEventModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleUpdateEvent} className="mobile-modal-body p-4 sm:p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Judul Kegiatan
                 </label>
                 <div className="relative">
@@ -1465,14 +1558,14 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         summary: e.target.value,
                       })
                     }
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                     placeholder="Contoh: Praktikum Jarkom A"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Deskripsi
                 </label>
                 <div className="relative">
@@ -1486,7 +1579,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         description: e.target.value,
                       })
                     }
-                    className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                     placeholder="Tambahkan detail kegiatan..."
                   />
                 </div>
@@ -1494,7 +1587,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Tanggal
                   </label>
                   <input
@@ -1507,11 +1600,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         startDate: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Jam Mulai
                   </label>
                   <input
@@ -1524,11 +1617,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         startTime: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Jam Selesai
                   </label>
                   <input
@@ -1541,7 +1634,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                         endTime: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1550,7 +1643,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditEventModalOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Batal
                 </button>

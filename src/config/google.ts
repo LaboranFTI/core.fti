@@ -10,8 +10,8 @@ export const GOOGLE_API_CONFIG = {
   ],
   SCOPES: {
     // Gabungkan scope calendar dengan profile & email agar user info bisa diambil
-    READONLY: 'https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
-    READWRITE: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile'
+    READONLY: 'openid email profile https://www.googleapis.com/auth/calendar.events.readonly',
+    READWRITE: 'openid email profile https://www.googleapis.com/auth/calendar.events'
   }
 };
 

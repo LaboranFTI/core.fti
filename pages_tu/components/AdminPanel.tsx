@@ -461,11 +461,11 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200"><Clock className="w-3 h-3 mr-1" /> Menunggu</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/25"><Clock className="w-3 h-3 mr-1" /> Menunggu</Badge>;
       case 'verified':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200"><CheckCircle className="w-3 h-3 mr-1" /> Terverifikasi</Badge>;
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/25"><CheckCircle className="w-3 h-3 mr-1" /> Terverifikasi</Badge>;
       case 'sent':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200"><Mail className="w-3 h-3 mr-1" /> Terkirim</Badge>;
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/25"><Mail className="w-3 h-3 mr-1" /> Terkirim</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -870,12 +870,12 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                         onChange={() => toggleSelectId(req.id)}
                       />
                     </TableCell>
-                    <TableCell className="text-slate-500">
+                    <TableCell className="text-slate-600 dark:text-slate-400">
                       {format(new Date(req.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
                     </TableCell>
-                    <TableCell className="font-medium dark:text-white">{req.name}</TableCell>
-                    <TableCell>{req.nim}</TableCell>
-                    <TableCell className="text-xs text-slate-500 dark:text-slate-400">
+                    <TableCell className="font-semibold text-slate-900 dark:text-white">{req.name}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400">{req.nim}</TableCell>
+                    <TableCell className="text-xs text-slate-600 dark:text-slate-400">
                       {req.letterNumber || 'Akan dibuat saat verifikasi'}
                     </TableCell>
                     <TableCell>{getStatusBadge(req.status)}</TableCell>

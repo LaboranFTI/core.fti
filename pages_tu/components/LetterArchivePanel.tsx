@@ -10,9 +10,11 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { PageTabs } from '../../components/ui/page-tabs';
+import { Tabs, TabsContent } from '../../components/ui/tabs';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
+import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
 import {
   ArrowLeft,
   Building2,
@@ -90,16 +92,7 @@ function ArchiveMetricCard({
   accentClass: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 p-4 shadow-sm backdrop-blur">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">{title}</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{value}</p>
-        </div>
-        <div className={`rounded-2xl p-3 ${accentClass}`}>{icon}</div>
-      </div>
-      <p className="mt-3 text-sm text-slate-500 dark:text-gray-400">{description}</p>
-    </div>
+    <TUMetricCard title={title} value={value} description={description} icon={icon} accentClassName={accentClass} />
   );
 }
 
@@ -786,132 +779,106 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   return (
     <div className="space-y-6 print:hidden">
       {feedback && (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${feedback.type === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        <TUNotice tone={feedback.type === 'success' ? 'success' : 'danger'}>
           {feedback.message}
-        </div>
+        </TUNotice>
       )}
 
-      <Card className="overflow-visible border-slate-200 dark:border-gray-700 bg-gradient-to-br from-white via-slate-50 to-sky-50 dark:from-gray-900 dark:via-gray-800 dark:to-sky-900/20 shadow-sm">
-        <CardHeader className="border-b border-slate-100 dark:border-gray-700">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-2">
-              <Badge variant="outline" className="w-fit border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300">
-                Arsip Surat TU
-              </Badge>
-              <CardTitle className="text-xl text-slate-900 dark:text-white">Kelola arsip surat lebih cepat</CardTitle>
-              <CardDescription className="max-w-2xl dark:text-gray-400">
-                Arsip menyimpan data surat aktif kuliah dan observasi agar dapat dilihat kembali, dicetak ulang, atau
-                dikirim email tanpa menyimpan file PDF hasil generate.
-              </CardDescription>
+      <TUSectionCard
+        title="Kelola arsip surat lebih cepat"
+        description="Arsip menyimpan data surat aktif kuliah dan observasi agar dapat dilihat kembali, dicetak ulang, atau dikirim email tanpa menyimpan file PDF hasil generate."
+        className="overflow-visible"
+        contentClassName="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        actions={
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              <p className="font-medium text-slate-800 dark:text-gray-200">Sinkronisasi otomatis tiap 20 detik</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                {lastUpdatedAt ? `Terakhir diperbarui ${formatArchiveDate(lastUpdatedAt)}` : 'Belum ada data terbaru.'}
+              </p>
             </div>
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-              <div className="rounded-2xl border border-white/80 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 px-4 py-3 text-sm text-slate-600 dark:text-gray-300 shadow-sm">
-                <p className="font-medium text-slate-800 dark:text-gray-200">Sinkronisasi otomatis tiap 20 detik</p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                  {lastUpdatedAt ? `Terakhir diperbarui ${formatArchiveDate(lastUpdatedAt)}` : 'Belum ada data terbaru.'}
-                </p>
-              </div>
-              <Button variant="outline" onClick={() => fetchArchiveData()} disabled={isRefreshing || loading} className="dark:border-gray-700 dark:hover:bg-gray-800">
-                <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Muat Ulang
-              </Button>
-            </div>
+            <Button variant="outline" onClick={() => fetchArchiveData()} disabled={isRefreshing || loading} className="dark:border-gray-700 dark:hover:bg-gray-800">
+              <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Muat Ulang
+            </Button>
           </div>
-        </CardHeader>
+        }
+      >
+        <ArchiveMetricCard
+          title="Total Arsip"
+          value={String(totalArchiveCount)}
+          description={`${activeRequests.length} surat aktif kuliah dan ${observationRequests.length} surat observasi.`}
+          accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+          icon={<FileText className="h-5 w-5" />}
+        />
+        <ArchiveMetricCard
+          title="Perlu Tindak Lanjut"
+          value={String(pendingCount)}
+          description="Surat yang masih menunggu verifikasi atau proses lanjutan."
+          accentClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+          icon={<Clock3 className="h-5 w-5" />}
+        />
+        <ArchiveMetricCard
+          title="Siap Dikirim"
+          value={String(verifiedCount)}
+          description="Surat terverifikasi yang sudah siap dicetak atau dikirim ke email."
+          accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+          icon={<CheckCircle className="h-5 w-5" />}
+        />
+        <ArchiveMetricCard
+          title="Sudah Terkirim"
+          value={String(sentCount)}
+          description="Riwayat surat yang sudah pernah didistribusikan ke pemohon."
+          accentClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+          icon={<Mail className="h-5 w-5" />}
+        />
+      </TUSectionCard>
 
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-2 xl:grid-cols-4">
-          <ArchiveMetricCard
-            title="Total Arsip"
-            value={String(totalArchiveCount)}
-            description={`${activeRequests.length} surat aktif kuliah dan ${observationRequests.length} surat observasi.`}
-            accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-            icon={<FileText className="h-5 w-5" />}
-          />
-          <ArchiveMetricCard
-            title="Perlu Tindak Lanjut"
-            value={String(pendingCount)}
-            description="Surat yang masih menunggu verifikasi atau proses lanjutan."
-            accentClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-            icon={<Clock3 className="h-5 w-5" />}
-          />
-          <ArchiveMetricCard
-            title="Siap Dikirim"
-            value={String(verifiedCount)}
-            description="Surat terverifikasi yang sudah siap dicetak atau dikirim ke email."
-            accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-            icon={<CheckCircle className="h-5 w-5" />}
-          />
-          <ArchiveMetricCard
-            title="Sudah Terkirim"
-            value={String(sentCount)}
-            description="Riwayat surat yang sudah pernah didistribusikan ke pemohon."
-            accentClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-            icon={<Mail className="h-5 w-5" />}
-          />
-        </CardContent>
-      </Card>
-
-      <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
-        <CardHeader className="border-b border-slate-100 dark:border-gray-700">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="space-y-3">
-              <div>
-                <CardTitle className="text-xl text-slate-900 dark:text-white">Daftar Arsip</CardTitle>
-                <CardDescription className="dark:text-gray-400">
-                  Cari arsip berdasarkan nama, NIM, tujuan surat, instansi, nomor surat, atau tanggal pembuatan.
-                </CardDescription>
-              </div>
-
-              <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation')}>
-                <TabsList className="w-full sm:w-fit dark:bg-gray-800">
-                  <TabsTrigger value="active" className="gap-2 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">
-                    Aktif Kuliah
-                    <Badge variant="secondary" className="bg-slate-200 text-slate-700 dark:bg-gray-700 dark:text-gray-300">
-                      {activeRequests.length}
-                    </Badge>
-                  </TabsTrigger>
-                  <TabsTrigger value="observation" className="gap-2 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-white">
-                    Observasi
-                    <Badge variant="secondary" className="bg-slate-200 text-slate-700 dark:bg-gray-700 dark:text-gray-300">
-                      {observationRequests.length}
-                    </Badge>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-
-            <div className="grid gap-3 xl:min-w-[520px] xl:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={activeListTab === 'active' ? 'Cari nama, NIM, email, prodi, atau nomor surat...' : 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...'}
-                  className="pl-10 dark:bg-gray-800 dark:border-gray-700"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {statusFilterOptions.map((option) => {
-                  const isActive = statusFilter === option.value;
-                  return (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      variant={isActive ? 'primary' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatusFilter(option.value)}
-                      className={`rounded-full ${!isActive ? 'dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800' : ''}`}
-                    >
-                      {option.label}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
+      <TUSectionCard
+        title="Daftar Arsip"
+        description="Cari arsip berdasarkan nama, NIM, tujuan surat, instansi, nomor surat, atau tanggal pembuatan."
+        contentClassName="space-y-5"
+        actions={
+          <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation')}>
+            <PageTabs
+              items={[
+                { value: 'active', label: `Aktif Kuliah (${activeRequests.length})`, icon: GraduationCap },
+                { value: 'observation', label: `Observasi (${observationRequests.length})`, icon: Building2 }
+              ]}
+              className="w-full sm:w-fit"
+            />
+          </Tabs>
+        }
+      >
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={activeListTab === 'active' ? 'Cari nama, NIM, email, prodi, atau nomor surat...' : 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...'}
+              className="pl-10 dark:bg-gray-800 dark:border-gray-700"
+            />
           </div>
-        </CardHeader>
+          <div className="flex flex-wrap gap-2">
+            {statusFilterOptions.map((option) => {
+              const isActive = statusFilter === option.value;
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={isActive ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter(option.value)}
+                  className={`rounded-md ${!isActive ? 'dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800' : ''}`}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
 
-        <CardContent className="space-y-5 pt-6">
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl bg-white dark:bg-gray-700 p-3 text-slate-600 dark:text-gray-300 shadow-sm">
@@ -1187,8 +1154,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+      </TUSectionCard>
 
       {/* ── Double Confirm Delete Dialog ───────────────────────────────────── */}
       {confirmPhase === 1 && (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Construction, RefreshCw } from 'lucide-react';
+import { ArrowClockwise, Wrench } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 
@@ -7,30 +7,44 @@ const Maintenance: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-center p-6 font-sans">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl max-w-md border border-gray-200 dark:border-gray-700 animate-fade-in-up">
-        <div 
-          className="w-20 h-20 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-6 cursor-default hover:bg-yellow-200 transition-colors"
-          onDoubleClick={() => navigate('/login')}
-          title="Sistem Sedang Dalam Perbaikan"
-        >
-          <Construction className="w-10 h-10 text-yellow-600 dark:text-yellow-500" />
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
+      <section className="w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-200 bg-slate-100 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
+            CORE.FTI Maintenance
+          </p>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Sistem Sedang Dalam Perbaikan</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-          Mohon maaf, kami sedang melakukan pemeliharaan rutin untuk meningkatkan performa sistem. 
-          Silakan coba akses kembali beberapa saat lagi.
-        </p>
-        <Button 
-          onClick={() => window.location.reload()} 
-          variant="primary"
-          className="w-full justify-center"
-        >
-          <RefreshCw className="w-4 h-4 mr-2" /> Coba Lagi
-        </Button>
-      </div>
-      <p className="mt-8 text-sm text-gray-400">CORE.FTI &copy; {new Date().getFullYear()}</p>
-    </div>
+
+        <div className="grid gap-0 md:grid-cols-[120px_1fr]">
+          <button
+            type="button"
+            onDoubleClick={() => navigate('/login')}
+            title="Sistem Sedang Dalam Perbaikan"
+            className="flex min-h-32 items-center justify-center border-b border-slate-200 bg-amber-50 text-amber-700 transition hover:bg-amber-100 dark:border-slate-800 dark:bg-amber-500/10 dark:text-amber-200 md:border-b-0 md:border-r"
+          >
+            <Wrench size={36} weight="duotone" />
+          </button>
+
+          <div className="p-8">
+            <h1 className="text-2xl font-semibold tracking-tight">Sistem Sedang Dalam Perbaikan</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+              Pemeliharaan rutin sedang berjalan untuk menjaga stabilitas layanan. Silakan coba akses kembali setelah
+              proses selesai.
+            </p>
+
+            <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+              Status akses publik sementara dibatasi. Tim admin tetap dapat memeriksa jalur masuk internal bila
+              diperlukan.
+            </div>
+
+            <Button onClick={() => window.location.reload()} variant="primary" className="mt-8 w-full justify-center">
+              <ArrowClockwise size={18} weight="bold" className="mr-2" />
+              Coba Lagi
+            </Button>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 };
 

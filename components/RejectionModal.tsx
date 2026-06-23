@@ -1,53 +1,96 @@
 import React from 'react';
-import { Room, BookingStatus } from '../types';
-import { AlertTriangle, XCircle } from 'lucide-react';
+import { Prohibit, Warning } from '@phosphor-icons/react';
+import { BookingStatus, Room } from '../types';
 import { Button } from './ui/button';
 
-const RejectionModal = ({ isOpen, booking, rooms, rejectionReason, setRejectionReason, deleteOption, setDeleteOption, onClose, onConfirm }: any) => {
+const RejectionModal = ({
+  isOpen,
+  booking,
+  rooms,
+  rejectionReason,
+  setRejectionReason,
+  deleteOption,
+  setDeleteOption,
+  onClose,
+  onConfirm
+}: any) => {
   if (!isOpen || !booking) return null;
+
   const getRoomName = (roomId: string) => rooms.find((r: Room) => r.id === roomId)?.name || 'Ruangan Tidak Diketahui';
+  const isCancel = booking.status === BookingStatus.APPROVED;
+
   return (
-    <div className="mobile-modal-shell fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="mobile-modal-panel bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 animate-fade-in-up flex flex-col">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
-          <h3 className="font-bold text-red-800 dark:text-red-400 flex items-center">
-            {booking.status === BookingStatus.APPROVED ? <AlertTriangle className="w-5 h-5 mr-2" /> : <XCircle className="w-5 h-5 mr-2" />}
-            <span>{booking.status === BookingStatus.APPROVED ? 'Batalkan Peminjaman' : 'Tolak Peminjaman'}</span>
-          </h3>
+    <div className="mobile-modal-shell fixed inset-0 z-60 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <div className="mobile-modal-panel flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl animate-fade-in-up dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-red-200 bg-red-50 px-5 py-4 dark:border-red-500/20 dark:bg-red-500/10">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+              {isCancel ? <Warning size={22} weight="duotone" /> : <Prohibit size={22} weight="duotone" />}
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-700 dark:text-red-200">
+                Keputusan Admin
+              </p>
+              <h3 className="text-base font-semibold text-slate-950 dark:text-white">
+                {isCancel ? 'Batalkan Peminjaman' : 'Tolak Peminjaman'}
+              </h3>
+            </div>
+          </div>
         </div>
-        <div className="mobile-modal-body p-4 sm:p-6 space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Anda akan {booking.status === BookingStatus.APPROVED ? 'membatalkan' : 'menolak'} peminjaman ruangan <strong>{getRoomName(booking.roomId)}</strong>. Mohon berikan alasan {booking.status === BookingStatus.APPROVED ? 'pembatalan' : 'penolakan'} untuk peminjam.
+
+        <div className="mobile-modal-body space-y-4 p-5 sm:p-6">
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Anda akan {isCancel ? 'membatalkan' : 'menolak'} peminjaman ruangan{' '}
+            <strong>{getRoomName(booking.roomId)}</strong>. Berikan alasan yang jelas untuk peminjam.
           </p>
+
           <textarea
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-red-500"
-            rows={3}
-            placeholder="Contoh: Ruangan sedang dalam perbaikan, Jadwal bentrok dengan kegiatan fakultas..."
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            rows={4}
+            placeholder="Contoh: Ruangan sedang dalam perbaikan atau jadwal bentrok dengan kegiatan fakultas."
             autoFocus
           />
-          {booking.status === BookingStatus.APPROVED && (
-            <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Hapus dari Google Calendar:</p>
+
+          {isCancel && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Hapus dari Google Calendar</p>
               <div className="space-y-2">
                 {(['single', 'thisAndFollowing', 'all'] as const).map((opt) => (
-                  <label key={opt} className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${deleteOption === opt ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                    <input type="radio" name="deleteOption" value={opt} checked={deleteOption === opt} onChange={() => setDeleteOption(opt)} className="mr-3 h-4 w-4 accent-red-600 focus:ring-red-500/30" />
-                    <div>
-                      {opt === 'single' && <p className="text-sm text-gray-900 dark:text-white">Hapus event ini saja</p>}
-                      {opt === 'thisAndFollowing' && <p className="text-sm text-gray-900 dark:text-white">Ini dan event selanjutnya</p>}
-                      {opt === 'all' && <p className="text-sm text-gray-900 dark:text-white">Semua event terkait</p>}
-                    </div>
+                  <label
+                    key={opt}
+                    className={`flex cursor-pointer items-center rounded-lg border p-3 transition ${
+                      deleteOption === opt
+                        ? 'border-red-400 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="deleteOption"
+                      value={opt}
+                      checked={deleteOption === opt}
+                      onChange={() => setDeleteOption(opt)}
+                      className="mr-3 h-4 w-4 accent-red-600 focus:ring-red-500/30"
+                    />
+                    <span className="text-sm">
+                      {opt === 'single' && 'Hapus event ini saja'}
+                      {opt === 'thisAndFollowing' && 'Ini dan event selanjutnya'}
+                      {opt === 'all' && 'Semua event terkait'}
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
           )}
+
           <div className="mobile-modal-actions flex justify-end gap-3 pt-2">
-            <Button onClick={onClose} variant="secondary">Batal</Button>
+            <Button onClick={onClose} variant="secondary">
+              Batal
+            </Button>
             <Button onClick={onConfirm} variant="destructive">
-              Simpan & {booking.status === BookingStatus.APPROVED ? 'Batalkan' : 'Tolak'}
+              Simpan & {isCancel ? 'Batalkan' : 'Tolak'}
             </Button>
           </div>
         </div>

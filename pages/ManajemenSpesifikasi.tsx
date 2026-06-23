@@ -12,6 +12,9 @@ import SoftwareForm from '../components/SoftwareForm';
 import ConfirmModal from '../components/ConfirmModal';
 import { Button, buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
+import PageHeader from '../components/PageHeader';
+import PageCard from '../components/PageCard';
+import SearchBar from '../components/SearchBar';
 
 interface ManajemenSpesifikasiProps {
   role: Role;
@@ -480,30 +483,24 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
   if (!selectedRoom) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Manajemen Spesifikasi & Software</h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">Pilih ruangan untuk mengelola spesifikasi komputer dan software</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Manajemen Spesifikasi & Software"
+          description="Pilih laboratorium untuk mengelola unit komputer, spesifikasi perangkat, dan daftar software terpasang."
+        />
 
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Cari ruangan..." 
+        <PageCard className="flex flex-col gap-4 md:flex-row md:items-center">
+          <SearchBar
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </div>
+              onChange={setSearchTerm}
+              placeholder="Cari ruangan..."
+              className="w-full md:max-w-md"
+          />
           <div className="flex items-center gap-2">
              <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
              <select
                value={filterPcOperator}
                onChange={(e) => setFilterPcOperator(e.target.value as any)}
-               className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+               className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
              >
                 <option value="all">Semua Jumlah PC</option>
                 <option value="lt">Kurang dari (&lt;)</option>
@@ -517,34 +514,37 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
                  placeholder="Jml"
                  value={filterPcCount}
                  onChange={(e) => setFilterPcCount(e.target.value ? Number(e.target.value) : '')}
-                 className="w-20 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                 className="w-20 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300"
                />
              )}
           </div>
-        </div>
+        </PageCard>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRooms.map(room => (
             <div 
               key={room.id} 
               onClick={() => setSelectedRoom(room)}
-              className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg cursor-pointer transition-all group"
+              className="group relative cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800/70"
             >
+              <div className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-slate-900 dark:bg-slate-100" />
               <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-blue-600">{room.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{room.category}</p>
+                <div className="pl-2">
+                  <h3 className="text-lg font-bold text-slate-950 dark:text-white">{room.name}</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{room.category}</p>
                 </div>
-                <Monitor className="w-8 h-8 text-gray-400 group-hover:text-blue-500" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                  <Monitor className="h-5 w-5" />
+                </div>
               </div>
               <div className="mt-4 flex items-center justify-between text-sm">
                 <div className="flex gap-2">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded dark:bg-blue-900/30 dark:text-blue-300">Kapasitas: {room.capacity}</span>
+                  <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/35 dark:text-blue-300">Kapasitas: {room.capacity}</span>
                   {((room as any).computerCount && (room as any).computerCount > 0) ? (
-                    <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded dark:bg-purple-900/30 dark:text-purple-300">{(room as any).computerCount} Unit PC</span>
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">{(room as any).computerCount} Unit PC</span>
                   ) : null}
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200" />
               </div>
             </div>
           ))}
