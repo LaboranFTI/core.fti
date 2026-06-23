@@ -235,7 +235,7 @@ const TopBar: React.FC<TopBarProps> = ({
               <div className="fixed inset-0 z-10" onClick={() => setIsProfileOpen(false)}></div>
               <div className="fixed inset-x-3 top-16 z-20 overflow-hidden rounded-lg border border-slate-100 bg-white/95 py-1 shadow-lg shadow-slate-950/5 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-64">
                 <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/40">
-                  <p className="text-xs font-semibold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Sesi Pengguna</p>
+                  <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sesi Pengguna</p>
                   <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">{userName}</p>
                   <p className="truncate text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{userEmail}</p>
                 </div>
@@ -244,7 +244,7 @@ const TopBar: React.FC<TopBarProps> = ({
                      onNavigate('profil');
                      setIsProfileOpen(false);
                    }}
-                   className="flex w-full items-center px-4 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50/80 dark:text-slate-350 dark:hover:bg-slate-900/50 transition-colors"
+                   className="flex w-full items-center px-4 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50/80 dark:text-slate-300 dark:hover:bg-slate-900/50 transition-colors"
                 >
                    <UserCircle className="mr-2 h-4 w-4 text-slate-400" weight="duotone" /> Profile
                 </button>
@@ -253,7 +253,7 @@ const TopBar: React.FC<TopBarProps> = ({
                     onLogout();
                     setIsProfileOpen(false);
                   }}
-                  className="flex w-full items-center px-4 py-2 text-left text-xs font-semibold text-red-650 hover:bg-red-50/50 dark:text-red-400 dark:hover:bg-red-950/20 transition-colors"
+                  className="flex w-full items-center px-4 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50/50 dark:text-red-400 dark:hover:bg-red-950/20 transition-colors"
                 >
                    <SignOut className="mr-2 h-4 w-4" weight="duotone" /> Sign out
                 </button>

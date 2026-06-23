@@ -672,7 +672,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
           <div
             key={idx}
             onClick={() => handleDayClick(day)}
-            className={`min-h-[140px] border-b border-r border-slate-100 dark:border-slate-850 p-2.5 transition-colors ${!day.isCurrentMonth ? "bg-slate-50/30 dark:bg-slate-950/10 text-slate-400 dark:text-slate-600" : "hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer"}`}
+            className={`min-h-[140px] border-b border-r border-slate-100 dark:border-slate-800 p-2.5 transition-colors ${!day.isCurrentMonth ? "bg-slate-50/30 dark:bg-slate-950/10 text-slate-400 dark:text-slate-600" : "hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer"}`}
           >
             {day.isCurrentMonth ? (
               <>
@@ -813,7 +813,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               return (
                 <div
                   key={index}
-                  className="relative border-r border-slate-150 dark:border-slate-800 last:border-r-0"
+                  className="relative border-r border-slate-200 dark:border-slate-800 last:border-r-0"
                 >
                   {timeSlots.map((time) => (
                     <div
@@ -1038,19 +1038,19 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
                 <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 p-1 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
                   <button
                     onClick={() => setViewMode("day")}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "day" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"}`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "day" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"}`}
                   >
                     Hari
                   </button>
                   <button
                     onClick={() => setViewMode("week")}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "week" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"}`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "week" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"}`}
                   >
                     Minggu
                   </button>
                   <button
                     onClick={() => setViewMode("month")}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "month" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-350"}`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === "month" ? "bg-white dark:bg-slate-700 shadow-2xs text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"}`}
                   >
                     Bulan
                   </button>
