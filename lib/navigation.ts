@@ -105,9 +105,8 @@ export const mainNavigationItems: NavigationItem[] = [
   },
   {
     id: "labguard",
-    label: "LabGuard (Testing)",
+    label: "LabGuard",
     icon: ShieldCheck,
-    url: "http://192.168.68.246:3000",
     roles: [
       Role.ADMIN,
       Role.LABORAN,

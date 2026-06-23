@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          var savedTheme = localStorage.getItem('isDarkMode');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var shouldUseDark = savedTheme === null ? prefersDark : savedTheme === 'true';
+
+          document.documentElement.classList.toggle('dark', shouldUseDark);
+          document.documentElement.style.colorScheme = shouldUseDark ? 'dark' : 'light';
+        } catch (error) {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.style.colorScheme = 'light';
+        }
+      })();
+    </script>
     <title>CORE.FTI UKSW</title>
     <!-- Pannellum for 360 Viewer -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>

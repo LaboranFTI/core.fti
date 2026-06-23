@@ -62,6 +62,7 @@ const JadwalKuliah = lazyWithReload(() => import('./pages/JadwalKuliah'));
 const ManajemenSpesifikasi = lazyWithReload(() => import('./pages/ManajemenSpesifikasi'));
 const Tentang = lazyWithReload(() => import('./pages/Tentang'));
 const NotFound = lazyWithReload(() => import('./pages/NotFound'));
+const LabGuard = lazyWithReload(() => import('./pages/LabGuard'));
 const LayananTU = lazyWithReload(() => import('./pages_tu/LayananTU'));
 const MobileUpload = lazyWithReload(() => import('./pages_tu/components/MobileUpload'));
 const LecturerManagement = lazyWithReload(() => import('./pages/ManajemenDosen'));
@@ -757,6 +758,11 @@ const AppContent: React.FC = () => {
           <Route path="/pesanan-ruang" element={
             <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
               <PesananRuang role={currentRole} addNotification={addNotification} showToast={showToast} />
+            </ProtectedRoute>
+          } />
+          <Route path="/labguard" element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.SUPERVISOR]} onNavigate={(p: string) => navigate(`/${p}`)}>
+              <LabGuard />
             </ProtectedRoute>
           } />
           <Route path="/profil" element={

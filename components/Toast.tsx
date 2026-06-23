@@ -29,7 +29,7 @@ const Toast: React.FC<ToastProps> = ({ toasts, removeToast }) => {
         .animate-progress { animation: progress 5s linear forwards; }
         .toast-item:hover .animate-progress { animation-play-state: paused; }
       `}</style>
-      <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-2">
+      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-50 flex flex-col gap-2 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-w-[calc(100vw-2rem)]">
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} removeToast={removeToast} />
         ))}
@@ -79,7 +79,7 @@ const ToastItem = ({ toast, removeToast }: { toast: ToastMessage; removeToast: (
 
   return (
     <div
-      className={`toast-item pointer-events-auto relative min-w-75 max-w-md overflow-hidden rounded-lg border border-slate-200 bg-white p-4 pl-5 text-slate-900 shadow-lg shadow-slate-950/10 transition-all duration-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white ${
+      className={`toast-item pointer-events-auto relative w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-4 pl-5 text-slate-900 shadow-lg shadow-slate-950/10 transition-all duration-300 dark:border-slate-700 dark:bg-slate-900 dark:text-white sm:min-w-75 sm:max-w-md ${
         isExiting ? 'animate-slide-out' : 'animate-slide-in'
       }`}
     >
@@ -87,7 +87,7 @@ const ToastItem = ({ toast, removeToast }: { toast: ToastMessage; removeToast: (
       <div className="flex items-start gap-3">
         <Icon size={20} weight="duotone" className={`mt-0.5 shrink-0 ${tone.iconClass}`} />
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">
             {tone.label}
           </p>
           <p className="mt-1 wrap-break-words text-sm font-medium leading-5 text-slate-700 dark:text-slate-200">

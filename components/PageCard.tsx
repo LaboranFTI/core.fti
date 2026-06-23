@@ -13,7 +13,7 @@ const paddingClasses: Record<PageCardPadding, string> = {
   none: '',
   sm: 'p-4',
   md: 'p-4 sm:p-6',
-  lg: 'p-6',
+  lg: 'p-4 sm:p-6',
 };
 
 const PageCard: React.FC<PageCardProps> = ({

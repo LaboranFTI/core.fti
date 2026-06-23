@@ -76,10 +76,10 @@ const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className={`mobile-safe-x fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-slate-100 bg-white/85 px-3 shadow-sm shadow-fti-blue-900/5 backdrop-blur-md transition-transform duration-200 print:hidden dark:border-slate-800/60 dark:bg-slate-900/85 dark:shadow-none md:sticky md:h-18 md:px-6 ${
+    <header className={`mobile-safe-x fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-slate-100 bg-white/90 px-3 shadow-sm shadow-fti-blue-900/5 backdrop-blur-md transition-transform duration-200 print:hidden dark:border-slate-800/60 dark:bg-slate-900/90 dark:shadow-none md:sticky md:h-18 md:px-6 ${
       isVisible ? "translate-y-0" : "-translate-y-full md:translate-y-0"
     }`}>
-      <div className="flex min-w-0 items-center gap-2 md:gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {showSidebarToggle && (
           <button
             onClick={onToggleSidebar}
@@ -90,17 +90,17 @@ const TopBar: React.FC<TopBarProps> = ({
           </button>
         )}
 
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-fti-blue-100 bg-white/60 shadow-sm shadow-fti-blue-900/5 backdrop-blur-sm dark:border-fti-blue-300/20 dark:bg-slate-950/50 md:h-12 md:w-12">
+        <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-fti-blue-100 bg-white/60 shadow-sm shadow-fti-blue-900/5 backdrop-blur-sm dark:border-fti-blue-300/20 dark:bg-slate-950/50 md:size-12 md:rounded-xl">
             <img
               src={nocLogo}
               alt="NOC Logo"
-              className="h-8 w-8 object-contain md:h-9 md:w-9"
+              className="size-7 object-contain md:size-9"
             />
           </div>
           <div className="min-w-0">
             <p
-              className="truncate text-base font-black tracking-tighter text-slate-900 dark:text-white md:text-lg lg:text-xl"
+              className="truncate text-sm font-black text-slate-900 dark:text-white min-[380px]:text-base md:text-lg lg:text-xl"
               style={{ fontFamily: "'Inter', sans-serif" }}
             >
               {APP_NAME}
@@ -109,7 +109,7 @@ const TopBar: React.FC<TopBarProps> = ({
               {pageLabel}
             </p>
             <p
-              className="hidden truncate text-[0.68rem] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 md:block"
+              className="hidden truncate text-[0.68rem] font-bold uppercase text-slate-500 dark:text-slate-400 md:block"
               style={{ fontFamily: "'Inter', sans-serif" }}
             >
               Sarana dan Prasarana
@@ -120,7 +120,7 @@ const TopBar: React.FC<TopBarProps> = ({
 
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-2.5">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2.5">
 
         {isMaintenanceMode && (
           <div className="hidden items-center rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300 sm:flex" title="Maintenance Mode Sedang Aktif">
@@ -145,7 +145,7 @@ const TopBar: React.FC<TopBarProps> = ({
             {isNotifOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setIsNotifOpen(false)}></div>
-                <div className="absolute right-0 z-20 mt-2 w-[calc(100vw-1.25rem)] max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl shadow-slate-950/10 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/30">
+                <div className="fixed inset-x-3 top-16 z-20 max-h-[calc(100dvh-5rem)] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl shadow-slate-950/10 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/30 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[24rem] sm:max-w-sm">
                   <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
                     <div className="flex justify-between items-center mb-3">
                       <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ const TopBar: React.FC<TopBarProps> = ({
                       </button>
                     </div>
                   </div>
-                  <div className="max-h-64 overflow-y-auto" onScroll={handleNotifScroll}>
+                  <div className="max-h-[min(24rem,calc(100dvh-13rem))] overflow-y-auto" onScroll={handleNotifScroll}>
                     {filteredNotifications.length === 0 ? (
                       <p className="py-8 text-center text-sm text-slate-500">Tidak ada notifikasi {notifFilter === 'unread' ? 'baru' : ''}.</p>
                     ) : (
@@ -233,7 +233,7 @@ const TopBar: React.FC<TopBarProps> = ({
           {isProfileOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setIsProfileOpen(false)}></div>
-              <div className="absolute right-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-100 bg-white/90 backdrop-blur-md py-1 shadow-lg shadow-slate-950/5 dark:border-slate-850 dark:bg-slate-950/90">
+              <div className="fixed inset-x-3 top-16 z-20 overflow-hidden rounded-lg border border-slate-100 bg-white/95 py-1 shadow-lg shadow-slate-950/5 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-64">
                 <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/40">
                   <p className="text-xs font-semibold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Sesi Pengguna</p>
                   <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">{userName}</p>

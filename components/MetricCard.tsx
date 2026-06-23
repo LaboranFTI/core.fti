@@ -36,9 +36,9 @@ const MetricCard: React.FC<MetricCardProps> = ({
       )}
     >
       <div className={cn('pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full', tone === 'blue' ? 'bg-fti-blue-600 dark:bg-fti-blue-300' : 'bg-slate-900 dark:bg-slate-100')} />
-      <div className="flex items-start justify-between gap-4 pl-2">
+      <div className="flex items-start justify-between gap-3 pl-2 sm:gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400">
             {label}
           </p>
           <div className="mt-2 text-2xl font-bold tabular-nums text-slate-950 dark:text-white">

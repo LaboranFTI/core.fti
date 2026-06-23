@@ -42,7 +42,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
           contentClassName
         )}
       >
-        <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase text-fti-blue-700 dark:text-fti-blue-300">
+        <div className="inline-flex max-w-full items-center gap-2 text-[11px] font-bold uppercase text-fti-blue-700 dark:text-fti-blue-300">
           <Buildings size={15} weight="duotone" />
           CORE.FTI
           <CaretRight size={12} weight="bold" />
@@ -50,7 +50,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
         </div>
         <h1
           className={cn(
-            'text-2xl font-bold text-slate-950 dark:text-white',
+            'text-2xl font-bold text-balance text-slate-950 dark:text-white',
             titleClassName
           )}
         >
@@ -59,7 +59,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
         {description ? (
           <div
             className={cn(
-              'max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400',
+              'max-w-2xl text-sm leading-6 text-pretty text-slate-600 dark:text-slate-400',
               descriptionClassName
             )}
           >
@@ -71,7 +71,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       {actions ? (
         <div
           className={cn(
-            centered ? 'mt-4 flex justify-center' : 'mt-4 md:mt-0',
+            centered ? 'mt-4 flex justify-center' : 'mt-4 flex w-full flex-col gap-2 md:mt-0 md:w-auto md:flex-row md:items-center md:justify-end [&>button]:w-full [&>a]:w-full md:[&>button]:w-auto md:[&>a]:w-auto',
             actionsClassName
           )}
         >

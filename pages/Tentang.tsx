@@ -62,7 +62,7 @@ const developers = [
     name: 'Nauval Caesaro Premana',
     role: 'DevOps',
     cohort: 'Laboran Mahasiswa Angkatan 2021',
-    description: 'Membantu hosting, deployment, dan optimasi web server.',
+    description: 'Developer LabGuard, deployment, dan optimasi web server.',
     github: 'https://github.com/caesaro',
     linkedin: 'https://linkedin.com/in/nauvalcaesaropremana',
     email: 'mailto:nauvalpremana@gmail.com',

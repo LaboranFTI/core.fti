@@ -50,10 +50,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
     <aside
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed bottom-0 left-0 top-14 z-40 flex h-[calc(100dvh-3.5rem)] w-[min(21rem,90vw)] flex-col border-r border-slate-100 bg-slate-50/90 shadow-2xl shadow-fti-blue-900/10 backdrop-blur-md transition-all duration-200 dark:border-slate-800/80 dark:bg-slate-950/90 md:relative md:top-auto md:h-full md:translate-x-0 md:shadow-none ${effectiveCollapsed ? 'md:w-[5.25rem]' : 'md:w-[18.5rem]'} print:hidden`}
+      className={`${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed bottom-0 left-0 top-14 z-40 flex h-[calc(100dvh-3.5rem)] w-[min(22rem,92vw)] flex-col border-r border-slate-100 bg-slate-50/95 shadow-2xl shadow-fti-blue-900/10 backdrop-blur-md transition-all duration-200 dark:border-slate-800/80 dark:bg-slate-950/95 md:relative md:top-auto md:h-full md:translate-x-0 md:bg-slate-50/90 md:shadow-none md:dark:bg-slate-950/90 ${effectiveCollapsed ? 'md:w-[5.25rem]' : 'md:w-[18.5rem]'} print:hidden`}
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-900/60 md:hidden">
-        <span className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+        <span className="text-xs font-bold uppercase text-slate-400 dark:text-slate-500">
           Navigasi
         </span>
         <button
@@ -70,7 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, currentPage, onNavigate,
         {/* Main Items */}
         <div className="mb-6">
           {!effectiveCollapsed && (
-            <div className="mb-2 px-3 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">
+            <div className="mb-2 px-3 text-xs font-bold uppercase text-slate-400 dark:text-slate-600">
               Utama
             </div>
           )}

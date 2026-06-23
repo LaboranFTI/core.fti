@@ -1,38 +1,44 @@
 import React from 'react';
 import nocLogo from '../src/assets/noc.png';
 
+const getInitialDarkMode = () => {
+  if (typeof window === 'undefined') return false;
+
+  const saved = window.localStorage.getItem('isDarkMode');
+  if (saved !== null) return saved === 'true';
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+};
+
 const LoadingScreen: React.FC = () => {
+  const isInitiallyDark = getInitialDarkMode();
+
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-50 px-6 transition-colors duration-500 dark:bg-slate-950">
-      <section className="w-full max-w-sm overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-slate-200 bg-slate-100 px-5 py-3 dark:border-slate-800 dark:bg-slate-950">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-            Memuat Sistem
-          </p>
+    <div className={`fixed inset-0 z-50 flex min-h-dvh items-center justify-center px-6 transition-colors duration-300 ${
+      isInitiallyDark
+        ? 'bg-slate-950 text-slate-100'
+        : 'bg-slate-50 text-slate-950'
+    } dark:bg-slate-950 dark:text-slate-100`}>
+      <section
+        className="flex min-w-0 flex-col items-center"
+        role="status"
+        aria-live="polite"
+        aria-label="Memuat CORE.FTI"
+      >
+        <div className="relative flex size-24 items-center justify-center sm:size-28">
+          <div className="absolute inset-0 rounded-full border border-slate-200 dark:border-slate-800" />
+          <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-r-[var(--brand-blue)] border-t-[var(--brand-blue)]" />
+          <div className="flex size-16 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:size-18">
+            <img src={nocLogo} alt="CORE.FTI" className="size-11 object-contain sm:size-12" />
+          </div>
         </div>
 
-        <div className="p-7 text-center">
-          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-            <div className="relative flex h-20 w-20 items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-2 border-slate-200 dark:border-slate-700" />
-              <div className="absolute inset-0 animate-spin rounded-full border-2 border-fti-blue-600 border-t-transparent dark:border-fti-blue-300 dark:border-t-transparent" />
-              <img src={nocLogo} alt="NOC Logo" className="h-14 w-14 object-contain" />
-            </div>
-          </div>
+        <h1 className="mt-5 font-brand text-xl font-semibold tracking-wide sm:text-2xl">
+          CORE.FTI
+        </h1>
 
-          <h2 className="mt-6 font-brand text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
-            CORE.FTI
-          </h2>
-          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
-            Sarana dan Prasarana
-          </p>
-          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            Menyiapkan data operasional Fakultas Teknologi Informasi.
-          </p>
-
-          <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-            <div className="h-full w-2/3 animate-pulse rounded-full bg-fti-blue-600 dark:bg-fti-blue-300" />
-          </div>
+        <div className="mt-5 h-1 w-28 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+          <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--brand-blue)]" />
         </div>
       </section>
     </div>
