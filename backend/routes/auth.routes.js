@@ -18,6 +18,28 @@ const createSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.
 const createRefreshToken = () => crypto.randomBytes(48).toString('hex');
 
 const isRecaptchaConfigured = () => Boolean(process.env.RECAPTCHA_SITE_KEY && process.env.RECAPTCHA_SECRET_KEY);
+
+const getFrontendUrl = (req) => {
+  const envUrl = process.env.FRONTEND_URL;
+  const host = req.get('host');
+  
+  if (envUrl) {
+    const isEnvLocalhost = envUrl.includes('localhost') || envUrl.includes('127.0.0.1');
+    const isReqLocalhost = host && (host.includes('localhost') || host.includes('127.0.0.1'));
+    
+    if (isEnvLocalhost && !isReqLocalhost) {
+      return `${req.protocol}://${host}`;
+    }
+    return envUrl;
+  }
+  
+  const isReqLocalhost = host && (host.includes('localhost') || host.includes('127.0.0.1'));
+  if (isReqLocalhost) {
+    return 'http://localhost:5173';
+  }
+  return `${req.protocol}://${host}`;
+};
+
 const getClientIp = (req) => {
   const forwardedFor = req.headers['x-forwarded-for'];
   return typeof forwardedFor === 'string'
@@ -348,7 +370,7 @@ router.get('/google', async (req, res) => {
 // Endpoint GET /auth/google/callback: Menangani callback dari Google OAuth (SSO Only)
 router.get('/google/callback', async (req, res) => {
   const code = req.query.code;
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = getFrontendUrl(req);
 
   if (!code) {
     return res.redirect(`${frontendUrl}/login?error=Authorization+code+missing`);
@@ -641,7 +663,7 @@ router.get('/google/calendar', async (req, res) => {
 // Endpoint GET /auth/google/calendar/callback: Google Calendar OAuth Callback
 router.get('/google/calendar/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = getFrontendUrl(req);
 
   if (error) {
     console.error('Google Calendar OAuth error:', error);

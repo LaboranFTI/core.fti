@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
+import { API_BASE_URL } from '../../config';
 
 export interface GoogleEvent {
   id: string;
@@ -102,8 +103,7 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Mengarahkan login langsung ke backend OAuth flow
   const login = useCallback(() => {
-    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-    window.location.href = `${backendUrl}/api/auth/google`;
+    window.location.href = `${API_BASE_URL}/api/auth/google`;
   }, []);
 
   const connectCalendar = useCallback(() => {
@@ -112,8 +112,7 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.error("Token tidak ditemukan. Silakan login terlebih dahulu.");
       return;
     }
-    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-    window.location.href = `${backendUrl}/api/auth/google/calendar?token=${token}`;
+    window.location.href = `${API_BASE_URL}/api/auth/google/calendar?token=${token}`;
   }, []);
 
   const logout = useCallback(() => {
