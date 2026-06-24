@@ -39,6 +39,13 @@ const publicObservationAccessLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Terlalu banyak percobaan kode akses. Silakan coba lagi beberapa menit lagi.' }
 });
+const publicValidationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak request validasi. Silakan coba lagi beberapa menit lagi.' }
+});
 const LETTER_TYPE_TO_CLIENT_KEY = {
   'active-student': 'activeStudent',
   observation: 'observation'
@@ -524,10 +531,27 @@ const createQrSvgDataUrl = async (value) => {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 };
 
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string' || !email.includes('@')) return email;
+  const [local, domain] = email.split('@');
+  if (local.length <= 3) return `***@${domain}`;
+  return `${local.substring(0, 3)}***@${domain}`;
+};
+
+const maskNim = (nim) => {
+  if (!nim || typeof nim !== 'string' || nim.length < 5) return nim;
+  return `${nim.substring(0, 4)}****`;
+};
+
+const maskDate = (dateStr) => {
+  if (!dateStr || typeof dateStr !== 'string') return dateStr;
+  return '***DISENSOR***';
+};
+
 const buildLetterValidationPayload = (type, row, req) => {
   const isObservation = type === 'observation';
-  const students = isObservation ? normalizeObservationStudents(row.student_members) : [];
-  const primaryStudent = students[0] || { name: row.name, nim: row.nim };
+  const students = isObservation ? normalizeObservationStudents(row.student_members).map(s => ({ ...s, nim: maskNim(s.nim) })) : [];
+  const primaryStudent = students[0] || { name: row.name, nim: maskNim(row.nim) };
 
   return {
     type,
@@ -541,14 +565,14 @@ const buildLetterValidationPayload = (type, row, req) => {
     createdAt: formatPublicDate(row.created_at),
     recipient: {
       name: row.name || primaryStudent.name || '',
-      nim: row.nim || primaryStudent.nim || '',
-      email: row.email || ''
+      nim: maskNim(row.nim || primaryStudent.nim || ''),
+      email: maskEmail(row.email || '')
     },
     activeStudent: isObservation
       ? null
       : {
           birthPlace: row.birth_place || '',
-          birthDate: row.birth_date || '',
+          birthDate: maskDate(row.birth_date),
           studyProgramLevel: row.study_program_level || '',
           studyProgramName: row.study_program_name || '',
           faculty: row.faculty || DEFAULT_FACULTY,
@@ -2048,7 +2072,7 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
   }
 });
 
-router.get('/tu/public/letter-validation/:token', async (req, res) => {
+router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async (req, res) => {
   const token = String(req.params.token || '').trim();
   if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {
     return res.status(400).json({ error: 'Token validasi tidak valid.' });

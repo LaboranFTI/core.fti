@@ -464,7 +464,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
         </PageCard>
       </div>
 
-      <PageCard className="space-y-4">
+      <div>
         <div className="grid gap-3 lg:grid-cols-[auto_1fr]">
           <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
             {sourceTabs.map(tab => (
@@ -529,7 +529,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
             </div>
           </div>
         </div>
-      </PageCard>
+      </div>
 
       <PageCard padding="none" className="overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/70">

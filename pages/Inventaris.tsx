@@ -866,9 +866,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
         </div>
         ) : undefined}
       />
-
-      <PageCard className="print:hidden" padding="md">
-
+      <div className="print:hidden">
          <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-center">
 
            <div className="flex min-w-0">
@@ -910,7 +908,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
            </div>
         </div>
       </div>
-      </PageCard>
+      </div>
 
 
       <PageCard padding="none" className="mx-auto flex max-w-full flex-col overflow-hidden print:border-2 print:border-black print:shadow-none">

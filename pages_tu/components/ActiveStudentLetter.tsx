@@ -30,7 +30,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
   const derivedDeanTitle = dean ? dean.jabatan : 'Dekan';
 
   const letterDate = data.letterGeneratedAt || data.createdAt;
-  const baseDate = letterDate ? new Date(letterDate) : new Date();
+  const baseDate = letterDate ? new Date(new Date(letterDate).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })) : new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
   const today = format(baseDate, 'dd MMMM yyyy', { locale: id });
   const currentYear = baseDate.getFullYear();
   const currentMonth = baseDate.getMonth();

@@ -269,13 +269,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="flex w-full flex-col">
           <PageTabs items={serviceTabs} className="mb-4 print:hidden" />
 
-          <PageTabSummary
-            icon={ActiveTabIcon}
-            title={activeTabMeta[activeTab]?.title}
-            description={activeTabMeta[activeTab]?.description}
-            className="mb-4 print:hidden"
-          />
-          
+
           <TabsContent value="aktif" className="print:m-0 focus:outline-none">
             <ActiveStudentForm />
           </TabsContent>
