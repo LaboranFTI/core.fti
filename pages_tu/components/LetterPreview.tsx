@@ -37,8 +37,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   validationUrl,
   letterDate: propLetterDate
 }, ref) => {
-  const letterDate = propLetterDate || data.letterGeneratedAt || data.createdAt;
-  const baseDate = letterDate ? new Date(new Date(letterDate).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })) : new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+  const baseDate = propLetterDate ? new Date(new Date(propLetterDate).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })) : new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
   const today = format(baseDate, 'dd MMMM yyyy', { locale: id });
   const observationNumber = letterNumber || `AUTO/FTI-OBS/${format(baseDate, 'MM/yyyy')}`;
   const pageLayout = layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
