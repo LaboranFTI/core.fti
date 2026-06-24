@@ -19,6 +19,20 @@ CREATE TABLE IF NOT EXISTS tu_letter_backgrounds (
   UNIQUE(letter_type)
 );
 
+INSERT INTO tu_letter_backgrounds (letter_type, file_name, mime_type, image_base64)
+SELECT 'document', file_name, mime_type, image_base64
+FROM tu_letter_backgrounds
+WHERE letter_type IN ('active-student', 'observation')
+ORDER BY CASE letter_type WHEN 'active-student' THEN 0 ELSE 1 END
+LIMIT 1
+ON CONFLICT (letter_type) DO NOTHING;
+
+DELETE FROM tu_letter_backgrounds
+WHERE letter_type IN ('active-student', 'observation')
+  AND EXISTS (
+    SELECT 1 FROM tu_letter_backgrounds WHERE letter_type = 'document'
+  );
+
 DO $$
 BEGIN
   IF NOT EXISTS (

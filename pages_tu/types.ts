@@ -10,6 +10,7 @@ export interface LetterAsset {
 }
 
 export interface TULetterBackgrounds {
+  document: LetterAsset;
   activeStudent: LetterAsset;
   observation: LetterAsset;
 }

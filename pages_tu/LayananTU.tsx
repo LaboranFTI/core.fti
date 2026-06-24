@@ -18,6 +18,7 @@ interface HalamanTUProps {
 }
 
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
+  document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   observation: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
@@ -26,6 +27,23 @@ const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
+
+const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
+  const empty = createEmptyLetterBackgrounds();
+  const sharedBackground = backgrounds?.document?.imageBase64
+    ? backgrounds.document
+    : backgrounds?.activeStudent?.imageBase64
+      ? backgrounds.activeStudent
+      : backgrounds?.observation?.imageBase64
+        ? backgrounds.observation
+        : empty.document;
+
+  return {
+    document: { ...empty.document, ...sharedBackground },
+    activeStudent: { ...empty.activeStudent, ...sharedBackground },
+    observation: { ...empty.observation, ...sharedBackground }
+  };
+};
 
 type ObservationFeedback = {
   type: 'success' | 'error' | 'info';
@@ -203,7 +221,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       const res = await api('/api/tu/letter-backgrounds');
       const json = await res.json();
       if (res.ok && json?.letterBackgrounds) {
-        setLetterBackgrounds(json.letterBackgrounds);
+        setLetterBackgrounds(normalizeLetterBackgrounds(json.letterBackgrounds));
         setLetterLayouts(json.letterLayouts || createEmptyLetterLayouts());
       }
     } catch (error) {
@@ -289,7 +307,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
               <div className={`${observationView === "form" ? 'hidden xl:block' : 'block'} xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0`}>
                 <LetterPreview
                   data={obsData}
-                  backgroundImageBase64={letterBackgrounds.observation.imageBase64}
+                  backgroundImageBase64={letterBackgrounds.document.imageBase64}
                   layout={letterLayouts.observation}
                   showLayoutGuide={!isPreparingObservationOutput}
                 />
@@ -299,7 +317,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
               <LetterPreview
                 ref={capturePreviewRef}
                 data={sanitizeObservationData(obsData)}
-                backgroundImageBase64={letterBackgrounds.observation.imageBase64}
+                backgroundImageBase64={letterBackgrounds.document.imageBase64}
                 layout={letterLayouts.observation}
                 showLayoutGuide={false}
               />

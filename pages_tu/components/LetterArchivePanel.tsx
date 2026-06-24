@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
+  document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   observation: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
@@ -49,6 +50,23 @@ const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
+
+const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
+  const empty = createEmptyLetterBackgrounds();
+  const sharedBackground = backgrounds?.document?.imageBase64
+    ? backgrounds.document
+    : backgrounds?.activeStudent?.imageBase64
+      ? backgrounds.activeStudent
+      : backgrounds?.observation?.imageBase64
+        ? backgrounds.observation
+        : empty.document;
+
+  return {
+    document: { ...empty.document, ...sharedBackground },
+    activeStudent: { ...empty.activeStudent, ...sharedBackground },
+    observation: { ...empty.observation, ...sharedBackground }
+  };
+};
 
 type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }
@@ -203,7 +221,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       setObservationRequests(nextObservationRequests);
 
       if (settingsRes.ok) {
-        setLetterBackgrounds(settingsJson.letterBackgrounds || createEmptyLetterBackgrounds());
+        setLetterBackgrounds(normalizeLetterBackgrounds(settingsJson.letterBackgrounds));
         setLetterLayouts(settingsJson.letterLayouts || createEmptyLetterLayouts());
         setCurrentSemesterCode(settingsJson.currentSemesterCode || '');
         setDefaultSignature(settingsJson.signatureBase64 || '');
@@ -657,7 +675,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       studyProgramLevel: (observationItem as any)?.studyProgramLevel,
                       students: observationItem?.students || []
                     }}
-                    backgroundImageBase64={letterBackgrounds.observation.imageBase64}
+                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
                     layout={letterLayouts.observation}
                     showLayoutGuide={false}
                     letterNumber={observationItem?.letterNumber}
@@ -673,7 +691,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       academicYear: semesterMeta.academicYear,
                       signatureBase64: activeItem?.status === 'pending' ? defaultSignature : activeItem?.signatureBase64,
                       stampBase64: activeItem?.status === 'pending' ? defaultStamp : activeItem?.stampBase64,
-                      backgroundImageBase64: letterBackgrounds.activeStudent.imageBase64,
+                      backgroundImageBase64: letterBackgrounds.document.imageBase64,
                       layout: letterLayouts.activeStudent,
                       deanName: deanName
                     }}

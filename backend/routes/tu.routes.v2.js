@@ -41,6 +41,7 @@ const LETTER_TYPE_TO_CLIENT_KEY = {
   'active-student': 'activeStudent',
   observation: 'observation'
 };
+const SHARED_LETTER_BACKGROUND_TYPE = 'document';
 const LETTER_TYPE_TO_CODE = {
   'active-student': 'S.Ket',
   observation: 'FTI-OBS'
@@ -65,6 +66,7 @@ const normalizeObservationAccessCode = (value) => {
 };
 
 const createEmptyLetterBackgrounds = () => ({
+  document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   observation: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
@@ -207,7 +209,7 @@ const ensureTuInfrastructure = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tu_letter_backgrounds (
         id SERIAL PRIMARY KEY,
-        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation')),
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation')),
         file_name VARCHAR(255),
         mime_type VARCHAR(100) DEFAULT 'image/png',
         image_base64 TEXT NOT NULL,
@@ -215,6 +217,42 @@ const ensureTuInfrastructure = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(letter_type)
       )
+    `);
+
+    await pool.query(`
+      DO $$
+      DECLARE
+        constraint_record record;
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_backgrounds'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+        ) OR EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_backgrounds'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+            AND pg_get_constraintdef(oid) NOT LIKE '%document%'
+        ) THEN
+          FOR constraint_record IN
+            SELECT conname
+            FROM pg_constraint
+            WHERE conrelid = 'tu_letter_backgrounds'::regclass
+              AND contype = 'c'
+              AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+          LOOP
+            EXECUTE format('ALTER TABLE tu_letter_backgrounds DROP CONSTRAINT %I', constraint_record.conname);
+          END LOOP;
+
+          ALTER TABLE tu_letter_backgrounds
+            ADD CONSTRAINT tu_letter_backgrounds_letter_type_check
+            CHECK (letter_type IN ('document', 'active-student', 'observation'));
+        END IF;
+      END $$;
     `);
 
     await pool.query(`
@@ -395,19 +433,51 @@ const buildObservationAccessPayload = (row) => ({
 
 const buildLetterBackgroundsPayload = (rows) => {
   const backgrounds = createEmptyLetterBackgrounds();
+  let sharedBackground = null;
 
   for (const row of rows) {
-    const clientKey = LETTER_TYPE_TO_CLIENT_KEY[row.letter_type];
-    if (!clientKey) continue;
-
-    backgrounds[clientKey] = {
+    const asset = {
       imageBase64: row.image_base64 || '',
       fileName: row.file_name || '',
       mimeType: row.mime_type || 'image/png'
     };
+
+    if (row.letter_type === SHARED_LETTER_BACKGROUND_TYPE) {
+      sharedBackground = asset;
+      continue;
+    }
+
+    const clientKey = LETTER_TYPE_TO_CLIENT_KEY[row.letter_type];
+    if (!clientKey) continue;
+
+    backgrounds[clientKey] = asset;
   }
 
+  sharedBackground =
+    sharedBackground ||
+    (backgrounds.activeStudent.imageBase64 ? backgrounds.activeStudent : null) ||
+    (backgrounds.observation.imageBase64 ? backgrounds.observation : null) ||
+    backgrounds.document;
+
+  backgrounds.document = sharedBackground;
+  backgrounds.activeStudent = sharedBackground;
+  backgrounds.observation = sharedBackground;
+
   return backgrounds;
+};
+
+const getSharedLetterBackground = (letterBackgrounds) => {
+  if (!letterBackgrounds || typeof letterBackgrounds !== 'object') {
+    return createEmptyLetterBackgrounds().document;
+  }
+
+  return letterBackgrounds.document?.imageBase64
+    ? letterBackgrounds.document
+    : letterBackgrounds.activeStudent?.imageBase64
+      ? letterBackgrounds.activeStudent
+      : letterBackgrounds.observation?.imageBase64
+        ? letterBackgrounds.observation
+        : createEmptyLetterBackgrounds().document;
 };
 
 const buildLetterLayoutsPayload = (rows) => {
@@ -566,29 +636,31 @@ const saveLetterBackgrounds = async (client, letterBackgrounds) => {
   await ensureTuInfrastructure();
   if (!letterBackgrounds || typeof letterBackgrounds !== 'object') return;
 
-  for (const [letterType, clientKey] of Object.entries(LETTER_TYPE_TO_CLIENT_KEY)) {
-    const asset = letterBackgrounds[clientKey];
-    if (!asset || typeof asset !== 'object') continue;
+  const asset = getSharedLetterBackground(letterBackgrounds);
 
-    if (asset.imageBase64) {
-      await client.query(
-        `INSERT INTO tu_letter_backgrounds (letter_type, file_name, mime_type, image_base64)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (letter_type)
-         DO UPDATE SET
-           file_name = EXCLUDED.file_name,
-           mime_type = EXCLUDED.mime_type,
-           image_base64 = EXCLUDED.image_base64,
-           updated_at = CURRENT_TIMESTAMP`,
-        [letterType, asset.fileName || '', asset.mimeType || 'image/png', asset.imageBase64]
-      );
-    } else {
-      await client.query(
-        `DELETE FROM tu_letter_backgrounds WHERE letter_type = $1`,
-        [letterType]
-      );
-    }
+  if (asset.imageBase64) {
+    await client.query(
+      `INSERT INTO tu_letter_backgrounds (letter_type, file_name, mime_type, image_base64)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (letter_type)
+       DO UPDATE SET
+         file_name = EXCLUDED.file_name,
+         mime_type = EXCLUDED.mime_type,
+         image_base64 = EXCLUDED.image_base64,
+         updated_at = CURRENT_TIMESTAMP`,
+      [SHARED_LETTER_BACKGROUND_TYPE, asset.fileName || '', asset.mimeType || 'image/png', asset.imageBase64]
+    );
+  } else {
+    await client.query(
+      `DELETE FROM tu_letter_backgrounds WHERE letter_type = $1`,
+      [SHARED_LETTER_BACKGROUND_TYPE]
+    );
   }
+
+  await client.query(
+    `DELETE FROM tu_letter_backgrounds WHERE letter_type = ANY($1::text[])`,
+    [Object.keys(LETTER_TYPE_TO_CLIENT_KEY)]
+  );
 };
 
 const saveLetterLayouts = async (client, letterLayouts) => {
@@ -787,7 +859,7 @@ const buildObservationPdfBuffer = async (requestData) => {
   const config = letterConfig.observation;
   const tuSettings = await getTuSettingsPayload();
   const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-  const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+  const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
   const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
   const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
   let htmlContent = await fs.readFile(templatePath, 'utf-8');
@@ -1411,7 +1483,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
     const tuSettings = await getTuSettingsPayload();
     const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
     const assetKey = LETTER_TYPE_TO_CLIENT_KEY[type];
-    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
     const letterLayout = normalizeLetterLayout(
       tuSettings.letterLayouts?.[assetKey],
       DEFAULT_LETTER_LAYOUT_MM[assetKey]
@@ -1589,7 +1661,7 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
     const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
     const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
     const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
@@ -1687,7 +1759,7 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
     const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
     const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
     const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
@@ -1788,7 +1860,7 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
     const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
     const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
     const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
@@ -2009,7 +2081,7 @@ router.get('/tu/public/qr-download/:token', async (req, res) => {
     const config = letterConfig.observation;
     const tuSettings = await getTuSettingsPayload();
     const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
     const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
     const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
@@ -2075,7 +2147,7 @@ router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async
     const tuSettings = await getTuSettingsPayload();
     const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
     const assetKey = LETTER_TYPE_TO_CLIENT_KEY[type];
-    const backgroundImage = tuSettings.letterBackgrounds?.[assetKey]?.imageBase64 || '';
+    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
     const letterLayout = normalizeLetterLayout(
       tuSettings.letterLayouts?.[assetKey],
       DEFAULT_LETTER_LAYOUT_MM[assetKey]

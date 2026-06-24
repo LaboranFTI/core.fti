@@ -546,10 +546,10 @@ CREATE TABLE observation_requests (
 
 CREATE TRIGGER update_observation_requests_updated_at BEFORE UPDATE ON observation_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Tabel Background Surat TU (1 PNG A4 per jenis surat)
+-- Tabel Background Surat TU (1 PNG A4 bersama untuk semua format surat)
 CREATE TABLE tu_letter_backgrounds (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation')),
     file_name VARCHAR(255),
     mime_type VARCHAR(100) DEFAULT 'image/png',
     image_base64 TEXT NOT NULL,

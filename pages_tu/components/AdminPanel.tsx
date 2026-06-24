@@ -31,6 +31,7 @@ const createEmptyLetterAsset = (): LetterAsset => ({
 });
 
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
+  document: createEmptyLetterAsset(),
   activeStudent: createEmptyLetterAsset(),
   observation: createEmptyLetterAsset()
 });
@@ -40,20 +41,37 @@ const createEmptyLetterLayouts = (): TULetterLayouts => ({
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
-const letterAssetSections: Array<{
-  key: keyof TULetterBackgrounds;
+const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
+  const empty = createEmptyLetterBackgrounds();
+  const sharedBackground = backgrounds?.document?.imageBase64
+    ? backgrounds.document
+    : backgrounds?.activeStudent?.imageBase64
+      ? backgrounds.activeStudent
+      : backgrounds?.observation?.imageBase64
+        ? backgrounds.observation
+        : empty.document;
+
+  return {
+    document: { ...empty.document, ...sharedBackground },
+    activeStudent: { ...empty.activeStudent, ...sharedBackground },
+    observation: { ...empty.observation, ...sharedBackground }
+  };
+};
+
+const letterLayoutSections: Array<{
+  key: keyof TULetterLayouts;
   title: string;
   description: string;
 }> = [
   {
     key: 'activeStudent',
     title: 'Surat Aktif Kuliah',
-    description: 'Satu PNG ukuran A4 yang dipakai sebagai background penuh surat aktif kuliah.'
+    description: 'Atur batas area tulisan untuk template surat aktif kuliah.'
   },
   {
     key: 'observation',
     title: 'Surat Observasi',
-    description: 'Satu PNG ukuran A4 yang dipakai sebagai background penuh surat observasi.'
+    description: 'Atur batas area tulisan untuk template surat observasi.'
   }
 ];
 
@@ -136,12 +154,13 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         setDefaultSignature(json.signatureBase64);
         setDefaultStamp(json.stampBase64);
         setCurrentSemesterCode(json.currentSemesterCode || '');
-        setLetterBackgrounds(json.letterBackgrounds || createEmptyLetterBackgrounds());
+        const normalizedBackgrounds = normalizeLetterBackgrounds(json.letterBackgrounds);
+        setLetterBackgrounds(normalizedBackgrounds);
         setLetterLayouts(json.letterLayouts || createEmptyLetterLayouts());
         setTempSignature(json.signatureBase64);
         setTempStamp(json.stampBase64);
         setTempCurrentSemesterCode(json.currentSemesterCode || '');
-        setTempLetterBackgrounds(json.letterBackgrounds || createEmptyLetterBackgrounds());
+        setTempLetterBackgrounds(normalizedBackgrounds);
         setTempLetterLayouts(json.letterLayouts || createEmptyLetterLayouts());
         return json;
       }
@@ -183,22 +202,22 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     }
   };
 
-  const handleLetterBackgroundChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    letterKey: keyof TULetterBackgrounds
-  ) => {
+  const handleLetterBackgroundChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onloadend = () => {
+      const nextAsset = {
+        imageBase64: reader.result as string,
+        fileName: file.name,
+        mimeType: file.type || 'image/png'
+      };
       setTempLetterBackgrounds((prev) => ({
         ...prev,
-        [letterKey]: {
-          imageBase64: reader.result as string,
-          fileName: file.name,
-          mimeType: file.type || 'image/png'
-        }
+        document: nextAsset,
+        activeStudent: nextAsset,
+        observation: nextAsset
       }));
     };
     reader.readAsDataURL(file);
@@ -568,7 +587,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                   academicYear: semesterMeta.academicYear,
                   signatureBase64: selectedRequest.status === 'pending' ? defaultSignature : selectedRequest.signatureBase64, 
                   stampBase64: selectedRequest.status === 'pending' ? defaultStamp : selectedRequest.stampBase64,
-                  backgroundImageBase64: letterBackgrounds.activeStudent.imageBase64,
+                  backgroundImageBase64: letterBackgrounds.document.imageBase64,
                   layout: letterLayouts.activeStudent,
                   deanName: deanName
                 }} />
@@ -708,44 +727,51 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
             Background Surat
           </CardTitle>
           <CardDescription className="dark:text-gray-400">
-            Upload satu PNG ukuran A4 untuk masing-masing jenis surat. PNG ini akan dipakai sebagai latar belakang penuh, lalu isi surat ditulis di atasnya mengikuti template.
+            Upload satu PNG ukuran A4 sebagai background bersama untuk semua format surat TU.
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {letterAssetSections.map((section) => (
-            <div key={section.key} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/40">
-              <div className="mb-4">
-                <h3 className="text-base font-semibold text-slate-800 dark:text-white">{section.title}</h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{section.description}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Background PNG</p>
-                <div className="flex h-48 items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-100 p-2 dark:bg-gray-900/50">
-                  {tempLetterBackgrounds[section.key].imageBase64 ? (
-                    <img
-                      src={tempLetterBackgrounds[section.key].imageBase64}
-                      alt={`${section.title} background`}
-                      className="max-h-full w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs text-slate-400">Belum diupload</span>
-                  )}
-                </div>
-                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                  {tempLetterBackgrounds[section.key].fileName || 'Pilih file PNG ukuran A4'}
-                </p>
-                <label className="cursor-pointer w-full text-center bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm font-medium text-slate-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-2">
-                  <Upload className="w-4 h-4" /> Upload Background
-                  <input
-                    type="file"
-                    accept="image/png"
-                    className="hidden"
-                    onChange={(e) => handleLetterBackgroundChange(e, section.key)}
+        <CardContent className="p-6 space-y-6">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Background Utama</p>
+              <div className="flex h-72 items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-100 p-2 dark:bg-gray-900/50">
+                {tempLetterBackgrounds.document.imageBase64 ? (
+                  <img
+                    src={tempLetterBackgrounds.document.imageBase64}
+                    alt="Background surat utama"
+                    className="max-h-full w-full object-contain"
                   />
-                </label>
+                ) : (
+                  <span className="text-xs text-slate-400">Belum diupload</span>
+                )}
               </div>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {tempLetterBackgrounds.document.fileName || 'Pilih file PNG ukuran A4'}
+              </p>
+              <label className="cursor-pointer w-full text-center bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm font-medium text-slate-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-2">
+                <Upload className="w-4 h-4" /> Upload Background
+                <input
+                  type="file"
+                  accept="image/png"
+                  className="hidden"
+                  onChange={handleLetterBackgroundChange}
+                />
+              </label>
+            </div>
 
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+              Background ini menjadi sumber tunggal untuk surat aktif kuliah, surat observasi, dan format surat TU berikutnya.
+              Saat format surat bertambah, admin cukup menyesuaikan template dan margin area tulisan tanpa mengupload ulang background yang sama.
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {letterLayoutSections.map((section) => (
+              <div key={section.key} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/40">
+                <div className="mb-4">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">{section.title}</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{section.description}</p>
+                </div>
                 <div className="mb-3">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Margin Area Tulisan</p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -803,8 +829,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </CardContent>
       </Card>
       </div>
