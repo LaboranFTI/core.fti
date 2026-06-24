@@ -42,7 +42,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   const today = format(baseDate, 'dd MMMM yyyy', { locale: id });
   const observationNumber = letterNumber || `AUTO/FTI-OBS/${format(baseDate, 'MM/yyyy')}`;
   const pageLayout = layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
-  const publicValidationUrl = validationUrl || (validationToken ? `${window.location.origin}/tu/validasi-surat/${validationToken}` : '');
+  const publicValidationUrl = validationUrl || (validationToken ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${validationToken}` : '');
 
   return (
     <div

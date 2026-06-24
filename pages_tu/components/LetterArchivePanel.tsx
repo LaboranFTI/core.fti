@@ -441,7 +441,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   };
 
   const getPublicValidationUrl = (token?: string | null) =>
-    token ? `${window.location.origin}/tu/validasi-surat/${token}` : '';
+    token ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${token}` : '';
 
   const handleCreateValidationToken = async () => {
     if (!selectedLetter) return;

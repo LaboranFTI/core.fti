@@ -43,7 +43,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
   const birthPlaceAndDate = buildBirthPlaceAndDate(data.birthPlace, data.birthDate) || '[Tempat & Tanggal Lahir]';
   const faculty = data.faculty || DEFAULT_FACULTY;
   const university = data.university || DEFAULT_UNIVERSITY;
-  const validationUrl = data.validationUrl || (data.validationToken ? `${window.location.origin}/tu/validasi-surat/${data.validationToken}` : '');
+  const validationUrl = data.validationUrl || (data.validationToken ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${data.validationToken}` : '');
 
   return (
     <div

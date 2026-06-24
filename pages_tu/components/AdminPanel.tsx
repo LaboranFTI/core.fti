@@ -578,7 +578,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   if (selectedRequest) {
     const semesterMeta = getSemesterMeta(currentSemesterCode);
     const selectedValidationUrl = selectedRequest.validationToken
-      ? `${window.location.origin}/tu/validasi-surat/${selectedRequest.validationToken}`
+      ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${selectedRequest.validationToken}`
       : '';
 
     return (
