@@ -10,4 +10,4 @@ export const INSTITUTION_NAME = "Fakultas Teknologi Informasi - UKSW";
 // 1. Gunakan nilai dari .env jika ada
 // 2. Di Production (Nginx), gunakan string kosong "" agar menggunakan domain saat ini tanpa port
 // 3. Di Development, otomatis deteksi IP/Domain yang sedang diakses dan arahkan ke port 5000
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : `${window.location.protocol}//${window.location.hostname}:5000`);
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? "" : `http://${window.location.hostname}:5000`);

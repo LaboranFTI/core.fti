@@ -29,12 +29,14 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
   const derivedDeanName = dean ? dean.nama : 'Nama Dekan Belum Diatur';
   const derivedDeanTitle = dean ? dean.jabatan : 'Dekan';
 
-  const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth();
+  const letterDate = data.letterGeneratedAt || data.createdAt;
+  const baseDate = letterDate ? new Date(letterDate) : new Date();
+  const today = format(baseDate, 'dd MMMM yyyy', { locale: id });
+  const currentYear = baseDate.getFullYear();
+  const currentMonth = baseDate.getMonth();
   const semester = data.semesterName || (currentMonth >= 7 ? 'Ganjil' : 'Genap');
   const academicYear = data.academicYear || (currentMonth >= 7 ? `${currentYear}/${currentYear + 1}` : `${currentYear - 1}/${currentYear}`);
-  const letterNumber = data.letterNumber || `AUTO/FTI/S.Ket/${format(new Date(), 'MM/yyyy')}`;
+  const letterNumber = data.letterNumber || `AUTO/FTI/S.Ket/${format(baseDate, 'MM/yyyy')}`;
   const layout = data.layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
   const studyProgramLevel = data.studyProgramLevel || '[Jenjang Program]';
   const studyProgramName = data.studyProgramName || '[Program Studi]';
@@ -163,7 +165,6 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
           {validationUrl ? (
             <div className="my-[4mm] inline-flex flex-col items-center gap-[1mm]">
               <ValidationQrCode value={validationUrl} size={92} />
-              <span className="text-[7.5pt] leading-none">Scan untuk validasi surat</span>
             </div>
           ) : (
             <div className="h-[24mm]" />

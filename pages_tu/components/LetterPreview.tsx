@@ -12,12 +12,8 @@ interface LetterPreviewProps {
   letterNumber?: string;
   validationToken?: string;
   validationUrl?: string;
+  letterDate?: string;
 }
-
-const getObservationNumberPlaceholder = () => {
-  const now = new Date();
-  return `AUTO/FTI-OBS/${format(now, 'MM/yyyy')}`;
-};
 
 // Konversi jenjang program ke singkatan untuk penulisan di surat
 const shortLevel = (level?: string): string => {
@@ -38,10 +34,12 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   showLayoutGuide = true,
   letterNumber,
   validationToken,
-  validationUrl
+  validationUrl,
+  letterDate
 }, ref) => {
-  const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
-  const observationNumber = letterNumber || getObservationNumberPlaceholder();
+  const baseDate = letterDate ? new Date(letterDate) : new Date();
+  const today = format(baseDate, 'dd MMMM yyyy', { locale: id });
+  const observationNumber = letterNumber || `AUTO/FTI-OBS/${format(baseDate, 'MM/yyyy')}`;
   const pageLayout = layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
   const publicValidationUrl = validationUrl || (validationToken ? `${window.location.origin}/tu/validasi-surat/${validationToken}` : '');
 

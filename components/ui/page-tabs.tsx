@@ -62,19 +62,19 @@ export function PageTabSummary({ icon: Icon, title, description, className }: Pa
   return (
     <div
       className={cn(
-        "rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-fti-blue-900/5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/10",
+        "px-1 py-2 print:hidden",
         className
       )}
     >
       <div className="flex items-start gap-3">
         {Icon && (
-          <div className="flex h-11 w-11 flex-none items-center justify-center rounded-md border border-fti-blue-100 bg-fti-blue-50 text-fti-blue-700 dark:border-fti-blue-300/25 dark:bg-fti-blue-500/10 dark:text-fti-blue-200">
+          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             <Icon className="h-5 w-5" />
           </div>
         )}
         <div className="min-w-0">
-          {title && <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p>}
-          {description && <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
+          {title && <h2 className="text-base font-bold text-slate-900 dark:text-white">{title}</h2>}
+          {description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-normal">{description}</p>}
         </div>
       </div>
     </div>

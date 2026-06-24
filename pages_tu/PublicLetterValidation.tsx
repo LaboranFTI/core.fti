@@ -224,12 +224,12 @@ export default function PublicLetterValidation() {
               <img src={ftiLogo} alt="FTI Logo" className="h-9 w-auto object-contain" />
             </div>
             <div>
-              <span className="block text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-400">UKSW SALATIGA</span>
-              <span className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">FAKULTAS TEKNOLOGI INFORMASI</span>
+              <span className="block text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-400">FAKULTAS TEKNOLOGI INFORMASI</span>
+              <span className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Universitas Kristen Satya Wacana Salatiga</span>
             </div>
           </div>
           <Badge variant="outline" className="hidden sm:inline-flex border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-            Official System: v1.36
+            CORE.FTI
           </Badge>
         </div>
       </header>
@@ -406,6 +406,7 @@ export default function PublicLetterValidation() {
                       letterNumber={letter.letterNumber || undefined}
                       validationToken={letter.validationToken}
                       validationUrl={letter.validationUrl}
+                      letterDate={letter.issuedAt || letter.createdAt || undefined}
                     />
                   ) : (
                     <ActiveStudentLetter
@@ -424,6 +425,7 @@ export default function PublicLetterValidation() {
                         transcriptName: '',
                         status: letter.status,
                         createdAt: letter.createdAt || '',
+                        letterGeneratedAt: letter.issuedAt || undefined,
                         letterNumber: letter.letterNumber || undefined,
                         validationToken: letter.validationToken,
                         validationUrl: letter.validationUrl,

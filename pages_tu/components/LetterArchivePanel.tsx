@@ -723,6 +723,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     letterNumber={observationItem?.letterNumber}
                     validationToken={observationItem?.validationToken}
                     validationUrl={validationUrl}
+                    letterDate={observationItem?.letterGeneratedAt || observationItem?.createdAt}
                   />
                 ) : (
                   <ActiveStudentLetter
