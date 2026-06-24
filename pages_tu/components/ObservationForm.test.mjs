@@ -29,9 +29,9 @@ describe('ObservationForm access code UX', () => {
     assert.match(source, /resetSelfServiceFlow/);
   });
 
-  it('renders QR codes locally instead of sending the secret token to a third party', () => {
-    assert.match(source, /import QRCode from 'react-qr-code'/);
-    assert.match(source, /<QRCode/);
+  it('renders branded QR codes locally instead of sending the secret token to a third party', () => {
+    assert.match(source, /import \{ ValidationQrCode \} from '\.\/ValidationQrCode'/);
+    assert.match(source, /<ValidationQrCode/);
     assert.doesNotMatch(source, /api\.qrserver\.com/);
   });
 

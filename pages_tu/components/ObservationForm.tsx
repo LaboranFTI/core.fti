@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
-import QRCode from 'react-qr-code';
 import { ObservationData } from '../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -24,6 +23,7 @@ import {
 } from '../../components/ui/alert-dialog';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
+import { ValidationQrCode } from './ValidationQrCode';
 
 const MAX_OBSERVATION_STUDENTS = 7;
 
@@ -456,16 +456,14 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         throw new Error(json.details ? `${json.error} Details: ${json.details}` : (json.error || 'Gagal menghasilkan QR Code.'));
       }
 
-      // Dipaksa menggunakan IP spesifik untuk rute jaringan lokal sesuai permintaan
-      const absoluteQrUrl = `https://192.168.229.201${json.qrUrl}`;
-      setQrUrl(absoluteQrUrl);
+      setQrUrl(json.validationUrl || json.qrUrl || null);
       setQrAccessCode(json.accessCode || null);
       setQrExpiresAt(json.expiresAt || null);
       setFormFeedback({
         type: 'success',
         message: json.accessCode
-          ? `QR Code berhasil dibuat. Kode akses surat: ${json.accessCode}.`
-          : 'QR Code berhasil dibuat. Scan untuk mengunduh.'
+          ? `QR validasi surat berhasil dibuat. Kode akses surat: ${json.accessCode}.`
+          : 'QR validasi surat berhasil dibuat.'
       });
     } catch (error) {
       console.error('Failed to generate QR:', error);
@@ -818,7 +816,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                         }}
                       >
                         <QrCode className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
-                        <span className="font-medium">Download via QR Code</span>
+                        <span className="font-medium">Buat QR Validasi</span>
                       </button>
                       <button
                         type="button"
@@ -934,14 +932,14 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Scan untuk Download</h3>
-            <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Gunakan kamera HP atau aplikasi scanner untuk mengunduh PDF secara otomatis.</p>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">QR Validasi Surat</h3>
+            <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Scan QR untuk membuka halaman validasi publik surat ini.</p>
             <div className="bg-white p-4 rounded-xl inline-block border border-slate-200 shadow-sm mb-4">
-              <QRCode
+              <ValidationQrCode
                 value={qrUrl}
                 size={192}
                 className="h-48 w-48"
-                aria-label="QR Code Download"
+                ariaLabel="QR Code Validasi Surat"
               />
             </div>
             {qrAccessCode && (
@@ -958,7 +956,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
             </div>
             {qrExpiresAt && (
               <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">
-                Link QR berlaku 24 jam. Generate QR ulang akan membuat link baru dengan masa berlaku 24 jam lagi, tetapi kode akses tetap sama.
+                Link QR validasi berlaku permanen selama arsip surat tersedia.
               </p>
             )}
             <Button

@@ -106,13 +106,15 @@
 
         .signatures-wrapper {
             margin-top: 16mm;
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 28mm 1fr;
+            gap: 5mm;
             justify-content: space-between;
+            align-items: end;
             text-align: center;
         }
 
         .signatures-wrapper>div {
-            width: 48%;
             text-align: center;
         }
 
@@ -120,32 +122,28 @@
             margin: 0;
         }
 
-        .signature-area {
-            position: relative;
-            height: 24mm;
-            margin: 0;
-        }
-
-        .stamp-image {
-            position: absolute;
-            left: 0;
-            bottom: -6mm;
-            height: 35mm;
-            opacity: 0.9;
-            mix-blend-mode: multiply;
-        }
-
-        .signature-image {
-            position: absolute;
-            left: 20mm;
-            bottom: 2mm;
-            height: 20mm;
+        .signature-space {
+            height: 18mm;
         }
 
         .signature-name {
             font-weight: bold;
             text-decoration: underline;
             text-underline-offset: 4px;
+        }
+
+        .validation-qr {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1mm;
+            font-size: 7.5pt;
+            line-height: 1.1;
+        }
+
+        .validation-qr img {
+            width: 24mm;
+            height: 24mm;
         }
 
         .body-text p {
@@ -215,14 +213,17 @@
             <div class="signatures-wrapper">
                 <div>
                     <p>Mengetahui,</p>
-                    <div class="signature-area">
-                    </div>
+                    <div class="signature-space"></div>
                     <p class="signature-name">{{headOfProgramName}}</p>
                     <p>Kaprodi {{jenjangProgram}} {{programStudi}}</p>
                 </div>
+                <div class="validation-qr">
+                    <img src="{{validationQrImage}}" alt="QR Validasi Surat">
+                    <span>Scan untuk validasi surat</span>
+                </div>
                 <div>
                     <p>Salam,</p>
-                    <div class="signature-area"></div>
+                    <div class="signature-space"></div>
                     <p class="signature-name">{{lecturerName}}</p>
                     <p>Pengampu Mata Kuliah</p>
                 </div>

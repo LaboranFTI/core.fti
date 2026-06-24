@@ -508,6 +508,7 @@ CREATE TABLE active_student_requests (
     letter_number VARCHAR(100),
     letter_sequence INTEGER,
     letter_generated_at TIMESTAMP,
+    validation_token VARCHAR(64),
     status VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -536,6 +537,7 @@ CREATE TABLE observation_requests (
     letter_number VARCHAR(100),
     letter_sequence INTEGER,
     letter_generated_at TIMESTAMP,
+    validation_token VARCHAR(64),
     access_code VARCHAR(20),
     qr_download_token_hash VARCHAR(64),
     qr_download_token_expires_at TIMESTAMPTZ,
@@ -545,6 +547,14 @@ CREATE TABLE observation_requests (
 );
 
 CREATE TRIGGER update_observation_requests_updated_at BEFORE UPDATE ON observation_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE UNIQUE INDEX idx_active_student_requests_validation_token_unique
+ON active_student_requests(validation_token)
+WHERE validation_token IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_observation_requests_validation_token_unique
+ON observation_requests(validation_token)
+WHERE validation_token IS NOT NULL;
 
 -- Tabel Background Surat TU (1 PNG A4 bersama untuk semua format surat)
 CREATE TABLE tu_letter_backgrounds (

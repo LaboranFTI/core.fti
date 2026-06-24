@@ -93,8 +93,6 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const [confirmText, setConfirmText] = useState('');
 
   // State untuk pengaturan default
-  const [defaultSignature, setDefaultSignature] = useState<string>('');
-  const [defaultStamp, setDefaultStamp] = useState<string>('');
   const [currentSemesterCode, setCurrentSemesterCode] = useState<string>('');
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
@@ -110,6 +108,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const [panelFeedback, setPanelFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [requestToVerify, setRequestToVerify] = useState<ActiveStudentRequest | null>(null);
   const [deanName, setDeanName] = useState<string>('');
+  const [isEnsuringValidationToken, setIsEnsuringValidationToken] = useState(false);
+  const [validationTokenAttemptedId, setValidationTokenAttemptedId] = useState<string | null>(null);
 
   const formatSemesterLabel = (semesterCode: string) => {
     if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
@@ -151,8 +151,6 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
       const res = await api('/api/tu/settings');
       const json = await res.json();
       if (res.ok) {
-        setDefaultSignature(json.signatureBase64);
-        setDefaultStamp(json.stampBase64);
         setCurrentSemesterCode(json.currentSemesterCode || '');
         const normalizedBackgrounds = normalizeLetterBackgrounds(json.letterBackgrounds);
         setLetterBackgrounds(normalizedBackgrounds);
@@ -177,6 +175,13 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
       const json = await res.json();
       if (json.found && json.data.length > 0) {
         setDeanName(json.data[0].nama);
+        return;
+      }
+
+      const viceRes = await api('/api/lecturers/by-jabatan/Wakil Dekan');
+      const viceJson = await viceRes.json();
+      if (viceJson.found && viceJson.data.length > 0) {
+        setDeanName(viceJson.data[0].nama);
       }
     } catch (error) {
       console.error('Failed to fetch dean name:', error);
@@ -191,16 +196,71 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setter(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    if (!selectedRequest) return;
+    const latestRequest = requests.find((request) => request.id === selectedRequest.id);
+    if (!latestRequest) return;
+
+    const nextValidationToken = latestRequest.validationToken || selectedRequest.validationToken;
+    const needsSync =
+      latestRequest.status !== selectedRequest.status ||
+      latestRequest.letterNumber !== selectedRequest.letterNumber ||
+      nextValidationToken !== selectedRequest.validationToken;
+
+    if (needsSync) {
+      setSelectedRequest((prev) => prev && prev.id === latestRequest.id
+        ? { ...prev, ...latestRequest, validationToken: nextValidationToken }
+        : prev
+      );
     }
-  };
+  }, [requests, selectedRequest?.id, selectedRequest?.status, selectedRequest?.letterNumber, selectedRequest?.validationToken]);
+
+  useEffect(() => {
+    if (
+      !selectedRequest ||
+      !['verified', 'sent'].includes(selectedRequest.status) ||
+      selectedRequest.validationToken ||
+      isEnsuringValidationToken ||
+      validationTokenAttemptedId === selectedRequest.id
+    ) {
+      return;
+    }
+
+    let isCancelled = false;
+    const ensureValidationToken = async () => {
+      setIsEnsuringValidationToken(true);
+      setValidationTokenAttemptedId(selectedRequest.id);
+
+      try {
+        const res = await api(`/api/tu/requests/active-student/${selectedRequest.id}/validation-token`, {
+          method: 'POST'
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.validationToken || isCancelled) return;
+
+        setSelectedRequest((prev) => prev && prev.id === selectedRequest.id
+          ? { ...prev, validationToken: json.validationToken, letterNumber: json.letterNumber || prev.letterNumber }
+          : prev
+        );
+        setRequests((prev) => prev.map((request) => request.id === selectedRequest.id
+          ? { ...request, validationToken: json.validationToken, letterNumber: json.letterNumber || request.letterNumber }
+          : request
+        ));
+      } catch (error) {
+        console.error('Failed to ensure active student validation token:', error);
+      } finally {
+        if (!isCancelled) {
+          setIsEnsuringValidationToken(false);
+        }
+      }
+    };
+
+    ensureValidationToken();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.validationToken, isEnsuringValidationToken, validationTokenAttemptedId]);
 
   const handleLetterBackgroundChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,21 +304,30 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     try {
       const res = await api(`/api/active-student/${reqId}/verify`, { 
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signatureBase64: defaultSignature, stampBase64: defaultStamp })
+        headers: { 'Content-Type': 'application/json' }
       });
       const json = await res.json().catch(() => null);
       if (res.ok) {
-        await fetchRequests();
+        const nextLetterNumber = json?.letterNumber || selectedRequest?.letterNumber || '';
+        const nextValidationToken = json?.validationToken || selectedRequest?.validationToken || '';
+        setRequests((prev) => prev.map((request) => request.id === reqId
+          ? {
+              ...request,
+              status: 'verified',
+              letterNumber: nextLetterNumber || request.letterNumber,
+              validationToken: nextValidationToken || request.validationToken
+            }
+          : request
+        ));
         if (selectedRequest?.id === reqId) {
           setSelectedRequest(prev => prev ? {
             ...prev,
             status: 'verified',
-            signatureBase64: defaultSignature,
-            stampBase64: defaultStamp,
-            letterNumber: json?.letterNumber || prev.letterNumber
+            letterNumber: nextLetterNumber || prev.letterNumber,
+            validationToken: nextValidationToken || prev.validationToken
           } : null);
         }
+        await fetchRequests();
         setPanelFeedback({ type: 'success', message: 'Berkas berhasil diverifikasi dan siap dicetak atau dikirim.' });
       } else {
         setPanelFeedback({ type: 'error', message: json?.error || 'Verifikasi berkas gagal dilakukan.' });
@@ -508,6 +577,9 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
 
   if (selectedRequest) {
     const semesterMeta = getSemesterMeta(currentSemesterCode);
+    const selectedValidationUrl = selectedRequest.validationToken
+      ? `${window.location.origin}/tu/validasi-surat/${selectedRequest.validationToken}`
+      : '';
 
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -576,7 +648,12 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                   <Printer className="w-5 h-5 text-slate-600" /> Preview Surat
                 </CardTitle>
                 {selectedRequest.status === 'pending' && (
-                  <CardDescription className="text-xs dark:text-gray-400">Ini adalah preview surat yang akan digenerate dengan TTD dan Cap default.</CardDescription>
+                  <CardDescription className="text-xs dark:text-gray-400">Ini adalah preview surat sebelum nomor dan QR validasi resmi dibuat.</CardDescription>
+                )}
+                {selectedRequest.status !== 'pending' && !selectedRequest.validationToken && (
+                  <CardDescription className="text-xs dark:text-gray-400">
+                    {isEnsuringValidationToken ? 'QR validasi sedang dibuat...' : 'QR validasi belum tersedia untuk surat ini.'}
+                  </CardDescription>
                 )}
               </CardHeader>
               <CardContent id="print-area-admin" className="p-6 bg-slate-200/50 print:bg-white print:p-0 flex justify-center overflow-auto print:overflow-visible min-h-200">
@@ -585,11 +662,10 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                   semesterCode: currentSemesterCode,
                   semesterName: semesterMeta.semesterName,
                   academicYear: semesterMeta.academicYear,
-                  signatureBase64: selectedRequest.status === 'pending' ? defaultSignature : selectedRequest.signatureBase64, 
-                  stampBase64: selectedRequest.status === 'pending' ? defaultStamp : selectedRequest.stampBase64,
                   backgroundImageBase64: letterBackgrounds.document.imageBase64,
                   layout: letterLayouts.activeStudent,
-                  deanName: deanName
+                  deanName: deanName,
+                  validationUrl: selectedValidationUrl
                 }} />
               </CardContent>
             </Card>
@@ -603,7 +679,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
             <AlertDialogHeader>
               <AlertDialogTitle>Verifikasi berkas sekarang?</AlertDialogTitle>
               <AlertDialogDescription>
-                Surat akan memakai tanda tangan dekan dan cap fakultas yang saat ini tersimpan di pengaturan TU.
+                Surat akan mendapat nomor resmi dan QR validasi publik. Nama pejabat tetap ditampilkan tanpa upload tanda tangan atau cap manual.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -675,35 +751,20 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
           <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
             <Settings className="w-5 h-5" />
-            Pengesahan Surat
+            Validasi QR Surat
           </CardTitle>
-          <CardDescription className="dark:text-gray-400">Atur Tanda Tangan Dekan dan Cap Fakultas yang akan digunakan otomatis pada surat.</CardDescription>
+          <CardDescription className="dark:text-gray-400">Surat resmi divalidasi melalui QR publik, tanpa upload tanda tangan atau cap manual.</CardDescription>
         </CardHeader>
-        <CardContent className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Tanda Tangan Dekan</p>
-            <div className="h-24 w-full bg-slate-100 dark:bg-gray-900/50 rounded-lg border border-dashed flex items-center justify-center">
-              {tempSignature ? <img src={tempSignature} alt="Preview TTD" className="h-20 object-contain" /> : <span className="text-xs text-slate-400">Belum diatur</span>}
-            </div>
-            <label className="cursor-pointer w-full text-center bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm font-medium text-slate-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-2">
-              <Upload className="w-4 h-4" /> Ganti TTD
-              <input type="file" accept="image/png, image/jpeg" className="hidden" onChange={(e) => handleFileChange(e, setTempSignature)} />
-            </label>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Cap Fakultas</p>
-            <div className="h-24 w-full bg-slate-100 dark:bg-gray-900/50 rounded-lg border border-dashed flex items-center justify-center">
-              {tempStamp ? <img src={tempStamp} alt="Preview Cap" className="h-20 object-contain" /> : <span className="text-xs text-slate-400">Belum diatur</span>}
-            </div>
-            <label className="cursor-pointer w-full text-center bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm font-medium text-slate-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-2">
-              <Upload className="w-4 h-4" /> Ganti Cap
-              <input type="file" accept="image/png, image/jpeg" className="hidden" onChange={(e) => handleFileChange(e, setTempStamp)} />
-            </label>
-          </div>
+        <CardContent className="p-6 grid grid-cols-1 md:grid-cols-[1fr_220px] gap-6 items-end">
           <div className="space-y-3">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-              Gunakan file PNG transparan agar hasil tanda tangan, cap, serta kop surat terlihat rapi pada preview, PDF, dan email.
+              Saat surat diverifikasi, sistem membuat nomor surat dan token validasi permanen. QR pada surat akan membuka halaman detail publik berisi status keaslian, nomor surat, tanggal terbit, dan ringkasan data surat.
             </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+              Nama dekan, kaprodi, atau dosen tetap diambil dari data surat dan data dosen. Validasi keaslian berpindah ke QR, bukan gambar tanda tangan/cap.
+            </div>
+          </div>
+          <div className="space-y-3">
             <Button 
               onClick={handleSaveSettings} 
               disabled={isSavingSettings}

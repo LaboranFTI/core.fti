@@ -30,15 +30,18 @@ describe('TU observation access codes', () => {
     assert.match(source, /\$\{OBSERVATION_ACCESS_CODE_PREFIX\}-\$\{randomAccessCodeSegment\(\)\}-\$\{randomAccessCodeSegment\(\)\}/);
   });
 
-  it('returns the access code from QR generation without replacing the QR token behavior', () => {
+  it('returns the access code from QR generation together with the public validation URL', () => {
     const qrRoute = postRouteSource(
       '/tu/observation-letter/generate-qr-link',
       '/tu/observation-letter/send-email'
     );
 
     assert.match(qrRoute, /requestData\s*=\s*await ensureObservationAccessCode\(client,\s*requestData\)/);
+    assert.match(qrRoute, /requestData\s*=\s*await ensureLetterValidationToken\(client,\s*'observation',\s*requestData\)/);
+    assert.match(qrRoute, /validationUrl/);
+    assert.match(qrRoute, /validationToken:\s*requestData\.validation_token/);
     assert.match(qrRoute, /accessCode:\s*requestData\.access_code/);
-    assert.match(qrRoute, /expiresAt:\s*qrDownloadTokenExpiresAt\.toISOString\(\)/);
+    assert.match(qrRoute, /expiresAt:\s*null/);
   });
 
   it('includes the access code in observation emails and API responses', () => {

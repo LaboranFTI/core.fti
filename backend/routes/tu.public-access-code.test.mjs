@@ -27,7 +27,7 @@ describe('TU public observation access-code routes', () => {
 
   it('downloads the accessed letter PDF by access code', () => {
     assert.match(routeSource, /router\.post\('\/tu\/public\/observation-letter\/download'/);
-    assert.match(routeSource, /const pdfBuffer = await buildObservationPdfBuffer\(requestData\)/);
+    assert.match(routeSource, /const pdfBuffer = await buildObservationPdfBuffer\(requestData,\s*req\)/);
     assert.match(routeSource, /SuratObservasi_\$\{safeCompanyName\}\.pdf/);
   });
 });

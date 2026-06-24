@@ -1,12 +1,14 @@
 ALTER TABLE active_student_requests
   ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
   ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
-  ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP;
+  ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64);
 
 ALTER TABLE observation_requests
   ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
   ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
-  ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP;
+  ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64);
 
 CREATE TABLE IF NOT EXISTS tu_letter_backgrounds (
   id SERIAL PRIMARY KEY,
@@ -104,6 +106,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_active_student_requests_letter_number_uniq
 ON active_student_requests(letter_number)
 WHERE letter_number IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_student_requests_validation_token_unique
+ON active_student_requests(validation_token)
+WHERE validation_token IS NOT NULL;
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_letter_number_unique
 ON observation_requests(letter_number)
 WHERE letter_number IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_validation_token_unique
+ON observation_requests(validation_token)
+WHERE validation_token IS NOT NULL;

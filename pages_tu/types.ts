@@ -60,6 +60,7 @@ export interface ObservationRequest {
   signatureBase64?: string;
   stampBase64?: string;
   letterNumber?: string;
+  validationToken?: string;
   accessCode?: string;
   letterGeneratedAt?: string;
 }
@@ -85,5 +86,6 @@ export interface ActiveStudentRequest {
   semesterName?: string;
   academicYear?: string;
   letterNumber?: string;
+  validationToken?: string;
   letterGeneratedAt?: string;
 }

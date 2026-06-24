@@ -4,6 +4,7 @@ import { id as localeId } from 'date-fns/locale';
 import { ActiveStudentRequest, ObservationRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
+import { ValidationQrCode } from './ValidationQrCode';
 import { api } from '../../services/api';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -37,7 +38,9 @@ import {
   Trash2,
   Users,
   X,
-  Download
+  Download,
+  ExternalLink,
+  QrCode
 } from 'lucide-react';
 
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
@@ -129,8 +132,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const [currentSemesterCode, setCurrentSemesterCode] = useState('');
-  const [defaultSignature, setDefaultSignature] = useState('');
-  const [defaultStamp, setDefaultStamp] = useState('');
   const [deanName, setDeanName] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -224,8 +225,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         setLetterBackgrounds(normalizeLetterBackgrounds(settingsJson.letterBackgrounds));
         setLetterLayouts(settingsJson.letterLayouts || createEmptyLetterLayouts());
         setCurrentSemesterCode(settingsJson.currentSemesterCode || '');
-        setDefaultSignature(settingsJson.signatureBase64 || '');
-        setDefaultStamp(settingsJson.stampBase64 || '');
       }
 
       setSelectedLetter((prev) => {
@@ -262,6 +261,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         const json = await res.json();
         if (json.found && json.data.length > 0) {
           setDeanName(json.data[0].nama);
+          return;
+        }
+
+        const viceRes = await api('/api/lecturers/by-jabatan/Wakil Dekan');
+        const viceJson = await viceRes.json();
+        if (viceJson.found && viceJson.data.length > 0) {
+          setDeanName(viceJson.data[0].nama);
         }
       } catch (e) {
         console.error('Failed to fetch dean name:', e);
@@ -404,11 +410,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     try {
       const res = await api(`/api/observation-requests/${id}/verify`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          signatureBase64: defaultSignature,
-          stampBase64: defaultStamp
-        })
+        headers: { 'Content-Type': 'application/json' }
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -423,9 +425,8 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               item: {
                 ...prev.item,
                 status: 'verified',
-                signatureBase64: defaultSignature,
-                stampBase64: defaultStamp,
-                letterNumber: json?.letterNumber || prev.item.letterNumber
+                letterNumber: json?.letterNumber || prev.item.letterNumber,
+                validationToken: json?.validationToken || prev.item.validationToken
               }
             }
           : prev
@@ -434,6 +435,46 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     } catch (error) {
       console.error('Failed to verify observation:', error);
       setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memverifikasi surat observasi.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getPublicValidationUrl = (token?: string | null) =>
+    token ? `${window.location.origin}/tu/validasi-surat/${token}` : '';
+
+  const handleCreateValidationToken = async () => {
+    if (!selectedLetter) return;
+    const apiType = selectedLetter.type === 'active' ? 'active-student' : 'observation';
+
+    setIsProcessing(true);
+    setFeedback(null);
+    try {
+      const res = await api(`/api/tu/requests/${apiType}/${selectedLetter.item.id}/validation-token`, {
+        method: 'POST'
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Gagal membuat link validasi surat.');
+      }
+
+      setSelectedLetter((prev) =>
+        prev?.type === 'active'
+          ? {
+              type: 'active',
+              item: { ...prev.item, validationToken: json.validationToken }
+            }
+          : prev?.type === 'observation'
+            ? {
+                type: 'observation',
+                item: { ...prev.item, validationToken: json.validationToken }
+              }
+            : prev
+      );
+      await fetchArchiveData({ showError: false });
+      setFeedback({ type: 'success', message: 'Link validasi publik berhasil dibuat.' });
+    } catch (error) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal membuat link validasi surat.' });
     } finally {
       setIsProcessing(false);
     }
@@ -592,6 +633,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     const activeItem = selectedLetter.type === 'active' ? selectedLetter.item : null;
     const item = selectedLetter.item;
     const canSendEmail = item.status === 'verified' || item.status === 'sent';
+    const validationUrl = getPublicValidationUrl(item.validationToken);
     const actionHint =
       item.status === 'pending'
         ? isObservation
@@ -679,8 +721,8 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     layout={letterLayouts.observation}
                     showLayoutGuide={false}
                     letterNumber={observationItem?.letterNumber}
-                    signatureBase64={observationItem?.status === 'pending' ? defaultSignature : observationItem?.signatureBase64 || defaultSignature}
-                    stampBase64={observationItem?.status === 'pending' ? defaultStamp : observationItem?.stampBase64 || defaultStamp}
+                    validationToken={observationItem?.validationToken}
+                    validationUrl={validationUrl}
                   />
                 ) : (
                   <ActiveStudentLetter
@@ -689,11 +731,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       semesterCode: currentSemesterCode,
                       semesterName: semesterMeta.semesterName,
                       academicYear: semesterMeta.academicYear,
-                      signatureBase64: activeItem?.status === 'pending' ? defaultSignature : activeItem?.signatureBase64,
-                      stampBase64: activeItem?.status === 'pending' ? defaultStamp : activeItem?.stampBase64,
                       backgroundImageBase64: letterBackgrounds.document.imageBase64,
                       layout: letterLayouts.activeStudent,
-                      deanName: deanName
+                      deanName: deanName,
+                      validationUrl
                     }}
                   />
                 )}
@@ -748,6 +789,54 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               </CardContent>
             </Card>
 
+            <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
+              <CardHeader className="border-b border-slate-100 dark:border-gray-700">
+                <CardTitle className="flex items-center gap-2 text-base text-slate-800 dark:text-white">
+                  <QrCode className="h-4 w-4 text-sky-600" /> Validasi Publik
+                </CardTitle>
+                <CardDescription className="dark:text-gray-400">
+                  QR pada surat membuka halaman detail validasi tanpa login.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-4">
+                {validationUrl ? (
+                  <>
+                    <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <ValidationQrCode value={validationUrl} size={128} />
+                    </div>
+                    <p className="break-all rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-gray-800 dark:text-gray-400">
+                      {validationUrl}
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800"
+                      onClick={() => window.open(validationUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" /> Buka Halaman Validasi
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600 dark:text-gray-400">
+                      Link validasi belum tersedia untuk arsip ini.
+                    </p>
+                    <Button
+                      onClick={handleCreateValidationToken}
+                      disabled={isProcessing || item.status === 'pending'}
+                      className="w-full justify-center"
+                    >
+                      <QrCode className="mr-2 h-4 w-4" /> Buat Link Validasi
+                    </Button>
+                    {item.status === 'pending' && (
+                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                        Surat harus diverifikasi terlebih dahulu sebelum memiliki QR validasi.
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
 
             <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
               <CardHeader className="border-b border-slate-100 dark:border-gray-700">
@@ -782,7 +871,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">Catatan Operasional</p>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
                     Arsip ini menyimpan data sumber surat. Saat aksi cetak atau kirim dijalankan, sistem akan membuat output
-                    terbaru berdasarkan template, stempel, dan tanda tangan TU yang aktif.
+                    terbaru berdasarkan template, background, nama penanggung jawab, dan QR validasi yang aktif.
                   </p>
                 </div>
               </CardContent>

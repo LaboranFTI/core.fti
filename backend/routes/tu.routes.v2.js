@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import qrcode from 'qr.js';
 import { pool } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
 import {
@@ -21,6 +22,7 @@ const router = express.Router();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const QR_CENTER_LOGO_PATH = path.join(__dirname, '..', '..', 'src', 'assets', 'FTI_nobg.svg');
 
 const uploadSessions = new Map();
 const qrDownloadSessions = new Map();
@@ -48,10 +50,12 @@ const LETTER_TYPE_TO_CODE = {
 };
 const OBSERVATION_ACCESS_CODE_PREFIX = 'OBS';
 const OBSERVATION_ACCESS_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const VALIDATION_TOKEN_BYTES = 24;
 
 const createQrDownloadToken = () => crypto.randomBytes(32).toString('base64url');
 const hashQrDownloadToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const getQrDownloadExpiry = () => new Date(Date.now() + QR_DOWNLOAD_TOKEN_TTL_HOURS * 60 * 60 * 1000);
+const createValidationToken = () => crypto.randomBytes(VALIDATION_TOKEN_BYTES).toString('base64url');
 const randomAccessCodeSegment = () =>
   Array.from({ length: 4 }, () => OBSERVATION_ACCESS_CODE_ALPHABET[crypto.randomInt(0, OBSERVATION_ACCESS_CODE_ALPHABET.length)]).join('');
 const createObservationAccessCode = () => `${OBSERVATION_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
@@ -95,6 +99,7 @@ const normalizeLetterLayout = (layout, fallback) => ({
 });
 
 let tuInfrastructurePromise = null;
+let qrCenterLogoDataUrlPromise = null;
 
 const ensureTuInfrastructure = async () => {
   if (tuInfrastructurePromise) {
@@ -121,6 +126,7 @@ const ensureTuInfrastructure = async () => {
         letter_number VARCHAR(100),
         letter_sequence INTEGER,
         letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
@@ -144,6 +150,7 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
       ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
       ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
@@ -172,6 +179,7 @@ const ensureTuInfrastructure = async () => {
         letter_number VARCHAR(100),
         letter_sequence INTEGER,
         letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
         access_code VARCHAR(20),
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
@@ -198,6 +206,7 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
       ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
       ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
       ADD COLUMN IF NOT EXISTS access_code VARCHAR(20),
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
@@ -291,9 +300,21 @@ const ensureTuInfrastructure = async () => {
     `);
 
     await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_active_student_requests_validation_token_unique
+      ON active_student_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_letter_number_unique
       ON observation_requests(letter_number)
       WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_validation_token_unique
+      ON observation_requests(validation_token)
+      WHERE validation_token IS NOT NULL
     `);
 
     await pool.query(`
@@ -385,6 +406,7 @@ const mapActiveStudentRow = (row) => ({
   signatureBase64: row.signature_base64,
   stampBase64: row.stamp_base64,
   letterNumber: row.letter_number,
+  validationToken: row.validation_token,
   letterGeneratedAt: row.letter_generated_at,
   createdAt: row.created_at
 });
@@ -408,6 +430,7 @@ const mapObservationRow = (row) => ({
   signatureBase64: row.signature_base64,
   stampBase64: row.stamp_base64,
   letterNumber: row.letter_number,
+  validationToken: row.validation_token,
   accessCode: row.access_code,
   letterGeneratedAt: row.letter_generated_at,
   createdAt: row.created_at
@@ -430,6 +453,122 @@ const buildObservationAccessPayload = (row) => ({
     students: normalizeObservationStudents(row.student_members)
   }
 });
+
+const formatPublicDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+const buildPublicValidationUrl = (req, token) => {
+  if (!token) return '';
+  const configuredBaseUrl =
+    process.env.PUBLIC_APP_URL ||
+    process.env.FRONTEND_URL ||
+    process.env.APP_BASE_URL ||
+    `${req.protocol}://${req.get('host')}`;
+  return `${configuredBaseUrl.replace(/\/$/, '')}/tu/validasi-surat/${token}`;
+};
+
+const escapeXml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+const getQrCenterLogoDataUrl = async () => {
+  if (!qrCenterLogoDataUrlPromise) {
+    qrCenterLogoDataUrlPromise = fs.readFile(QR_CENTER_LOGO_PATH)
+      .then((buffer) => `data:image/svg+xml;base64,${buffer.toString('base64')}`)
+      .catch((err) => {
+        qrCenterLogoDataUrlPromise = null;
+        console.warn('Failed to load TU QR center logo:', err.message);
+        return '';
+      });
+  }
+
+  return qrCenterLogoDataUrlPromise;
+};
+
+const createQrSvgDataUrl = async (value) => {
+  if (!value) return '';
+
+  const qr = qrcode(value, { errorCorrectLevel: qrcode.ErrorCorrectLevel.H });
+  const moduleCount = qr.getModuleCount();
+  const quietZone = 4;
+  const size = moduleCount + quietZone * 2;
+  const rects = [];
+
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (qr.isDark(row, col)) {
+        rects.push(`<rect x="${col + quietZone}" y="${row + quietZone}" width="1" height="1"/>`);
+      }
+    }
+  }
+
+  const logoDataUrl = await getQrCenterLogoDataUrl();
+  const logoSize = Math.max(8, size * 0.25);
+  const logoPadding = Math.max(1.25, size * 0.045);
+  const logoFrameSize = logoSize + logoPadding * 2;
+  const logoFrameX = (size - logoFrameSize) / 2;
+  const logoX = (size - logoSize) / 2;
+  const logoMarkup = logoDataUrl
+    ? `<rect x="${logoFrameX}" y="${logoFrameX}" width="${logoFrameSize}" height="${logoFrameSize}" rx="${logoPadding}" fill="#fff"/><image href="${logoDataUrl}" x="${logoX}" y="${logoX}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>`
+    : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${size}v${size}H0z"/><g fill="#000">${rects.join('')}</g>${logoMarkup}</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+};
+
+const buildLetterValidationPayload = (type, row, req) => {
+  const isObservation = type === 'observation';
+  const students = isObservation ? normalizeObservationStudents(row.student_members) : [];
+  const primaryStudent = students[0] || { name: row.name, nim: row.nim };
+
+  return {
+    type,
+    typeLabel: isObservation ? 'Surat Pengantar Observasi' : 'Surat Keterangan Aktif Kuliah',
+    status: row.status,
+    isValid: ['verified', 'sent'].includes(row.status),
+    letterNumber: row.letter_number,
+    validationToken: row.validation_token,
+    validationUrl: buildPublicValidationUrl(req, row.validation_token),
+    issuedAt: formatPublicDate(row.letter_generated_at || row.created_at),
+    createdAt: formatPublicDate(row.created_at),
+    recipient: {
+      name: row.name || primaryStudent.name || '',
+      nim: row.nim || primaryStudent.nim || '',
+      email: row.email || ''
+    },
+    activeStudent: isObservation
+      ? null
+      : {
+          birthPlace: row.birth_place || '',
+          birthDate: row.birth_date || '',
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          faculty: row.faculty || DEFAULT_FACULTY,
+          university: row.university || DEFAULT_UNIVERSITY
+        },
+    observation: isObservation
+      ? {
+          recipientName: row.recipient_name || '',
+          company: row.company || '',
+          companyAddress: row.company_address || '',
+          courseName: row.course_name || '',
+          lecturerName: row.lecturer_name || '',
+          headOfProgramName: row.head_of_program_name || '',
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          students
+        }
+      : null
+  };
+};
 
 const buildLetterBackgroundsPayload = (rows) => {
   const backgrounds = createEmptyLetterBackgrounds();
@@ -761,7 +900,13 @@ const letterConfig = {
       let deanTitle = 'Dekan';
 
       try {
-        const deanResult = await pool.query("SELECT nama, jabatan FROM lecturer WHERE jabatan ILIKE 'Dekan%' ORDER BY nama ASC LIMIT 1");
+        const deanResult = await pool.query(`
+          SELECT nama, jabatan
+          FROM lecturer
+          WHERE jabatan ILIKE 'Dekan%' OR jabatan ILIKE 'Wakil Dekan%'
+          ORDER BY CASE WHEN jabatan ILIKE 'Dekan%' THEN 0 ELSE 1 END, nama ASC
+          LIMIT 1
+        `);
         if (deanResult.rows.length > 0) {
           deanName = deanResult.rows[0].nama;
           deanTitle = deanResult.rows[0].jabatan;
@@ -855,10 +1000,46 @@ const ensureLetterNumber = async (client, type, requestData) => {
   return updateResult.rows[0];
 };
 
-const buildObservationPdfBuffer = async (requestData) => {
-  const config = letterConfig.observation;
+const ensureLetterValidationToken = async (queryable, type, requestData) => {
+  if (requestData.validation_token) {
+    return requestData;
+  }
+
+  const config = letterConfig[type];
+  if (!config) {
+    throw new Error('Jenis surat tidak valid untuk token validasi.');
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const validationToken = createValidationToken();
+      const updateResult = await queryable.query(
+        `UPDATE ${config.table}
+         SET validation_token = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [validationToken, requestData.id]
+      );
+      return updateResult.rows[0];
+    } catch (err) {
+      if (err?.code === '23505') continue;
+      throw err;
+    }
+  }
+
+  throw new Error('Gagal membuat token validasi surat.');
+};
+
+const buildLetterHtml = async (type, requestData, req) => {
+  const config = letterConfig[type];
+  if (!config) {
+    throw new Error('Jenis surat tidak valid.');
+  }
+
   const tuSettings = await getTuSettingsPayload();
-  const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
+  const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
+  const assetKey = LETTER_TYPE_TO_CLIENT_KEY[type];
   const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
   const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
   const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
@@ -866,14 +1047,18 @@ const buildObservationPdfBuffer = async (requestData) => {
 
   const tanggalSurat = requestData.letter_generated_at
     ? new Date(requestData.letter_generated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-    : new Date(requestData.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+  const validationQrImage = await createQrSvgDataUrl(validationUrl);
 
   htmlContent = htmlContent
     .replace(/{{name}}/g, requestData.name || '')
     .replace(/{{nim}}/g, requestData.nim || '')
     .replace(/{{tanggalSurat}}/g, tanggalSurat)
-    .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-    .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
+    .replace(/{{signatureImage}}/g, '')
+    .replace(/{{stampImage}}/g, '')
+    .replace(/{{validationUrl}}/g, escapeXml(validationUrl))
+    .replace(/{{validationQrImage}}/g, validationQrImage)
     .replace(/{{backgroundImage}}/g, backgroundImage)
     .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
     .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
@@ -882,14 +1067,26 @@ const buildObservationPdfBuffer = async (requestData) => {
 
   const placeholders = config.getPlaceholders({
     data: requestData,
-    letterNumber: requestData.letter_number || '-'
+    letterNumber: requestData.letter_number || '-',
+    semesterMeta
   });
 
-  for (const key in placeholders) {
-    htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
+  const resolvedPlaceholders = await placeholders;
+  for (const key in resolvedPlaceholders) {
+    htmlContent = htmlContent.replace(new RegExp(key, 'g'), resolvedPlaceholders[key]);
   }
 
+  return htmlContent;
+};
+
+const buildLetterPdfBuffer = async (type, requestData, req) => {
+  const htmlContent = await buildLetterHtml(type, requestData, req);
   return generatePdfBuffer(htmlContent);
+};
+
+const buildObservationPdfBuffer = async (requestData, req) => {
+  const requestWithToken = await ensureLetterValidationToken(pool, 'observation', requestData);
+  return buildLetterPdfBuffer('observation', requestWithToken, req);
 };
 
 const ensureObservationAccessCode = async (client, requestData) => {
@@ -1151,7 +1348,6 @@ router.get('/active-student', verifyRole(['Admin', 'Admin TU', 'User TU']), asyn
 
 router.put('/active-student/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
-  const { signatureBase64, stampBase64 } = req.body;
   const client = await pool.connect();
 
   try {
@@ -1164,22 +1360,22 @@ router.put('/active-student/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req,
       return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
     }
 
-    const numberedRequest = await ensureLetterNumber(client, 'active-student', existingResult.rows[0]);
+    let numberedRequest = await ensureLetterNumber(client, 'active-student', existingResult.rows[0]);
+    numberedRequest = await ensureLetterValidationToken(client, 'active-student', numberedRequest);
     const updateResult = await client.query(
       `UPDATE active_student_requests
        SET status = 'verified',
-           signature_base64 = $1,
-           stamp_base64 = $2,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
+       WHERE id = $1
        RETURNING *`,
-      [signatureBase64, stampBase64, id]
+      [id]
     );
 
     await client.query('COMMIT');
     res.json({
       success: true,
-      letterNumber: numberedRequest.letter_number || updateResult.rows[0]?.letter_number || ''
+      letterNumber: numberedRequest.letter_number || updateResult.rows[0]?.letter_number || '',
+      validationToken: numberedRequest.validation_token || updateResult.rows[0]?.validation_token || ''
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1255,7 +1451,6 @@ router.get('/observation-requests', verifyRole(['Admin', 'Admin TU', 'User TU'])
 
 router.put('/observation-requests/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
   const { id } = req.params;
-  const { signatureBase64, stampBase64 } = req.body;
   const client = await pool.connect();
 
   try {
@@ -1268,19 +1463,18 @@ router.put('/observation-requests/:id/verify', verifyRole(TU_ADMIN_ROLES), async
       return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
     }
 
-    const numberedRequest = await ensureLetterNumber(client, 'observation', existingResult.rows[0]);
+    let numberedRequest = await ensureLetterNumber(client, 'observation', existingResult.rows[0]);
+    numberedRequest = await ensureLetterValidationToken(client, 'observation', numberedRequest);
     await client.query(
       `UPDATE observation_requests
        SET status = 'verified',
-           signature_base64 = $1,
-           stamp_base64 = $2,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [signatureBase64, stampBase64, id]
+       WHERE id = $1`,
+      [id]
     );
 
     await client.query('COMMIT');
-    res.json({ success: true, letterNumber: numberedRequest.letter_number || '' });
+    res.json({ success: true, letterNumber: numberedRequest.letter_number || '', validationToken: numberedRequest.validation_token || '' });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Verify observation request error:', err);
@@ -1472,6 +1666,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
       }
 
       requestData = await ensureLetterNumber(client, type, result.rows[0]);
+      requestData = await ensureLetterValidationToken(client, type, requestData);
       await client.query('COMMIT');
       client.release();
     } catch (txErr) {
@@ -1480,40 +1675,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
       throw txErr;
     }
 
-    const tuSettings = await getTuSettingsPayload();
-    const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
-    const assetKey = LETTER_TYPE_TO_CLIENT_KEY[type];
-    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
-    const letterLayout = normalizeLetterLayout(
-      tuSettings.letterLayouts?.[assetKey],
-      DEFAULT_LETTER_LAYOUT_MM[assetKey]
-    );
-    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
-    let htmlContent = await fs.readFile(templatePath, 'utf-8');
-
-    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
-      .replace(/{{nim}}/g, requestData.nim || '')
-      .replace(/{{tanggalSurat}}/g, tanggalSurat)
-      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-      .replace(/{{backgroundImage}}/g, backgroundImage)
-      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
-
-    const specificPlaceholders = await config.getPlaceholders({
-      data: requestData,
-      letterNumber: requestData.letter_number,
-      semesterMeta
-    });
-
-    for (const key in specificPlaceholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), specificPlaceholders[key]);
-    }
-
-    const pdfBuffer = await generatePdfBuffer(htmlContent);
+    const pdfBuffer = await buildLetterPdfBuffer(type, requestData, req);
 
     const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
     const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
@@ -1555,10 +1717,48 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
 
     await pool.query(`UPDATE ${config.table} SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
 
-    res.json({ success: true, message: 'Email berhasil dikirim', letterNumber: requestData.letter_number });
+    res.json({
+      success: true,
+      message: 'Email berhasil dikirim',
+      letterNumber: requestData.letter_number,
+      validationToken: requestData.validation_token,
+      validationUrl: buildPublicValidationUrl(req, requestData.validation_token)
+    });
   } catch (err) {
     console.error('Send email error:', err);
     res.status(500).json({ error: 'Gagal mengirim email. Pastikan konfigurasi SMTP di .env sudah benar.' });
+  }
+});
+
+router.post('/tu/requests/:type/:id/validation-token', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { type, id } = req.params;
+  const config = letterConfig[type];
+
+  if (!config) {
+    return res.status(400).json({ error: 'Jenis surat tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(`SELECT * FROM ${config.table} WHERE id = $1`, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    }
+
+    if (!['verified', 'sent'].includes(result.rows[0].status)) {
+      return res.status(400).json({ error: 'Token validasi hanya dapat dibuat untuk surat yang sudah diverifikasi.' });
+    }
+
+    const requestData = await ensureLetterValidationToken(pool, type, result.rows[0]);
+    res.json({
+      success: true,
+      validationToken: requestData.validation_token,
+      validationUrl: buildPublicValidationUrl(req, requestData.validation_token)
+    });
+  } catch (err) {
+    console.error('Create validation token error:', err);
+    res.status(500).json({ error: 'Gagal membuat token validasi surat.' });
   }
 });
 
@@ -1602,11 +1802,12 @@ router.post('/tu/observation-letter/finalize', verifyRole(TU_SUBMIT_ROLES), asyn
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureLetterValidationToken(client, 'observation', requestData);
     requestData = await ensureObservationAccessCode(client, requestData);
 
     await client.query('COMMIT');
 
-    res.json({ success: true, letterNumber: requestData.letter_number, accessCode: requestData.access_code });
+    res.json({ success: true, letterNumber: requestData.letter_number, accessCode: requestData.access_code, validationToken: requestData.validation_token });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Observation letter finalize error:', err);
@@ -1656,33 +1857,10 @@ router.post('/tu/observation-letter/generate-and-download', verifyRole(TU_SUBMIT
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureLetterValidationToken(client, 'observation', requestData);
     requestData = await ensureObservationAccessCode(client, requestData);
 
-    const config = letterConfig.observation;
-    const tuSettings = await getTuSettingsPayload();
-    const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
-    const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
-    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
-    let htmlContent = await fs.readFile(templatePath, 'utf-8');
-
-    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    htmlContent = htmlContent.replace(/{{backgroundImage}}/g, backgroundImage)
-      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
-
-    const placeholders = config.getPlaceholders({
-      data: requestData,
-      letterNumber: requestData.letter_number,
-    });
-
-    for (const key in placeholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
-    }
-
-    const pdfBuffer = await generatePdfBuffer(htmlContent);
+    const pdfBuffer = await buildLetterPdfBuffer('observation', requestData, req);
     await client.query('COMMIT');
 
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
@@ -1741,64 +1919,19 @@ router.post('/tu/observation-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLE
         student_members: normalizeObservationStudents(students)
     }, 'verified');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureLetterValidationToken(client, 'observation', requestData);
     requestData = await ensureObservationAccessCode(client, requestData);
-    const qrDownloadToken = createQrDownloadToken();
-    const qrDownloadTokenHash = hashQrDownloadToken(qrDownloadToken);
-    const qrDownloadTokenExpiresAt = getQrDownloadExpiry();
-
-    requestData = (await client.query(
-      `UPDATE observation_requests
-       SET qr_download_token_hash = $1,
-           qr_download_token_expires_at = $2,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
-       RETURNING *`,
-      [qrDownloadTokenHash, qrDownloadTokenExpiresAt, requestData.id]
-    )).rows[0];
-
-    const config = letterConfig.observation;
-    const tuSettings = await getTuSettingsPayload();
-    const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
-    const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
-    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
-    let htmlContent = await fs.readFile(templatePath, 'utf-8');
-
-    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
-      .replace(/{{nim}}/g, requestData.nim || '')
-      .replace(/{{tanggalSurat}}/g, tanggalSurat)
-      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-      .replace(/{{backgroundImage}}/g, backgroundImage)
-      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
-
-    const placeholders = config.getPlaceholders({
-      data: requestData,
-      letterNumber: requestData.letter_number,
-    });
-
-    for (const key in placeholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
-    }
-
-    const pdfBuffer = await generatePdfBuffer(htmlContent);
     await client.query('COMMIT');
 
-    const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
-    const filename = `SuratObservasi_${safeCompanyName}.pdf`;
-
-    const qrPath = `/api/tu/public/qr-download/${qrDownloadToken}`;
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
     res.json({
       success: true,
-      qrUrl: qrPath,
-      token: qrDownloadToken,
+      qrUrl: validationUrl,
+      validationUrl,
+      validationToken: requestData.validation_token,
       accessCode: requestData.access_code,
       letterNumber: requestData.letter_number,
-      expiresAt: qrDownloadTokenExpiresAt.toISOString()
+      expiresAt: null
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1855,35 +1988,11 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
         student_members: normalizeObservationStudents(students)
     }, 'sent');
     requestData = await ensureLetterNumber(client, 'observation', requestData);
+    requestData = await ensureLetterValidationToken(client, 'observation', requestData);
     requestData = await ensureObservationAccessCode(client, requestData);
 
     const config = letterConfig.observation;
-    const tuSettings = await getTuSettingsPayload();
-    const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
-    const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
-    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
-    let htmlContent = await fs.readFile(templatePath, 'utf-8');
-
-    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    htmlContent = htmlContent
-      .replace(/{{name}}/g, requestData.name || '')
-      .replace(/{{nim}}/g, requestData.nim || '')
-      .replace(/{{tanggalSurat}}/g, tanggalSurat)
-      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-      .replace(/{{backgroundImage}}/g, backgroundImage)
-      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
-
-    const placeholders = config.getPlaceholders({ data: requestData, letterNumber: requestData.letter_number });
-    for (const key in placeholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
-    }
-
-    const pdfBuffer = await generatePdfBuffer(htmlContent);
+    const pdfBuffer = await buildLetterPdfBuffer('observation', requestData, req);
     await client.query('COMMIT');
 
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
@@ -1892,15 +2001,17 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
     const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
 
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
     const info = await transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
       to: targetEmail,
       subject: `${config.subject} - ${resolvedCompanyName || 'Observasi'}`,
-      text: `Halo, ${resolvedName} (${resolvedNim})\n\nPermohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha. Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.\n\nKode akses surat: ${requestData.access_code}\nSimpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.\n\nSalam,\nBagian Tata Usaha\nFakultas Teknologi Informasi UKSW`,
+      text: `Halo, ${resolvedName} (${resolvedNim})\n\nPermohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha. Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.\n\nValidasi surat: ${validationUrl}\nKode akses surat: ${requestData.access_code}\nSimpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.\n\nSalam,\nBagian Tata Usaha\nFakultas Teknologi Informasi UKSW`,
       html: `
         <div style="font-family: sans-serif; color: #333;">
           <h2>Halo, ${resolvedName} (${resolvedNim})</h2>
           ${config.emailBody}
+          <p><strong>Validasi surat:</strong> <a href="${validationUrl}">${validationUrl}</a></p>
           <p><strong>Kode akses surat:</strong> ${requestData.access_code}</p>
           <p>Simpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.</p>
           <br/>
@@ -1924,7 +2035,9 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
       success: true,
       message: `Surat berhasil dikirim ke ${targetEmail}`,
       letterNumber: requestData.letter_number,
-      accessCode: requestData.access_code
+      accessCode: requestData.access_code,
+      validationToken: requestData.validation_token,
+      validationUrl
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
@@ -1932,6 +2045,95 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     res.status(500).json({ error: 'Gagal mengirim email surat observasi. Pastikan konfigurasi EMAIL di .env sudah benar.' });
   } finally {
     client.release();
+  }
+});
+
+router.get('/tu/public/letter-validation/:token', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {
+    return res.status(400).json({ error: 'Token validasi tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const [activeResult, observationResult] = await Promise.all([
+      pool.query(`SELECT * FROM active_student_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM observation_requests WHERE validation_token = $1 LIMIT 1`, [token])
+    ]);
+
+    const tuSettings = await getTuSettingsPayload();
+    const backgroundImageBase64 = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
+
+    if (activeResult.rows.length > 0) {
+      const assetKey = LETTER_TYPE_TO_CLIENT_KEY['active-student'];
+      const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
+      const letterPayload = buildLetterValidationPayload('active-student', activeResult.rows[0], req);
+      return res.json({
+        success: true,
+        letter: {
+          ...letterPayload,
+          backgroundImageBase64,
+          layout
+        }
+      });
+    }
+
+    if (observationResult.rows.length > 0) {
+      const assetKey = LETTER_TYPE_TO_CLIENT_KEY['observation'];
+      const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
+      const letterPayload = buildLetterValidationPayload('observation', observationResult.rows[0], req);
+      return res.json({
+        success: true,
+        letter: {
+          ...letterPayload,
+          backgroundImageBase64,
+          layout
+        }
+      });
+    }
+
+    return res.status(404).json({ error: 'Surat tidak ditemukan atau token validasi tidak terdaftar.' });
+  } catch (err) {
+    console.error('Public letter validation error:', err);
+    res.status(500).json({ error: 'Gagal memvalidasi surat.' });
+  }
+});
+
+router.get('/tu/public/letter-validation/:token/download', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {
+    return res.status(400).json({ error: 'Token validasi tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const [activeResult, observationResult] = await Promise.all([
+      pool.query(`SELECT * FROM active_student_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM observation_requests WHERE validation_token = $1 LIMIT 1`, [token])
+    ]);
+
+    const type = activeResult.rows.length > 0 ? 'active-student' : observationResult.rows.length > 0 ? 'observation' : null;
+    const requestData = activeResult.rows[0] || observationResult.rows[0];
+
+    if (!type || !requestData) {
+      return res.status(404).json({ error: 'Surat tidak ditemukan atau token validasi tidak terdaftar.' });
+    }
+
+    if (!['verified', 'sent'].includes(requestData.status)) {
+      return res.status(403).json({ error: 'Surat belum berstatus resmi.' });
+    }
+
+    const pdfBuffer = await buildLetterPdfBuffer(type, requestData, req);
+    const config = letterConfig[type];
+    const safeLetterNumber = (requestData.letter_number || config.pdfFilename).replace(/\//g, '_');
+    const filename = `${safeLetterNumber}_${requestData.nim}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Public letter validation download error:', err);
+    res.status(500).json({ error: 'Gagal mengunduh surat tervalidasi.' });
   }
 });
 
@@ -2035,7 +2237,7 @@ router.post('/tu/public/observation-letter/download', publicObservationAccessLim
     }
 
     const requestData = result.rows[0];
-    const pdfBuffer = await buildObservationPdfBuffer(requestData);
+    const pdfBuffer = await buildObservationPdfBuffer(requestData, req);
     const safeCompanyName = (requestData.company || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const filename = `SuratObservasi_${safeCompanyName}.pdf`;
 
@@ -2077,41 +2279,8 @@ router.get('/tu/public/qr-download/:token', async (req, res) => {
       return res.status(404).send('Link download tidak valid atau sudah kadaluarsa (maksimal 24 jam).');
     }
 
-    const requestData = result.rows[0];
-    const config = letterConfig.observation;
-    const tuSettings = await getTuSettingsPayload();
-    const assetKey = LETTER_TYPE_TO_CLIENT_KEY.observation;
-    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
-    const letterLayout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
-    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
-    let htmlContent = await fs.readFile(templatePath, 'utf-8');
-
-    const tanggalSurat = requestData.letter_generated_at 
-      ? new Date(requestData.letter_generated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-      : new Date(requestData.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    htmlContent = htmlContent
-      .replace(/{{name}}/g, requestData.name || '')
-      .replace(/{{nim}}/g, requestData.nim || '')
-      .replace(/{{tanggalSurat}}/g, tanggalSurat)
-      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-      .replace(/{{backgroundImage}}/g, backgroundImage)
-      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
-
-    const placeholders = config.getPlaceholders({
-      data: requestData,
-      letterNumber: requestData.letter_number || '-',
-    });
-
-    for (const key in placeholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), placeholders[key]);
-    }
-
-    const pdfBuffer = await generatePdfBuffer(htmlContent);
+    const requestData = await ensureLetterValidationToken(client, 'observation', result.rows[0]);
+    const pdfBuffer = await buildLetterPdfBuffer('observation', requestData, req);
     const safeCompanyName = (requestData.company || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const filename = `SuratObservasi_${safeCompanyName}.pdf`;
 
@@ -2142,42 +2311,8 @@ router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
     }
-    const requestData = result.rows[0];
-
-    const tuSettings = await getTuSettingsPayload();
-    const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
-    const assetKey = LETTER_TYPE_TO_CLIENT_KEY[type];
-    const backgroundImage = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
-    const letterLayout = normalizeLetterLayout(
-      tuSettings.letterLayouts?.[assetKey],
-      DEFAULT_LETTER_LAYOUT_MM[assetKey]
-    );
-    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
-    let htmlContent = await fs.readFile(templatePath, 'utf-8');
-
-    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    htmlContent = htmlContent.replace(/{{name}}/g, requestData.name || '')
-      .replace(/{{nim}}/g, requestData.nim || '')
-      .replace(/{{tanggalSurat}}/g, tanggalSurat)
-      .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-      .replace(/{{stampImage}}/g, requestData.stamp_base64 || '')
-      .replace(/{{backgroundImage}}/g, backgroundImage)
-      .replace(/{{marginTopMm}}/g, String(letterLayout.marginTopMm))
-      .replace(/{{marginRightMm}}/g, String(letterLayout.marginRightMm))
-      .replace(/{{marginBottomMm}}/g, String(letterLayout.marginBottomMm))
-      .replace(/{{marginLeftMm}}/g, String(letterLayout.marginLeftMm));
-
-    const specificPlaceholders = await config.getPlaceholders({
-      data: requestData,
-      letterNumber: requestData.letter_number,
-      semesterMeta
-    });
-
-    for (const key in specificPlaceholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), specificPlaceholders[key]);
-    }
-
-    const pdfBuffer = await generatePdfBuffer(htmlContent);
+    const requestData = await ensureLetterValidationToken(pool, type, result.rows[0]);
+    const pdfBuffer = await buildLetterPdfBuffer(type, requestData, req);
 
     const safeLetterNumber = (requestData.letter_number || config.pdfFilename).replace(/\//g, '_');
     const filename = `${safeLetterNumber}_${requestData.nim}.pdf`;

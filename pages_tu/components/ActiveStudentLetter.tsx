@@ -2,6 +2,7 @@ import React from 'react';
 import { ActiveStudentRequest, LetterLayout } from '../types';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { ValidationQrCode } from './ValidationQrCode';
 import {
   buildBirthPlaceAndDate,
   DEFAULT_FACULTY,
@@ -16,12 +17,15 @@ interface ActiveStudentLetterProps {
     layout?: LetterLayout;
     deanName?: string;
     deanTitle?: string;
+    validationUrl?: string;
   };
 }
 
 export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStudentLetterProps>(({ data }, ref) => {
   const { lecturers } = useLecturers();
-  const dean = lecturers.find(l => l.jabatan && l.jabatan.toLowerCase().startsWith('dekan'));
+  const dean =
+    lecturers.find(l => l.jabatan && l.jabatan.toLowerCase().startsWith('dekan')) ||
+    lecturers.find(l => l.jabatan && l.jabatan.toLowerCase().startsWith('wakil dekan'));
   const derivedDeanName = dean ? dean.nama : 'Nama Dekan Belum Diatur';
   const derivedDeanTitle = dean ? dean.jabatan : 'Dekan';
 
@@ -37,6 +41,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
   const birthPlaceAndDate = buildBirthPlaceAndDate(data.birthPlace, data.birthDate) || '[Tempat & Tanggal Lahir]';
   const faculty = data.faculty || DEFAULT_FACULTY;
   const university = data.university || DEFAULT_UNIVERSITY;
+  const validationUrl = data.validationUrl || (data.validationToken ? `${window.location.origin}/tu/validasi-surat/${data.validationToken}` : '');
 
   return (
     <div
@@ -155,22 +160,14 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
           <p>Salatiga, {today}</p>
           <p>Hormat kami,</p>
 
-          <div className="relative my-[2mm] h-[24mm]">
-            {data.signatureBase64 && (
-              <img
-                src={data.signatureBase64}
-                alt="Tanda Tangan Dekan"
-                className="absolute bottom-[2mm] left-1/2 -translate-x-1/2 h-[18mm] object-contain z-10"
-              />
-            )}
-            {data.stampBase64 && (
-              <img
-                src={data.stampBase64}
-                alt="Cap Fakultas"
-                className="absolute bottom-[-6mm] left-[5mm] h-[40mm] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"
-              />
-            )}
-          </div>
+          {validationUrl ? (
+            <div className="my-[4mm] inline-flex flex-col items-center gap-[1mm]">
+              <ValidationQrCode value={validationUrl} size={92} />
+              <span className="text-[7.5pt] leading-none">Scan untuk validasi surat</span>
+            </div>
+          ) : (
+            <div className="h-[24mm]" />
+          )}
 
           <p className="relative left-1/2 w-max -translate-x-1/2 whitespace-nowrap text-[11pt] font-bold underline underline-offset-4">{data.deanName || derivedDeanName}</p>
           <p>{data.deanTitle || derivedDeanTitle}</p>

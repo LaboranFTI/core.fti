@@ -64,6 +64,7 @@ const Tentang = lazyWithReload(() => import('./pages/Tentang'));
 const NotFound = lazyWithReload(() => import('./pages/NotFound'));
 const LabGuard = lazyWithReload(() => import('./pages/LabGuard'));
 const LayananTU = lazyWithReload(() => import('./pages_tu/LayananTU'));
+const PublicLetterValidation = lazyWithReload(() => import('./pages_tu/PublicLetterValidation'));
 const MobileUpload = lazyWithReload(() => import('./pages_tu/components/MobileUpload'));
 const LecturerManagement = lazyWithReload(() => import('./pages/ManajemenDosen'));
 const StudyProgramManagement = lazyWithReload(() => import('./pages/ManajemenProgramStudi'));
@@ -623,7 +624,9 @@ const AppContent: React.FC = () => {
     currentRole.toString().toUpperCase() === ('Supervisor' as Role).toString().toUpperCase() ||
     isRoleMatch(currentRole, Role.ADMIN_TU);
   
-  if (isMaintenanceMode && !canBypassMaintenance) {
+  const isPublicLetterValidationRoute = location.pathname.startsWith('/tu/validasi-surat/');
+
+  if (isMaintenanceMode && !canBypassMaintenance && !isPublicLetterValidationRoute) {
     // Izinkan akses ke path /login agar admin yang sedang logout tetap bisa masuk
     if (location.pathname !== '/login') {
       return <Maintenance />;
@@ -633,6 +636,12 @@ const AppContent: React.FC = () => {
   return (
     <div>
       <Routes>
+        <Route path="/tu/validasi-surat/:token" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <PublicLetterValidation />
+          </Suspense>
+        } />
+
         {/* Route Khusus Login (Tanpa Layout) */}
         <Route path="/login" element={
           !isAuthenticated ? (

@@ -2,6 +2,7 @@ import React from 'react';
 import { LetterLayout, ObservationData } from '../types';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { ValidationQrCode } from './ValidationQrCode';
 
 interface LetterPreviewProps {
   data: ObservationData;
@@ -9,8 +10,8 @@ interface LetterPreviewProps {
   layout?: LetterLayout;
   showLayoutGuide?: boolean;
   letterNumber?: string;
-  signatureBase64?: string;
-  stampBase64?: string;
+  validationToken?: string;
+  validationUrl?: string;
 }
 
 const getObservationNumberPlaceholder = () => {
@@ -36,12 +37,13 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   layout,
   showLayoutGuide = true,
   letterNumber,
-  signatureBase64,
-  stampBase64
+  validationToken,
+  validationUrl
 }, ref) => {
   const today = format(new Date(), 'dd MMMM yyyy', { locale: id });
   const observationNumber = letterNumber || getObservationNumberPlaceholder();
   const pageLayout = layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
+  const publicValidationUrl = validationUrl || (validationToken ? `${window.location.origin}/tu/validasi-surat/${validationToken}` : '');
 
   return (
     <div
@@ -146,17 +148,24 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           </p>
         </div>
 
-        <div className="mt-[16mm] flex justify-between">
-          <div className="text-center w-[48%]">
+        <div className="mt-[16mm] grid grid-cols-[1fr_28mm_1fr] items-end gap-[5mm] text-center">
+          <div>
             <p>Mengetahui,</p>
-            <div className="relative h-[24mm]">
-            </div>
+            <div className="h-[18mm]" />
             <p className="font-bold underline underline-offset-4">{data.headOfProgramName || '[Nama Kaprodi]'}</p>
             <p>Kaprodi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'}</p>
           </div>
-          <div className="text-center w-[48%]">
+          <div className="flex flex-col items-center gap-[1mm] text-[7.5pt] leading-none">
+            {publicValidationUrl ? (
+              <>
+                <ValidationQrCode value={publicValidationUrl} size={92} />
+                <span>Scan untuk validasi surat</span>
+              </>
+            ) : null}
+          </div>
+          <div>
             <p>Salam,</p>
-            <div className="h-[24mm]" />
+            <div className="h-[18mm]" />
             <p className="font-bold underline underline-offset-4">{data.lecturerName || '[Nama Dosen Pengampu]'}</p>
             <p>Pengampu Mata Kuliah</p>
           </div>

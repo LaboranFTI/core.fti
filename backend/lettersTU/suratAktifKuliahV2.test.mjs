@@ -6,7 +6,8 @@ const template = readFileSync(new URL('./suratAktifKuliahV2.html', import.meta.u
 const previewSource = readFileSync(new URL('../../pages_tu/components/ActiveStudentLetter.tsx', import.meta.url), 'utf8');
 const titleBlock = template.match(/\.title\s*\{[\s\S]*?\}/)?.[0] || '';
 const signatureContentBlock = template.match(/\.signature-content\s*\{[\s\S]*?\}/)?.[0] || '';
-const stampImageBlock = template.match(/\.stamp-image\s*\{[\s\S]*?\}/)?.[0] || '';
+const validationQrBlock = template.match(/\.validation-qr\s*\{[\s\S]*?\}/)?.[0] || '';
+const validationQrImageBlock = template.match(/\.validation-qr img\s*\{[\s\S]*?\}/)?.[0] || '';
 const signatureNameBlock = template.match(/\.signature-name\s*\{[\s\S]*?\}/)?.[0] || '';
 
 describe('suratAktifKuliah title styling', () => {
@@ -40,9 +41,13 @@ describe('suratAktifKuliah dean signature layout', () => {
     );
   });
 
-  it('uses a 40mm overlapping faculty stamp in both renderers', () => {
-    assert.match(stampImageBlock, /height:\s*40mm;/);
-    assert.match(stampImageBlock, /z-index:\s*20;/);
-    assert.match(previewSource, /className="absolute bottom-\[-6mm\] left-\[5mm\] h-\[40mm\] object-contain opacity-90 mix-blend-multiply z-20 pointer-events-none"/);
+  it('uses QR validation instead of manual signature and faculty stamp assets', () => {
+    assert.match(validationQrBlock, /margin:\s*4mm\s+0\s+3mm;/);
+    assert.match(validationQrImageBlock, /width:\s*24mm;/);
+    assert.match(validationQrImageBlock, /height:\s*24mm;/);
+    assert.match(template, /src="\{\{validationQrImage\}\}"/);
+    assert.match(previewSource, /<ValidationQrCode value=\{validationUrl\} size=\{92\} \/>/);
+    assert.doesNotMatch(template, /stamp-image/);
+    assert.doesNotMatch(previewSource, /stampBase64/);
   });
 });
