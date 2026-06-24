@@ -170,7 +170,7 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
             <div className="h-[24mm]" />
           )}
 
-          <p className="relative left-1/2 w-max -translate-x-1/2 whitespace-nowrap text-[11pt] font-bold underline underline-offset-4">{data.deanName || derivedDeanName}</p>
+          <p className="relative left-1/2 w-max -translate-x-1/2 whitespace-nowrap text-[11pt] font-bold">{data.deanName || derivedDeanName}</p>
           <p>{data.deanTitle || derivedDeanTitle}</p>
         </div>
       </div>

@@ -980,7 +980,7 @@ const letterConfig = {
         'Doktor': 'S3'
       };
 
-      const tanggalSurat = new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
+      const tanggalSurat = new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date());
 
       return {
         '{{nomorSurat}}': letterNumber,
