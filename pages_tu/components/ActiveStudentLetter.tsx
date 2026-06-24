@@ -157,20 +157,20 @@ export const ActiveStudentLetter = React.forwardRef<HTMLDivElement, ActiveStuden
           <p>Demikian surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagaimana mestinya.</p>
         </div>
 
-      <div className="mt-[14mm] flex justify-end">
-        <div className="w-[48%] leading-tight text-center">
+      <div className="mt-[14mm] flex items-start justify-start gap-[4mm]">
+        {validationUrl ? (
+          <div className="inline-flex flex-col items-start gap-[1mm]">
+            <ValidationQrCode value={validationUrl} size={92} />
+          </div>
+        ) : (
+          <div className="h-[24mm] w-[24mm]" />
+        )}
+
+        <div className="w-auto leading-tight text-left">
           <p>Salatiga, {today}</p>
           <p>Hormat kami,</p>
-
-          {validationUrl ? (
-            <div className="my-[4mm] inline-flex flex-col items-center gap-[1mm]">
-              <ValidationQrCode value={validationUrl} size={92} />
-            </div>
-          ) : (
-            <div className="h-[24mm]" />
-          )}
-
-          <p className="relative left-1/2 w-max -translate-x-1/2 whitespace-nowrap text-[11pt] font-bold">{data.deanName || derivedDeanName}</p>
+          <div className="h-[6mm]" />
+          <p className="relative w-max whitespace-nowrap text-[11pt] font-bold">{data.deanName || derivedDeanName}</p>
           <p>{data.deanTitle || derivedDeanTitle}</p>
         </div>
       </div>

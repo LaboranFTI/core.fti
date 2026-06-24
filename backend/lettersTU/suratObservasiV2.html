@@ -104,45 +104,49 @@
             padding-bottom: 2mm;
         }
 
-        .signatures-wrapper {
-            margin-top: 16mm;
-            display: grid;
-            grid-template-columns: 1fr 28mm 1fr;
-            gap: 5mm;
-            justify-content: space-between;
-            align-items: end;
-            text-align: center;
+        .signature-block {
+            margin-top: 14mm;
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 4mm;
         }
 
-        .signatures-wrapper>div {
-            text-align: center;
+        .signature-content {
+            width: auto;
+            text-align: left;
+            line-height: 1.2;
         }
 
-        .signatures-wrapper p {
+        .signature-block p {
+            margin: 0;
+        }
+
+        .validation-qr {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1mm;
             margin: 0;
         }
 
         .signature-space {
-            height: 18mm;
-        }
-
-        .signature-name {
-            font-weight: bold;
-        }
-
-        .validation-qr {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1mm;
-            font-size: 7.5pt;
-            line-height: 1.1;
+            height: 6mm;
         }
 
         .validation-qr img {
             width: 24mm;
             height: 24mm;
         }
+
+        .signature-name {
+            position: relative;
+            width: max-content;
+            white-space: nowrap;
+            font-size: 11pt;
+            font-weight: bold;
+        }
+
 
         .body-text p {
             text-align: justify;
@@ -208,13 +212,11 @@
                     kerja sama ini dapat berlanjut di masa yang akan datang.</p>
             </div>
 
-            <div class="signatures-wrapper">
-                <div></div>
+            <div class="signature-block">
                 <div class="validation-qr">
                     <img src="{{validationQrImage}}" alt="QR Validasi Surat">
-                    <!-- Text removed for consistency -->
                 </div>
-                <div>
+                <div class="signature-content">
                     <p>Salam,</p>
                     <div class="signature-space"></div>
                     <p class="signature-name">{{lecturerName}}</p>

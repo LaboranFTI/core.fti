@@ -146,19 +146,18 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
           </p>
         </div>
 
-        <div className="mt-[16mm] grid grid-cols-[1fr_28mm_1fr] items-end gap-[5mm] text-center">
-          <div></div>
-          <div className="flex flex-col items-center gap-[1mm] text-[7.5pt] leading-none">
+        <div className="mt-[14mm] flex items-start justify-start gap-[4mm]">
+          <div className="inline-flex flex-col items-start gap-[1mm] text-[7.5pt] leading-none">
             {publicValidationUrl ? (
-              <>
-                <ValidationQrCode value={publicValidationUrl} size={92} />
-                {/* Text removed for consistency */}
-              </>
-            ) : null}
+              <ValidationQrCode value={publicValidationUrl} size={92} />
+            ) : (
+              <div className="h-[24mm] w-[24mm]" />
+            )}
           </div>
-          <div>
+
+          <div className="w-auto leading-tight text-left">
             <p>Salam,</p>
-            <div className="h-[18mm]" />
+            <div className="h-[6mm]" />
             <p className="font-bold">{data.lecturerName || '[Nama Dosen Pengampu]'}</p>
             <p>Pengampu Mata Kuliah</p>
           </div>

@@ -69,6 +69,10 @@ type ValidationLetter = {
   } | null;
   backgroundImageBase64?: string;
   layout?: LetterLayout;
+  signer?: {
+    name: string;
+    title: string;
+  };
 };
 
 const formatDate = (value?: string | null) => {
@@ -313,73 +317,44 @@ export default function PublicLetterValidation() {
             {/* Tab 1: Ringkasan Informasi */}
             {activeTab === 'summary' && (
               <div className="space-y-6">
+                <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base font-bold">
+                      <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Tanda Tangan Digital
+                    </CardTitle>
+                    <CardDescription>Informasi penandatangan dokumen resmi.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Dokumen ini telah ditandatangani oleh:
+                    </p>
+                    <div className="rounded-lg bg-slate-50 p-4 border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+                      <div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">Nama</span>
+                        <span className="font-bold text-slate-900 dark:text-white">: {letter.signer?.name || '-'}</span>
+                        <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
+                        <span className="font-medium text-slate-900 dark:text-white">: {letter.signer?.title || '-'}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                      Jadi QR ini menggantikan tanda tangan yang bersangkutan.
+                    </p>
+                  </CardContent>
+                </Card>
+
                 {/* Identitas Surat */}
                 <Card className="border-slate-200 shadow-sm dark:border-slate-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base font-bold">
                       <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Identitas Surat
                     </CardTitle>
-                    <CardDescription>Detail penerima dan nomor resmi surat.</CardDescription>
+                    <CardDescription>Detail nomor resmi dan tanggal terbit surat.</CardDescription>
                   </CardHeader>
                   <CardContent className="divide-y divide-slate-100 dark:divide-slate-800/80">
                     <DetailRow icon={Hash} label="Nomor Surat" value={letter.letterNumber || 'Belum Diterbitkan'} />
                     <DetailRow icon={Calendar} label="Tanggal Terbit" value={formatDate(letter.issuedAt)} />
-                    <DetailRow icon={User} label="Nama Penerima" value={letter.recipient.name} />
-                    <DetailRow icon={GraduationCap} label="NIM" value={letter.recipient.nim} />
-                    <DetailRow icon={Mail} label="Email Terdaftar" value={letter.recipient.email} />
-                    <DetailRow icon={Award} label="Status Surat" value={letter.status === 'sent' ? 'Terkirim' : letter.status === 'verified' ? 'Terverifikasi' : 'Menunggu'} />
                   </CardContent>
                 </Card>
-
-                {/* Detail Akademik / Observasi */}
-                {isObservation && letter.observation ? (
-                  <Card className="border-slate-200 shadow-sm dark:border-slate-800">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base font-bold">
-                        <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Rincian Pengantar Observasi
-                      </CardTitle>
-                      <CardDescription>Tujuan instansi, mata kuliah, dan daftar mahasiswa.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                        <DetailRow label="Nama Penerima" value={letter.observation.recipientName} />
-                        <DetailRow label="Instansi Tujuan" value={letter.observation.company} />
-                        <DetailRow label="Alamat Instansi" value={letter.observation.companyAddress} />
-                        <DetailRow label="Mata Kuliah" value={letter.observation.courseName} />
-                        <DetailRow label="Dosen Pengampu" value={letter.observation.lecturerName} />
-                        <DetailRow label="Ketua Program Studi" value={letter.observation.headOfProgramName} />
-                      </div>
-                      
-                      {/* Daftar Anggota */}
-                      <div className="rounded-xl border border-slate-150 p-4 dark:border-slate-800 dark:bg-slate-900/50">
-                        <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Anggota Kelompok Mahasiswa</h4>
-                        <div className="space-y-2">
-                          {letter.observation.students.map((st, i) => (
-                            <div key={i} className="flex justify-between items-center text-sm py-1 border-b border-dashed border-slate-100 last:border-0 dark:border-slate-800">
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{st.name}</span>
-                              <span className="font-mono text-slate-500">{st.nim}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="border-slate-200 shadow-sm dark:border-slate-800">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base font-bold">
-                        <GraduationCap className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Detail Akademik Mahasiswa
-                      </CardTitle>
-                      <CardDescription>Informasi status kemahasiswaan aktif.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                      <DetailRow label="Fakultas" value={letter.activeStudent?.faculty} />
-                      <DetailRow label="Program Studi" value={letter.activeStudent?.studyProgramName} />
-                      <DetailRow label="Jenjang Program" value={letter.activeStudent?.studyProgramLevel} />
-                      <DetailRow label="Universitas" value={letter.activeStudent?.university} />
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             )}
 

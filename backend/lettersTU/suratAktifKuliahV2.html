@@ -79,12 +79,14 @@
         .signature-block {
             margin-top: 14mm;
             display: flex;
-            justify-content: flex-end;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 4mm;
         }
 
         .signature-content {
-            width: 48%;
-            text-align: center;
+            width: auto;
+            text-align: left;
             line-height: 1.2;
         }
 
@@ -95,9 +97,13 @@
         .validation-qr {
             display: inline-flex;
             flex-direction: column;
-            align-items: center;
+            align-items: flex-start;
             gap: 1mm;
-            margin: 4mm 0 3mm;
+            margin: 0;
+        }
+
+        .signature-space {
+            height: 6mm;
         }
 
         .validation-qr img {
@@ -112,8 +118,6 @@
 
         .signature-name {
             position: relative;
-            left: 50%;
-            transform: translateX(-50%);
             width: max-content;
             white-space: nowrap;
             font-size: 11pt;
@@ -194,13 +198,13 @@
             </p>
 
             <div class="signature-block">
+                <div class="validation-qr">
+                    <img src="{{validationQrImage}}" alt="QR Validasi Surat">
+                </div>
                 <div class="signature-content">
                     <p>Salatiga, {{tanggalSurat}}</p>
                     <p>Hormat kami,</p>
-                    <div class="validation-qr">
-                        <img src="{{validationQrImage}}" alt="QR Validasi Surat">
-                        <!-- Text removed for consistency -->
-                    </div>
+                    <div class="signature-space"></div>
                     <p class="signature-name">{{deanName}}</p>
                     <p>{{deanTitle}}</p>
                 </div>

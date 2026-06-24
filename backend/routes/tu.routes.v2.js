@@ -2089,9 +2089,28 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
     const backgroundImageBase64 = getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
 
     if (activeResult.rows.length > 0) {
+      let deanName = 'Nama Dekan Belum Diatur';
+      let deanTitle = 'Dekan';
+      try {
+        const deanResult = await pool.query(`
+          SELECT nama, jabatan
+          FROM lecturer
+          WHERE jabatan ILIKE 'Dekan%' OR jabatan ILIKE 'Wakil Dekan%'
+          ORDER BY CASE WHEN jabatan ILIKE 'Dekan%' THEN 0 ELSE 1 END, nama ASC
+          LIMIT 1
+        `);
+        if (deanResult.rows.length > 0) {
+          deanName = deanResult.rows[0].nama;
+          deanTitle = deanResult.rows[0].jabatan;
+        }
+      } catch (e) {
+        console.error('Failed to fetch Dean data:', e);
+      }
+
       const assetKey = LETTER_TYPE_TO_CLIENT_KEY['active-student'];
       const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
       const letterPayload = buildLetterValidationPayload('active-student', activeResult.rows[0], req);
+      letterPayload.signer = { name: deanName, title: deanTitle };
       return res.json({
         success: true,
         letter: {
@@ -2106,6 +2125,7 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
       const assetKey = LETTER_TYPE_TO_CLIENT_KEY['observation'];
       const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
       const letterPayload = buildLetterValidationPayload('observation', observationResult.rows[0], req);
+      letterPayload.signer = { name: observationResult.rows[0].lecturer_name || 'Dosen Pengampu', title: 'Pengampu Mata Kuliah' };
       return res.json({
         success: true,
         letter: {
