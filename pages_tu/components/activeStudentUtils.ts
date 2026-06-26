@@ -44,3 +44,49 @@ export const buildBirthPlaceAndDate = (birthPlace?: string, birthDate?: string) 
     .filter(Boolean)
     .join(', ');
 };
+
+export const scopeHtml = (rawHtml: string): string => {
+  if (!rawHtml) return '';
+
+  const styleMatch = rawHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  let cssContent = styleMatch ? styleMatch[1] : '';
+
+  cssContent = cssContent.replace(/\bbody\b/g, '&');
+
+  const pageRules: string[] = [];
+  cssContent = cssContent.replace(/(@page[^{]*\{[^}]*\})/g, (match) => {
+    pageRules.push(match);
+    return '';
+  });
+
+  const nestedCss = `
+    ${pageRules.join('\n')}
+    .letter-body-wrapper {
+      ${cssContent}
+    }
+  `;
+
+  const pageMatch = rawHtml.match(/<div[^>]*class="page"[^>]*>([\s\S]*?)<\/div>\s*<\/body>/i) ||
+                    rawHtml.match(/<div[^>]*class="page"[^>]*>([\s\S]*?)<\/div>/i);
+                    
+  let pageContent = pageMatch ? pageMatch[1] : '';
+  
+  if (!pageContent) {
+    pageContent = rawHtml
+      .replace(/<!DOCTYPE[^>]*>/gi, '')
+      .replace(/<\/?html[^>]*>/gi, '')
+      .replace(/<head>[\s\S]*?<\/head>/gi, '')
+      .replace(/<\/?body[^>]*>/gi, '');
+  }
+
+  return `
+    <style>
+      ${nestedCss}
+    </style>
+    <div class="letter-body-wrapper">
+      <div class="page">
+        ${pageContent}
+      </div>
+    </div>
+  `;
+};

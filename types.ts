@@ -190,6 +190,64 @@ export interface Software {
   licenseType: 'Free' | 'Commercial' | 'Open Source';
   licenseKey?: string;
   vendor?: string;
+  lastLogin?: string;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: string;
+  isRead: boolean;
+}
+
+export interface ToastMessage {
+  id: string;
+  message: any;
+  type: 'success' | 'error' | 'info' | 'warning';
+  sticky?: boolean;
+}
+
+export interface RoomComputer {
+  id: string;
+  roomId: string;
+  pcNumber: string;
+  cpu: string;
+  gpuType: 'Integrated' | 'Dedicated';
+  gpuModel: string;
+  vram: string;
+  ram: string;
+  storage: string;
+  os: string;
+  keyboard: string;
+  mouse: string;
+  monitor: string;
+  condition: 'Baik' | 'Rusak Ringan' | 'Rusak Berat';
+}
+
+export interface PKLStudent {
+  id: string;
+  nama: string;
+  sekolah: string;
+  Jurusan: string;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  status: 'Aktif' | 'Selesai' | 'Dibatalkan';
+  suratPengajuan?: string; // Base64 encoded PDF
+  pembimbingId?: string;
+  pembimbingNama?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Software {
+  id: string;
+  name: string;
+  version: string;
+  licenseType: 'Free' | 'Commercial' | 'Open Source';
+  licenseKey?: string;
+  vendor?: string;
   installDate?: string;
   roomId?: string;
   notes?: string;
@@ -207,4 +265,5 @@ export interface ObservationData {
   studyProgramName?: string;
   studyProgramLevel?: string;
   students: { name: string; nim: string }[];
+  carbonCopies?: { role: string; name?: string }[];
 }

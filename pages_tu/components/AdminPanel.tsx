@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ActiveStudentRequest, LetterAsset, TULetterBackgrounds, TULetterLayouts } from '../types';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ActiveStudentRequest, ObservationRequest, SuRekRequest, LetterAsset, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -16,10 +16,12 @@ import {
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { Textarea } from '../../components/ui/textarea';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download, Trash2 } from 'lucide-react';
+import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download, Trash2, Plus, Pencil, X } from 'lucide-react';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
+import { LetterPreview } from './LetterPreview';
 import { api } from '../../services/api';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
@@ -38,8 +40,18 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
+  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
+
+const normalizeLetterLayouts = (layouts?: Partial<TULetterLayouts>): TULetterLayouts => {
+  const empty = createEmptyLetterLayouts();
+  return {
+    activeStudent: { ...empty.activeStudent, ...layouts?.activeStudent },
+    observation: { ...empty.observation, ...layouts?.observation },
+    suRek: { ...empty.suRek, ...layouts?.suRek }
+  };
+};
 
 const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
   const empty = createEmptyLetterBackgrounds();
@@ -72,41 +84,116 @@ const letterLayoutSections: Array<{
     key: 'observation',
     title: 'Surat Observasi',
     description: 'Atur batas area tulisan untuk template surat observasi.'
+  },
+  {
+    key: 'suRek',
+    title: 'Surat Rekomendasi',
+    description: 'Atur batas area tulisan untuk template surat rekomendasi.'
   }
 ];
 
 interface AdminPanelProps {
   onSettingsSaved?: () => Promise<void> | void;
+  mode?: 'requests' | 'settings' | 'all';
 }
 
-export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
-  const [requests, setRequests] = useState<ActiveStudentRequest[]>([]);
+export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
+  const [activeMainTab, setActiveMainTab] = useState<'requests' | 'settings'>('requests');
+  const effectiveTab = (mode === 'requests' || mode === 'settings') ? mode : activeMainTab;
+  const [activeRequestType, setActiveRequestType] = useState<'activeStudent' | 'observation' | 'suRek'>('activeStudent');
+  const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRequest, setSelectedRequest] = useState<ActiveStudentRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [deleteTarget, setDeleteTarget] = useState<ActiveStudentRequest | null>(null);
-  const [batchDeleteTargets, setBatchDeleteTargets] = useState<ActiveStudentRequest[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<any[]>([]);
   const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
   const [confirmText, setConfirmText] = useState('');
+  const [selectedLayoutConfigKey, setSelectedLayoutConfigKey] = useState<'activeStudent' | 'observation' | 'suRek'>('activeStudent');
+
+  const getDummyDataForPreview = (key: 'activeStudent' | 'observation' | 'suRek') => {
+    if (key === 'activeStudent') {
+      return {
+        name: 'Kenanya Nadine',
+        nim: '672021001',
+        email: '672021001@student.uksw.edu',
+        birthPlace: 'Salatiga',
+        birthDate: '2001-01-01',
+        birthPlaceAndDate: 'Salatiga, 1 Januari 2001',
+        studyProgramLevel: 'S1',
+        studyProgramName: 'Teknik Informatika',
+        faculty: 'Teknologi Informasi',
+        university: 'Universitas Kristen Satya Wacana',
+        letterNumber: '001/Dean/FTI/2026',
+        validationToken: 'dummy-token-active',
+        validationUrl: 'https://example.com/validate/dummy-token-active',
+        letterDate: new Date().toISOString()
+      };
+    }
+    if (key === 'observation') {
+      return {
+        recipientName: 'Manajer SDM',
+        companyName: 'PT Teknologi Maju',
+        companyAddress: 'Jl. Jenderal Sudirman No. 123, Jakarta',
+        courseName: 'Rekayasa Perangkat Lunak',
+        lecturerName: 'Dr. Jane Smith',
+        headOfProgramName: 'Dr. Albert Wesker',
+        studyProgramName: 'Teknik Informatika',
+        studyProgramLevel: 'S1',
+        students: [
+          { name: 'Kenanya Nadine', nim: '672021001' },
+          { name: 'Alice Smith', nim: '672021002' }
+        ],
+        letterNumber: '002/Dean/FTI/2026',
+        validationToken: 'dummy-token-obs',
+        validationUrl: 'https://example.com/validate/dummy-token-obs',
+        letterDate: new Date().toISOString()
+      };
+    }
+    return {
+      name: 'Kenanya Nadine',
+      nim: '672021001',
+      email: '672021001@student.uksw.edu',
+      recipientName: tempSuRekYangTerhormat || 'Panitia Seleksi Beasiswa Afirmasi',
+      berdasarkanNo: tempSuRekBerdasarkanNo || '008/WR-KK/02/2026',
+      perihal: tempSuRekPerihal || 'Rekomendasi Pendaftaran Beasiswa Afirmasi Cemerlang',
+      lampiran: tempSuRekLampiran || '-',
+      carbonCopies: tempSuRekTembusan.length > 0 ? [...tempSuRekTembusan] : [],
+      letterNumber: '003/Dean/FTI/2026',
+      validationToken: 'dummy-token-rek',
+      validationUrl: 'https://example.com/validate/dummy-token-rek',
+      letterDate: new Date().toISOString()
+    };
+  };
 
   // State untuk pengaturan default
   const [currentSemesterCode, setCurrentSemesterCode] = useState<string>('');
+  const [suRekYangTerhormat, setSuRekYangTerhormat] = useState<string>('');
+  const [suRekBerdasarkanNo, setSuRekBerdasarkanNo] = useState<string>('');
+  const [suRekPerihal, setSuRekPerihal] = useState<string>('');
+  const [suRekLampiran, setSuRekLampiran] = useState<string>('');
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   // State untuk perubahan sementara di UI pengaturan
   const [tempSignature, setTempSignature] = useState<string>('');
   const [tempStamp, setTempStamp] = useState<string>('');
   const [tempCurrentSemesterCode, setTempCurrentSemesterCode] = useState<string>('');
+  const [tempSuRekYangTerhormat, setTempSuRekYangTerhormat] = useState<string>('');
+  const [tempSuRekBerdasarkanNo, setTempSuRekBerdasarkanNo] = useState<string>('');
+  const [tempSuRekPerihal, setTempSuRekPerihal] = useState<string>('');
+  const [tempSuRekLampiran, setTempSuRekLampiran] = useState<string>('');
+  const [tempSuRekTembusan, setTempSuRekTembusan] = useState<Array<{role: string; name: string}>>([]);
   const [tempLetterBackgrounds, setTempLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [tempLetterLayouts, setTempLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [panelFeedback, setPanelFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [requestToVerify, setRequestToVerify] = useState<ActiveStudentRequest | null>(null);
+  const [requestToVerify, setRequestToVerify] = useState<any | null>(null);
   const [deanName, setDeanName] = useState<string>('');
   const [isEnsuringValidationToken, setIsEnsuringValidationToken] = useState(false);
   const [validationTokenAttemptedId, setValidationTokenAttemptedId] = useState<string | null>(null);
@@ -132,38 +219,61 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     return { semesterName, academicYear };
   };
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
-      const res = await api('/api/active-student');
+      let endpoint = '/api/active-student';
+      if (activeRequestType === 'observation') {
+        endpoint = '/api/observation-requests';
+      } else if (activeRequestType === 'suRek') {
+        endpoint = '/api/su-rek-requests';
+      }
+
+      const res = await api(endpoint);
       const json = await res.json();
       if (json.success) {
         setRequests(json.data);
       }
     } catch (error) {
-      console.error('Failed to fetch requests:', error);
+      console.error(`Failed to fetch requests for type ${activeRequestType}:`, error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeRequestType]);
 
   const fetchTuSettings = async () => {
+    setIsLoadingSettings(true);
     try {
       const res = await api('/api/tu/settings');
       const json = await res.json();
       if (res.ok) {
         setCurrentSemesterCode(json.currentSemesterCode || '');
+        setSuRekYangTerhormat(json.suRekYangTerhormat || '');
+        setSuRekBerdasarkanNo(json.suRekBerdasarkanNo || '');
+        setSuRekPerihal(json.suRekPerihal || '');
+        setSuRekLampiran(json.suRekLampiran || '');
+
         const normalizedBackgrounds = normalizeLetterBackgrounds(json.letterBackgrounds);
         setLetterBackgrounds(normalizedBackgrounds);
-        setLetterLayouts(json.letterLayouts || createEmptyLetterLayouts());
+        const normalizedLayouts = normalizeLetterLayouts(json.letterLayouts);
+        setLetterLayouts(normalizedLayouts);
+
         setTempSignature(json.signatureBase64);
         setTempStamp(json.stampBase64);
         setTempCurrentSemesterCode(json.currentSemesterCode || '');
+        setTempSuRekYangTerhormat(json.suRekYangTerhormat || '');
+        setTempSuRekBerdasarkanNo(json.suRekBerdasarkanNo || '');
+        setTempSuRekPerihal(json.suRekPerihal || '');
+        setTempSuRekLampiran(json.suRekLampiran || '');
+        setTempSuRekTembusan(Array.isArray(json.suRekTembusan) ? json.suRekTembusan : []);
+
         setTempLetterBackgrounds(normalizedBackgrounds);
-        setTempLetterLayouts(json.letterLayouts || createEmptyLetterLayouts());
+        setTempLetterLayouts(normalizedLayouts);
         return json;
       }
     } catch (error) {
       console.error('Failed to fetch TU settings:', error);
+    } finally {
+      setIsLoadingSettings(false);
     }
 
     return null;
@@ -189,12 +299,17 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   };
 
   useEffect(() => {
-    fetchRequests();
     fetchTuSettings();
     fetchDeanName();
+  }, []);
+
+  useEffect(() => {
+    setRequests([]);
+    setLoading(true);
+    fetchRequests();
     const interval = setInterval(fetchRequests, 15000); // Poll for new requests
     return () => clearInterval(interval);
-  }, []);
+  }, [activeRequestType, fetchRequests]);
 
   useEffect(() => {
     if (!selectedRequest) return;
@@ -232,7 +347,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
       setValidationTokenAttemptedId(selectedRequest.id);
 
       try {
-        const res = await api(`/api/tu/requests/active-student/${selectedRequest.id}/validation-token`, {
+        const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+        const res = await api(`/api/tu/requests/${typeSlug}/${selectedRequest.id}/validation-token`, {
           method: 'POST'
         });
         const json = await res.json().catch(() => null);
@@ -247,7 +363,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
           : request
         ));
       } catch (error) {
-        console.error('Failed to ensure active student validation token:', error);
+        console.error('Failed to ensure validation token:', error);
       } finally {
         if (!isCancelled) {
           setIsEnsuringValidationToken(false);
@@ -260,7 +376,7 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     return () => {
       isCancelled = true;
     };
-  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.validationToken, isEnsuringValidationToken, validationTokenAttemptedId]);
+  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.validationToken, isEnsuringValidationToken, validationTokenAttemptedId, activeRequestType]);
 
   const handleLetterBackgroundChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -302,9 +418,28 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     setIsProcessing(true);
     setPanelFeedback(null);
     try {
-      const res = await api(`/api/active-student/${reqId}/verify`, { 
+      let endpoint = `/api/active-student/${reqId}/verify`;
+      if (activeRequestType === 'observation') {
+        endpoint = `/api/observation-requests/${reqId}/verify`;
+      } else if (activeRequestType === 'suRek') {
+        endpoint = `/api/su-rek-requests/${reqId}/verify`;
+      }
+
+      let bodyData = undefined;
+      if (activeRequestType === 'suRek' && selectedRequest) {
+        bodyData = JSON.stringify({
+          recipientName: selectedRequest.recipientName,
+          berdasarkanNo: selectedRequest.berdasarkanNo,
+          perihal: selectedRequest.perihal,
+          lampiran: selectedRequest.lampiran,
+          carbonCopies: selectedRequest.carbonCopies
+        });
+      }
+
+      const res = await api(endpoint, { 
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: bodyData
       });
       const json = await res.json().catch(() => null);
       if (res.ok) {
@@ -351,6 +486,11 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
           signatureBase64: tempSignature,
           stampBase64: tempStamp,
           currentSemesterCode: tempCurrentSemesterCode,
+          suRekYangTerhormat: tempSuRekYangTerhormat,
+          suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
+          suRekPerihal: tempSuRekPerihal,
+          suRekLampiran: tempSuRekLampiran,
+          suRekTembusan: tempSuRekTembusan,
           letterBackgrounds: tempLetterBackgrounds,
           letterLayouts: tempLetterLayouts
         })
@@ -375,7 +515,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     setIsSendingEmail(true);
     setPanelFeedback(null);
     try {
-      const res = await api(`/api/tu/requests/active-student/${reqId}/send-email`, { method: 'POST' });
+      const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+      const res = await api(`/api/tu/requests/${typeSlug}/${reqId}/send-email`, { method: 'POST' });
       const json = await res.json().catch(() => null);
       if (res.ok) {
         await fetchRequests();
@@ -407,7 +548,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     setIsProcessing(true);
     setPanelFeedback(null);
     try {
-      const res = await api(`/api/tu/requests/active-student/${selectedRequest.id}/download`, {
+      const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+      const res = await api(`/api/tu/requests/${typeSlug}/${selectedRequest.id}/download`, {
         method: 'GET'
       });
       if (!res.ok) throw new Error('Gagal mendownload PDF');
@@ -515,13 +657,14 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     setIsProcessing(true);
     closeConfirm();
     try {
+      const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
       if (deleteTarget) {
-        const res = await api(`/api/tu/requests/active-student/${deleteTarget.id}`, { method: 'DELETE' });
+        const res = await api(`/api/tu/requests/${typeSlug}/${deleteTarget.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
         setPanelFeedback({ type: 'success', message: `Pengajuan ${deleteTarget.name} berhasil dihapus.` });
       } else {
         const ids = batchDeleteTargets.map(r => r.id);
-        const res = await api('/api/tu/requests/active-student/batch-delete', {
+        const res = await api(`/api/tu/requests/${typeSlug}/batch-delete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids })
@@ -640,8 +783,134 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
         </div>
 
         {/* Content */}
-        <div className="grid grid-cols-1 gap-6">
-          <div className="print:block print:w-full print:m-0 print:p-0">
+        <div className={`grid grid-cols-1 ${activeRequestType === 'suRek' && selectedRequest.status === 'pending' ? 'lg:grid-cols-12' : ''} gap-6`}>
+          {activeRequestType === 'suRek' && selectedRequest.status === 'pending' && (
+            <div className="lg:col-span-4 space-y-4 print:hidden">
+              <Card className="shadow-sm border-slate-200 dark:border-gray-700">
+                <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4">
+                  <CardTitle className="text-base flex items-center gap-2 dark:text-white">
+                    <Settings className="w-4 h-4 text-slate-600" />
+                    Kustomisasi Konten Surat
+                  </CardTitle>
+                  <CardDescription className="text-xs dark:text-gray-400">
+                    Sesuaikan parameter surat rekomendasi sebelum diverifikasi.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="detail-recipientName" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Yang Terhormat (Penerima)
+                    </Label>
+                    <Textarea
+                      id="detail-recipientName"
+                      value={selectedRequest.recipientName || ''}
+                      onChange={(e) => setSelectedRequest({ ...selectedRequest, recipientName: e.target.value })}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="detail-berdasarkanNo" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Berdasarkan Surat No
+                    </Label>
+                    <Input
+                      id="detail-berdasarkanNo"
+                      value={selectedRequest.berdasarkanNo || ''}
+                      onChange={(e) => setSelectedRequest({ ...selectedRequest, berdasarkanNo: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="detail-lampiran" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Lampiran
+                    </Label>
+                    <Input
+                      id="detail-lampiran"
+                      value={selectedRequest.lampiran || ''}
+                      onChange={(e) => setSelectedRequest({ ...selectedRequest, lampiran: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="detail-perihal" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Hal / Perihal
+                    </Label>
+                    <Input
+                      id="detail-perihal"
+                      value={selectedRequest.perihal || ''}
+                      onChange={(e) => setSelectedRequest({ ...selectedRequest, perihal: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="border-t border-slate-100 dark:border-gray-700 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Tembusan (Opsional)
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-xs py-1 px-2 h-7"
+                        onClick={() => setSelectedRequest({
+                          ...selectedRequest,
+                          carbonCopies: [...(selectedRequest.carbonCopies || []), { role: '', name: '' }]
+                        })}
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                      </Button>
+                    </div>
+
+                    {(!selectedRequest.carbonCopies || selectedRequest.carbonCopies.length === 0) ? (
+                      <p className="text-xs text-slate-500 italic">Tidak ada tembusan.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                        {selectedRequest.carbonCopies.map((cc: any, i: number) => (
+                          <div key={i} className="flex gap-1.5 items-center">
+                            <Input
+                              placeholder="Jabatan"
+                              className="text-xs h-8 py-1 px-2 flex-1"
+                              value={cc.role || ''}
+                              onChange={(e) => {
+                                const newCc = [...selectedRequest.carbonCopies];
+                                newCc[i] = { ...newCc[i], role: e.target.value };
+                                setSelectedRequest({ ...selectedRequest, carbonCopies: newCc });
+                              }}
+                            />
+                            <Input
+                              placeholder="Nama (Opsional)"
+                              className="text-xs h-8 py-1 px-2 flex-1"
+                              value={cc.name || ''}
+                              onChange={(e) => {
+                                const newCc = [...selectedRequest.carbonCopies];
+                                newCc[i] = { ...newCc[i], name: e.target.value };
+                                setSelectedRequest({ ...selectedRequest, carbonCopies: newCc });
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0 w-8 h-8 border-red-200 text-red-500 hover:bg-red-50"
+                              onClick={() => {
+                                const newCc = [...selectedRequest.carbonCopies];
+                                newCc.splice(i, 1);
+                                setSelectedRequest({ ...selectedRequest, carbonCopies: newCc });
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <div className={`${activeRequestType === 'suRek' && selectedRequest.status === 'pending' ? 'lg:col-span-8' : 'lg:col-span-12'} print:block print:w-full print:m-0 print:p-0`}>
             <Card className="shadow-sm border-slate-200 dark:border-gray-700 print:border-0 print:shadow-none h-full">
               <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4 print:hidden">
                 <CardTitle className="text-lg flex items-center gap-2 dark:text-white">
@@ -657,16 +926,59 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                 )}
               </CardHeader>
               <CardContent id="print-area-admin" className="p-6 bg-slate-200/50 print:bg-white print:p-0 flex justify-center overflow-auto print:overflow-visible min-h-200">
-                <ActiveStudentLetter data={{
-                  ...selectedRequest, 
-                  semesterCode: currentSemesterCode,
-                  semesterName: semesterMeta.semesterName,
-                  academicYear: semesterMeta.academicYear,
-                  backgroundImageBase64: letterBackgrounds.document.imageBase64,
-                  layout: letterLayouts.activeStudent,
-                  deanName: deanName,
-                  validationUrl: selectedValidationUrl
-                }} />
+                {activeRequestType === 'activeStudent' ? (
+                  <ActiveStudentLetter data={{
+                    ...selectedRequest, 
+                    semesterCode: currentSemesterCode,
+                    semesterName: semesterMeta.semesterName,
+                    academicYear: semesterMeta.academicYear,
+                    backgroundImageBase64: letterBackgrounds.document.imageBase64,
+                    layout: letterLayouts.activeStudent,
+                    deanName: deanName,
+                    validationUrl: selectedValidationUrl
+                  }} />
+                ) : activeRequestType === 'observation' ? (
+                  <LetterPreview
+                    type="observation"
+                    data={{
+                      recipientName: selectedRequest.recipientName || '',
+                      companyName: selectedRequest.company || selectedRequest.companyName || '',
+                      companyAddress: selectedRequest.companyAddress || '',
+                      courseName: selectedRequest.courseName || '',
+                      lecturerName: selectedRequest.lecturerName || '',
+                      headOfProgramName: selectedRequest.headOfProgramName || '',
+                      studyProgramName: selectedRequest.studyProgramName,
+                      studyProgramLevel: selectedRequest.studyProgramLevel,
+                      students: selectedRequest.students || []
+                    }}
+                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
+                    layout={letterLayouts.observation}
+                    showLayoutGuide={false}
+                    letterNumber={selectedRequest.letterNumber}
+                    validationToken={selectedRequest.validationToken}
+                    validationUrl={selectedValidationUrl}
+                    letterDate={selectedRequest.letterGeneratedAt || selectedRequest.createdAt}
+                  />
+                ) : (
+                  <LetterPreview
+                    type="su-rek"
+                    data={{
+                      ...selectedRequest,
+                      recipientName: selectedRequest.recipientName || '',
+                      berdasarkanNo: selectedRequest.berdasarkanNo || '',
+                      perihal: selectedRequest.perihal || '',
+                      lampiran: selectedRequest.lampiran || '',
+                      status: selectedRequest.status
+                    }}
+                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
+                    layout={letterLayouts.suRek}
+                    showLayoutGuide={false}
+                    letterNumber={selectedRequest.letterNumber}
+                    validationToken={selectedRequest.validationToken}
+                    validationUrl={selectedValidationUrl}
+                    letterDate={selectedRequest.letterGeneratedAt || selectedRequest.createdAt}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>
@@ -705,70 +1017,57 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
 
   return (
     <div className="flex flex-col gap-6 print:hidden">
-      {settingsFeedback && (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${
-          settingsFeedback.type === 'success'
-            ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-            : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
-        }`}>
-          {settingsFeedback.message}
+      {/* Tab Switcher if mode === 'all' */}
+      {mode === 'all' && (
+        <div className="flex border-b border-slate-200 dark:border-gray-700 mb-2">
+          <button
+            type="button"
+            className={`px-4 py-2 border-b-2 font-semibold text-sm transition-colors ${
+              activeMainTab === 'requests'
+                ? "border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            }`}
+            onClick={() => setActiveMainTab('requests')}
+          >
+            Kelola Permohonan
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-2 border-b-2 font-semibold text-sm transition-colors ${
+              activeMainTab === 'settings'
+                ? "border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            }`}
+            onClick={() => setActiveMainTab('settings')}
+          >
+            Pengaturan Layanan
+          </button>
         </div>
       )}
 
-      <div className="order-2 grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-1">
-        <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-          <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            Semester Berjalan
-          </CardTitle>
-          <CardDescription className="dark:text-gray-400">Tentukan semester aktif yang dipakai saat verifikasi KST mahasiswa.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
-            Pengaturan ini akan menjadi default untuk pengecekan KST dan penentuan status mahasiswa aktif.
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="currentSemesterCode" className="text-sm font-medium text-slate-600 dark:text-slate-300">Semester Berjalan</Label>
-            <Input
-              id="currentSemesterCode"
-              value={tempCurrentSemesterCode}
-              onChange={(e) => setTempCurrentSemesterCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
-              placeholder="Contoh: 20252"
-              className="bg-white dark:bg-gray-800"
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Format `YYYYS` (S=1=Ganjil, 2=Genap, 3=Antara).<br/>Contoh:<br/>`20251` = Ganjil 2025/2026<br/>`20252` = Genap 2025/2026<br/>`20253` = Antara 2025/2026
-            </p>
-            <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-              Aktif: {formatSemesterLabel(tempCurrentSemesterCode)}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Render Settings View */}
+      {effectiveTab === 'settings' && (
+        <div className="flex flex-col gap-6">
+          {settingsFeedback && (
+            <div className={`rounded-2xl border px-4 py-3 text-sm ${
+              settingsFeedback.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
+            }`}>
+              {settingsFeedback.message}
+            </div>
+          )}
 
-      <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-2">
-        <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-          <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            Validasi QR Surat
-          </CardTitle>
-          <CardDescription className="dark:text-gray-400">Surat resmi divalidasi melalui QR publik, tanpa upload tanda tangan atau cap manual.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 grid grid-cols-1 md:grid-cols-[1fr_220px] gap-6 items-end">
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-              Saat surat diverifikasi, sistem membuat nomor surat dan token validasi permanen. QR pada surat akan membuka halaman detail publik berisi status keaslian, nomor surat, tanggal terbit, dan ringkasan data surat.
+          {/* Dedicated Header for Settings (with Simpan Pengaturan button) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 print:hidden gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Konfigurasi Surat</h2>
+              <p className="text-sm text-slate-500 dark:text-gray-400">Atur parameter global surat dan background template</p>
             </div>
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
-              Nama dekan, kaprodi, atau dosen tetap diambil dari data surat dan data dosen. Validasi keaslian berpindah ke QR, bukan gambar tanda tangan/cap.
-            </div>
-          </div>
-          <div className="space-y-3">
             <Button 
               onClick={handleSaveSettings} 
-              disabled={isSavingSettings}
-              className="h-11 w-full bg-blue-600 hover:bg-blue-700"
+              disabled={isSavingSettings || isLoadingSettings}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
             >
               {isSavingSettings ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -778,221 +1077,504 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
               Simpan Pengaturan
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-3">
-        <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-          <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            Background Surat
-          </CardTitle>
-          <CardDescription className="dark:text-gray-400">
-            Upload satu PNG ukuran A4 sebagai background bersama untuk semua format surat TU.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Background Utama</p>
-              <div className="flex h-72 items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-100 p-2 dark:bg-gray-900/50">
-                {tempLetterBackgrounds.document.imageBase64 ? (
-                  <img
-                    src={tempLetterBackgrounds.document.imageBase64}
-                    alt="Background surat utama"
-                    className="max-h-full w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-xs text-slate-400">Belum diupload</span>
-                )}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {isLoadingSettings ? (
+              <div className="xl:col-span-3 flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <p className="text-sm text-slate-500 dark:text-gray-400">Memuat konfigurasi...</p>
               </div>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                {tempLetterBackgrounds.document.fileName || 'Pilih file PNG ukuran A4'}
-              </p>
-              <label className="cursor-pointer w-full text-center bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm font-medium text-slate-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-2">
-                <Upload className="w-4 h-4" /> Upload Background
-                <input
-                  type="file"
-                  accept="image/png"
-                  className="hidden"
-                  onChange={handleLetterBackgroundChange}
-                />
-              </label>
-            </div>
-
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
-              Background ini menjadi sumber tunggal untuk surat aktif kuliah, surat observasi, dan format surat TU berikutnya.
-              Saat format surat bertambah, admin cukup menyesuaikan template dan margin area tulisan tanpa mengupload ulang background yang sama.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {letterLayoutSections.map((section) => (
-              <div key={section.key} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/40">
-                <div className="mb-4">
-                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">{section.title}</h3>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{section.description}</p>
+            ) : (<>
+            <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-1">
+              <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Semester Berjalan
+                </CardTitle>
+                <CardDescription className="dark:text-gray-400">Tentukan semester aktif yang dipakai saat verifikasi KST mahasiswa.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+                  Pengaturan ini akan menjadi default untuk pengecekan KST dan penentuan status mahasiswa aktif.
                 </div>
-                <div className="mb-3">
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Margin Area Tulisan</p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Nilai dalam milimeter seperti pengaturan margin kertas A4 di Microsoft Word.
+                <div className="space-y-2">
+                  <Label htmlFor="currentSemesterCode" className="text-sm font-medium text-slate-600 dark:text-slate-300">Semester Berjalan</Label>
+                  <Input
+                    id="currentSemesterCode"
+                    value={tempCurrentSemesterCode}
+                    onChange={(e) => setTempCurrentSemesterCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="Contoh: 20252"
+                    className="bg-white dark:bg-gray-800"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Format `YYYYS` (S=1=Ganjil, 2=Genap, 3=Antara).<br/>Contoh:<br/>`20251` = Ganjil 2025/2026<br/>`20252` = Genap 2025/2026<br/>`20253` = Antara 2025/2026
+                  </p>
+                  <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                    Aktif: {formatSemesterLabel(tempCurrentSemesterCode)}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-slate-500 dark:text-slate-400">Top</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="80"
-                      step="0.5"
-                      value={tempLetterLayouts[section.key].marginTopMm}
-                      onChange={(e) => handleLetterLayoutChange(section.key, 'marginTopMm', e.target.value)}
-                      className="bg-white dark:bg-gray-800"
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-2">
+              <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Konfigurasi Surat Rekomendasi
+                </CardTitle>
+                <CardDescription className="dark:text-gray-400">
+                  Ubah parameter default konten untuk Surat Rekomendasi Afirmasi Cemerlang.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="suRekYangTerhormat" className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      Yang Terhormat (Penerima)
+                    </Label>
+                    <Textarea
+                      id="suRekYangTerhormat"
+                      value={tempSuRekYangTerhormat}
+                      onChange={(e) => setTempSuRekYangTerhormat(e.target.value)}
+                      placeholder="Contoh: Wakil Rektor Bidang Kerjasama dan Kealumnian..."
+                      className="bg-white dark:bg-gray-800 min-h-[96px]"
                     />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Target penerima rekomendasi. Gunakan baris baru untuk memisahkan baris pada surat.
+                    </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-slate-500 dark:text-slate-400">Right</Label>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="suRekBerdasarkanNo" className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      Berdasarkan Surat No
+                    </Label>
                     <Input
-                      type="number"
-                      min="0"
-                      max="80"
-                      step="0.5"
-                      value={tempLetterLayouts[section.key].marginRightMm}
-                      onChange={(e) => handleLetterLayoutChange(section.key, 'marginRightMm', e.target.value)}
+                      id="suRekBerdasarkanNo"
+                      value={tempSuRekBerdasarkanNo}
+                      onChange={(e) => setTempSuRekBerdasarkanNo(e.target.value)}
+                      placeholder="Contoh: 008/WR-KK/02/2025"
                       className="bg-white dark:bg-gray-800"
                     />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Nomor surat rujukan dasar pemberian rekomendasi.
+                    </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-slate-500 dark:text-slate-400">Bottom</Label>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="suRekLampiran" className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      Lampiran
+                    </Label>
                     <Input
-                      type="number"
-                      min="0"
-                      max="80"
-                      step="0.5"
-                      value={tempLetterLayouts[section.key].marginBottomMm}
-                      onChange={(e) => handleLetterLayoutChange(section.key, 'marginBottomMm', e.target.value)}
+                      id="suRekLampiran"
+                      value={tempSuRekLampiran}
+                      onChange={(e) => setTempSuRekLampiran(e.target.value)}
+                      placeholder="Contoh: 1 bendel atau -"
                       className="bg-white dark:bg-gray-800"
                     />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Keterangan lampiran berkas pada surat.
+                    </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-slate-500 dark:text-slate-400">Left</Label>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="suRekPerihal" className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      Hal / Perihal
+                    </Label>
                     <Input
-                      type="number"
-                      min="0"
-                      max="80"
-                      step="0.5"
-                      value={tempLetterLayouts[section.key].marginLeftMm}
-                      onChange={(e) => handleLetterLayoutChange(section.key, 'marginLeftMm', e.target.value)}
+                      id="suRekPerihal"
+                      value={tempSuRekPerihal}
+                      onChange={(e) => setTempSuRekPerihal(e.target.value)}
+                      placeholder="Contoh: Beasiswa Afirmasi Cemerlang..."
                       className="bg-white dark:bg-gray-800"
                     />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Perihal yang tertera di surat rekomendasi.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 md:col-span-2 border-t border-slate-200 dark:border-gray-600 pt-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                        Tembusan Default (Opsional)
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setTempSuRekTembusan([...tempSuRekTembusan, { role: '', name: '' }])}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> Tambah Tembusan
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Daftar tembusan yang akan otomatis terisi pada setiap surat rekomendasi baru.
+                    </p>
+                    {tempSuRekTembusan.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Belum ada tembusan default.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {tempSuRekTembusan.map((cc, i) => (
+                          <div key={i} className="flex gap-2 items-center">
+                            <Input
+                              placeholder="Jabatan (contoh: Dekan FTI UKSW)"
+                              className="flex-1 bg-white dark:bg-gray-800"
+                              value={cc.role || ''}
+                              onChange={(e) => {
+                                const newCc = [...tempSuRekTembusan];
+                                newCc[i] = { ...newCc[i], role: e.target.value };
+                                setTempSuRekTembusan(newCc);
+                              }}
+                            />
+                            <Input
+                              placeholder="Nama (Opsional)"
+                              className="flex-1 bg-white dark:bg-gray-800"
+                              value={cc.name || ''}
+                              onChange={(e) => {
+                                const newCc = [...tempSuRekTembusan];
+                                newCc[i] = { ...newCc[i], name: e.target.value };
+                                setTempSuRekTembusan(newCc);
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0 border-red-200 text-red-500 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/30"
+                              onClick={() => {
+                                const newCc = [...tempSuRekTembusan];
+                                newCc.splice(i, 1);
+                                setTempSuRekTembusan(newCc);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-      </div>
+              </CardContent>
+            </Card>
 
-      <Card className="order-1 shadow-sm border-slate-200 dark:border-gray-700">
-        <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-xl text-slate-800 dark:text-white">Daftar Permohonan Surat Aktif Kuliah</CardTitle>
-              <CardDescription className="dark:text-gray-400">Verifikasi dan proses permohonan dari mahasiswa.</CardDescription>
-            </div>
-            {selectedIds.size > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                onClick={handleBatchDeleteOpen}
-                disabled={isProcessing}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Hapus {selectedIds.size} Terpilih
-              </Button>
-            )}
+            <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-3">
+              <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Background Surat
+                </CardTitle>
+                <CardDescription className="dark:text-gray-400">
+                  Upload satu PNG ukuran A4 sebagai background bersama untuk semua format surat TU.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Background Utama</p>
+                    <div className="flex h-72 items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-100 p-2 dark:bg-gray-900/50">
+                      {tempLetterBackgrounds.document.imageBase64 ? (
+                        <img
+                          src={tempLetterBackgrounds.document.imageBase64}
+                          alt="Background surat utama"
+                          className="max-h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400">Belum diupload</span>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                      {tempLetterBackgrounds.document.fileName || 'Pilih file PNG ukuran A4'}
+                    </p>
+                    <label className="cursor-pointer w-full text-center bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600 px-4 py-2 rounded-md text-sm font-medium text-slate-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-2">
+                      <Upload className="w-4 h-4" /> Upload Background
+                      <input
+                        type="file"
+                        accept="image/png"
+                        className="hidden"
+                        onChange={handleLetterBackgroundChange}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+                    Background ini menjadi sumber tunggal untuk surat aktif kuliah, surat observasi, dan format surat TU berikutnya.
+                    Saat format surat bertambah, admin cukup menyesuaikan template dan margin area tulisan tanpa mengupload ulang background yang sama.
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                  <div className="mb-4">
+                    <h3 className="text-base font-bold text-slate-800 dark:text-white">Pengaturan & Pratinjau Margin Surat</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Pilih jenis surat di bawah untuk menyesuaikan batas margin tulisan secara langsung dengan preview visual.</p>
+                  </div>
+
+                  {/* Tab/Selector Panel */}
+                  <div className="flex flex-wrap gap-2 mb-6 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl max-w-max border border-slate-200 dark:border-slate-700">
+                    {letterLayoutSections.map((section) => {
+                      const isSelected = selectedLayoutConfigKey === section.key;
+                      return (
+                        <button
+                          key={section.key}
+                          type="button"
+                          onClick={() => setSelectedLayoutConfigKey(section.key)}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400'
+                              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {section.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Side-by-Side Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Left Column: Margin Controls */}
+                    <div className="lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/40 space-y-5">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-800 dark:text-white">
+                          {letterLayoutSections.find(s => s.key === selectedLayoutConfigKey)?.title}
+                        </h4>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {letterLayoutSections.find(s => s.key === selectedLayoutConfigKey)?.description}
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Margin Area Tulisan (mm)</p>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-500 dark:text-slate-400">Top (Atas)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="80"
+                              step="0.5"
+                              value={tempLetterLayouts[selectedLayoutConfigKey].marginTopMm}
+                              onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginTopMm', e.target.value)}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-500 dark:text-slate-400">Right (Kanan)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="80"
+                              step="0.5"
+                              value={tempLetterLayouts[selectedLayoutConfigKey].marginRightMm}
+                              onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginRightMm', e.target.value)}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-500 dark:text-slate-400">Bottom (Bawah)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="80"
+                              step="0.5"
+                              value={tempLetterLayouts[selectedLayoutConfigKey].marginBottomMm}
+                              onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginBottomMm', e.target.value)}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-500 dark:text-slate-400">Left (Kiri)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="80"
+                              step="0.5"
+                              value={tempLetterLayouts[selectedLayoutConfigKey].marginLeftMm}
+                              onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginLeftMm', e.target.value)}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-3">
+                        * Nilai margin dinyatakan dalam milimeter (mm), menyesuaikan area kosong pada kop surat background.
+                      </div>
+                    </div>
+
+                    {/* Right Column: Live Real-time Preview */}
+                    <div className="lg:col-span-8 rounded-2xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-900/20 flex flex-col items-center">
+                      <div className="w-full flex items-center justify-between mb-4">
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Pratinjau Layout Margin Resmi</span>
+                        <span className="text-xs px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-400">Skala Lembar A4</span>
+                      </div>
+
+                      <div className="w-full overflow-auto bg-slate-200/50 dark:bg-gray-900/50 rounded-xl p-4 flex justify-center items-start border border-slate-100 dark:border-slate-800 min-h-[450px]">
+                        <div 
+                          className="scale-[0.5] sm:scale-[0.6] md:scale-[0.7] lg:scale-[0.65] xl:scale-[0.75] origin-top my-4"
+                          key={`${selectedLayoutConfigKey}-${tempLetterLayouts[selectedLayoutConfigKey].marginTopMm}-${tempLetterLayouts[selectedLayoutConfigKey].marginRightMm}-${tempLetterLayouts[selectedLayoutConfigKey].marginBottomMm}-${tempLetterLayouts[selectedLayoutConfigKey].marginLeftMm}-${tempLetterBackgrounds.document.imageBase64 ? 'has-bg' : 'no-bg'}`}
+                        >
+                          <LetterPreview
+                            type={selectedLayoutConfigKey === 'activeStudent' ? 'active-student' : selectedLayoutConfigKey === 'observation' ? 'observation' : 'su-rek'}
+                            data={getDummyDataForPreview(selectedLayoutConfigKey)}
+                            backgroundImageBase64={tempLetterBackgrounds.document.imageBase64}
+                            layout={tempLetterLayouts[selectedLayoutConfigKey]}
+                            showLayoutGuide={true}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            </>)}
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-slate-500">Memuat data...</div>
-          ) : requests.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 flex flex-col items-center">
-              <FileText className="w-12 h-12 text-slate-300 mb-3" />
-              <p>Belum ada permohonan yang masuk.</p>
+        </div>
+      )}
+
+      {/* Render Requests View */}
+      {effectiveTab === 'requests' && (
+        <div className="space-y-4">
+          {/* Request Type Selector */}
+          <div className="flex flex-wrap gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl max-w-max border border-slate-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => { setActiveRequestType('activeStudent'); setSelectedIds(new Set()); }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                activeRequestType === 'activeStudent'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Surat Aktif Kuliah
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveRequestType('observation'); setSelectedIds(new Set()); }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                activeRequestType === 'observation'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Surat Observasi
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveRequestType('suRek'); setSelectedIds(new Set()); }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                activeRequestType === 'suRek'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Surat Rekomendasi
+            </button>
+          </div>
+
+          <Card className="shadow-sm border-slate-200 dark:border-gray-700">
+            <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-xl text-slate-800 dark:text-white">
+                    Daftar Permohonan {activeRequestType === 'activeStudent' ? 'Surat Aktif Kuliah' : activeRequestType === 'observation' ? 'Surat Observasi' : 'Surat Rekomendasi'}
+                  </CardTitle>
+                  <CardDescription className="dark:text-gray-400">Verifikasi dan proses permohonan dari mahasiswa.</CardDescription>
+                </div>
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                  onClick={handleBatchDeleteOpen}
+                  disabled={isProcessing}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Hapus {selectedIds.size} Terpilih
+                </Button>
+              )}
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/50 dark:bg-gray-800/50">
-                  <TableHead className="w-10">
-                    <input
-                      type="checkbox"
-                      className="rounded border-slate-300 dark:border-gray-600 cursor-pointer accent-blue-600"
-                      checked={selectedIds.size === requests.length && requests.length > 0}
-                      onChange={toggleSelectAll}
-                      title="Pilih semua"
-                    />
-                  </TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Nama Mahasiswa</TableHead>
-                  <TableHead>NIM</TableHead>
-                  <TableHead>Nomor Surat</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {requests.map((req) => (
-                  <TableRow key={req.id} className={selectedIds.has(req.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}>
-                    <TableCell>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-8 text-center text-slate-500">Memuat data...</div>
+            ) : requests.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 flex flex-col items-center">
+                <FileText className="w-12 h-12 text-slate-300 mb-3" />
+                <p>Belum ada permohonan yang masuk.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/50 dark:bg-gray-800/50">
+                    <TableHead className="w-10">
                       <input
                         type="checkbox"
                         className="rounded border-slate-300 dark:border-gray-600 cursor-pointer accent-blue-600"
-                        checked={selectedIds.has(req.id)}
-                        onChange={() => toggleSelectId(req.id)}
+                        checked={selectedIds.size === requests.length && requests.length > 0}
+                        onChange={toggleSelectAll}
+                        title="Pilih semua"
                       />
-                    </TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400">
-                      {format(new Date(req.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
-                    </TableCell>
-                    <TableCell className="font-semibold text-slate-900 dark:text-white">{req.name}</TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400">{req.nim}</TableCell>
-                    <TableCell className="text-xs text-slate-600 dark:text-slate-400">
-                      {req.letterNumber || 'Akan dibuat saat verifikasi'}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(req.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline" className="border-slate-300 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-700"
-                          size="sm"
-                          onClick={() => setSelectedRequest(req)}
-                        >
-                          <Eye className="w-4 h-4 mr-2" /> Detail & Proses
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
-                          onClick={() => handleDeleteSingle(req)}
-                          disabled={isProcessing}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Nama Mahasiswa</TableHead>
+                    <TableHead>NIM</TableHead>
+                    <TableHead>Nomor Surat</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {requests.map((req) => (
+                    <TableRow key={req.id} className={selectedIds.has(req.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 dark:border-gray-600 cursor-pointer accent-blue-600"
+                          checked={selectedIds.has(req.id)}
+                          onChange={() => toggleSelectId(req.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-400">
+                        {format(new Date(req.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
+                      </TableCell>
+                      <TableCell className="font-semibold text-slate-900 dark:text-white">{req.name}</TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-400">{req.nim}</TableCell>
+                      <TableCell className="text-xs text-slate-600 dark:text-slate-400">
+                        {req.letterNumber || 'Akan dibuat saat verifikasi'}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(req.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline" className="border-slate-300 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-700"
+                            size="sm"
+                            onClick={() => setSelectedRequest(req)}
+                          >
+                            <Eye className="w-4 h-4 mr-2" /> Detail & Proses
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+                            onClick={() => handleDeleteSingle(req)}
+                            disabled={isProcessing}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+        </div>
+      )}
 
       {/* ── Double Confirm Delete Dialog ───────────────────────────────────── */}
       {confirmPhase === 1 && (
@@ -1067,6 +1649,8 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
           </div>
         </div>
       )}
+
+
 
       {emailUx}
     </div>

@@ -21,7 +21,7 @@ describe('TU public observation access-code routes', () => {
 
   it('updates only the letter content for the supplied access code', () => {
     assert.match(routeSource, /router\.patch\('\/tu\/public\/observation-letter\/access'/);
-    assert.match(routeSource, /WHERE access_code = \$8/);
+    assert.match(routeSource, /WHERE access_code = \$(8|9)/);
     assert.match(routeSource, /letter_number tidak akan berubah/i);
   });
 

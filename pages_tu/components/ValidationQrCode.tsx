@@ -10,7 +10,7 @@ interface ValidationQrCodeProps {
 
 export function ValidationQrCode({
   value,
-  size = 92,
+  size = 106,
   className = '',
   ariaLabel = 'QR Code Validasi Surat'
 }: ValidationQrCodeProps) {

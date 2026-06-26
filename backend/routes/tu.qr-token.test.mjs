@@ -37,6 +37,13 @@ describe('TU letter public validation tokens', () => {
     assert.match(qrRoute, /expiresAt:\s*null/);
   });
 
+  it('prefers VITE_PUBLIC_APP_URL for public validation URLs', () => {
+    assert.match(
+      source,
+      /const configuredBaseUrl\s*=\s*[\r\n]\s*process\.env\.VITE_PUBLIC_APP_URL\s*\|\|[\r\n]\s*process\.env\.PUBLIC_APP_URL/
+    );
+  });
+
   it('exposes public detail and download routes by validation token', () => {
     assert.match(source, /router\.get\('\/tu\/public\/letter-validation\/:token'/);
     assert.match(source, /router\.get\('\/tu\/public\/letter-validation\/:token\/download'/);

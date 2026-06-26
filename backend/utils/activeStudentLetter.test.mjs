@@ -8,6 +8,7 @@ import {
 describe('active student letter utilities', () => {
   it('derives only the study-program code from NIM input', () => {
     assert.equal(getStudyProgramCodeFromNim(' 67 2020 001 '), '67');
+    assert.equal(getStudyProgramCodeFromNim('AE0419-68'), '68');
     assert.equal(getStudyProgramCodeFromNim(''), '');
   });
 

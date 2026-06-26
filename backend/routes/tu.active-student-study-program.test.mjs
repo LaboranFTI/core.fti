@@ -43,7 +43,8 @@ describe('active-student study program data flow', () => {
     assert.match(activeStudentConfig, /await getStudyProgramByNim\(data\.nim\)/);
     assert.match(activeStudentConfig, /semesterMeta\.semesterName/);
     assert.match(activeStudentConfig, /semesterMeta\.academicYear/);
-    assert.match(downloadRoute, /const specificPlaceholders = await config\.getPlaceholders/);
+    assert.match(downloadRoute, /buildLetterPdfBuffer/);
+    assert.match(routeSource, /config\.getPlaceholders/);
     assert.doesNotMatch(legacyRouteSource, /Teknik Informatika \/ Sistem Informasi/);
     assert.doesNotMatch(legacyRouteSource, /Ganjil\/Genap/);
     assert.doesNotMatch(legacyRouteSource, /20XX\/20XX/);

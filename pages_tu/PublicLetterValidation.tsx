@@ -34,7 +34,7 @@ import { LetterPreview } from './components/LetterPreview';
 import { LetterLayout } from './types';
 
 type ValidationLetter = {
-  type: 'active-student' | 'observation';
+  type: 'active-student' | 'observation' | 'su-rek';
   typeLabel: string;
   status: 'pending' | 'verified' | 'sent';
   isValid: boolean;
@@ -67,12 +67,20 @@ type ValidationLetter = {
     studyProgramName?: string;
     students: Array<{ name: string; nim: string }>;
   } | null;
+  suRek?: {
+    recipientName?: string;
+    berdasarkanNo?: string;
+    perihal?: string;
+    lampiran?: string;
+  } | null;
   backgroundImageBase64?: string;
   layout?: LetterLayout;
   signer?: {
     name: string;
     title: string;
   };
+  html?: string;
+  carbonCopies?: Array<{ role: string; name?: string }>;
 };
 
 const formatDate = (value?: string | null) => {
@@ -215,6 +223,7 @@ export default function PublicLetterValidation() {
   }
 
   const isObservation = letter.type === 'observation';
+  const isSuRek = letter.type === 'su-rek';
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-12 text-slate-900 dark:bg-slate-950 dark:text-white font-sans antialiased">
@@ -355,6 +364,28 @@ export default function PublicLetterValidation() {
                     <DetailRow icon={Calendar} label="Tanggal Terbit" value={formatDate(letter.issuedAt)} />
                   </CardContent>
                 </Card>
+
+                {/* Tembusan Surat */}
+                {letter.carbonCopies && letter.carbonCopies.length > 0 && (
+                  <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base font-bold">
+                        <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> Tembusan Surat
+                      </CardTitle>
+                      <CardDescription>Pihak yang menerima tembusan dokumen resmi ini.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+                        {letter.carbonCopies.map((cc, i) => (
+                          <li key={i} className="pl-1">
+                            <span className="font-semibold">{cc.role}</span>
+                            {cc.name ? ` - ${cc.name}` : ''}
+                          </li>
+                        ))}
+                      </ol>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -373,7 +404,28 @@ export default function PublicLetterValidation() {
                         headOfProgramName: letter.observation?.headOfProgramName || '',
                         studyProgramName: letter.observation?.studyProgramName,
                         studyProgramLevel: letter.observation?.studyProgramLevel,
-                        students: letter.observation?.students || []
+                        students: letter.observation?.students || [],
+                        html: letter.html
+                      }}
+                      backgroundImageBase64={letter.backgroundImageBase64}
+                      layout={letter.layout}
+                      showLayoutGuide={false}
+                      letterNumber={letter.letterNumber || undefined}
+                      validationToken={letter.validationToken}
+                      validationUrl={letter.validationUrl}
+                      letterDate={letter.issuedAt || letter.createdAt || undefined}
+                    />
+                  ) : isSuRek ? (
+                    <LetterPreview
+                      type="su-rek"
+                      data={{
+                        name: letter.recipient.name,
+                        nim: letter.recipient.nim,
+                        recipientName: letter.suRek?.recipientName || '',
+                        berdasarkanNo: letter.suRek?.berdasarkanNo || '',
+                        perihal: letter.suRek?.perihal || '',
+                        lampiran: letter.suRek?.lampiran || '',
+                        html: letter.html
                       }}
                       backgroundImageBase64={letter.backgroundImageBase64}
                       layout={letter.layout}
@@ -404,8 +456,11 @@ export default function PublicLetterValidation() {
                         letterNumber: letter.letterNumber || undefined,
                         validationToken: letter.validationToken,
                         validationUrl: letter.validationUrl,
+                        deanName: letter.signer?.name,
+                        deanTitle: letter.signer?.title,
                         backgroundImageBase64: letter.backgroundImageBase64,
-                        layout: letter.layout
+                        layout: letter.layout,
+                        html: letter.html
                       }}
                     />
                   )}
@@ -418,24 +473,26 @@ export default function PublicLetterValidation() {
           <aside className="space-y-6">
             
             {/* Download PDF Card */}
-            <Card className="border-slate-200 shadow-sm dark:border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-base font-bold">Dokumen Resmi</CardTitle>
-                <CardDescription>Unduh salinan asli berformat PDF.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 shadow-sm"
-                  onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
-                  disabled={!letter.isValid}
-                >
-                  <Download className="mr-2 h-4 w-4" /> Unduh Dokumen PDF
-                </Button>
-                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                  Dokumen PDF hanya dapat diunduh untuk surat yang sudah berstatus resmi/terverifikasi.
-                </p>
-              </CardContent>
-            </Card>
+            {activeTab === 'preview' && (
+              <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+                <CardHeader>
+                  <CardTitle className="text-base font-bold">Dokumen Resmi</CardTitle>
+                  <CardDescription>Unduh salinan asli berformat PDF.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button
+                    className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 shadow-sm"
+                    onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
+                    disabled={!letter.isValid}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Unduh Dokumen PDF
+                  </Button>
+                  <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Dokumen PDF hanya dapat diunduh untuk surat yang sudah berstatus resmi/terverifikasi.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Token QR & Link Card */}
             <Card className="border-slate-200 shadow-sm dark:border-slate-800">
@@ -493,4 +550,3 @@ export default function PublicLetterValidation() {
     </div>
   );
 }
-

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Eraser, GraduationCap, Send, CheckCircle2, Loader2, Search, XCircle } from 'lucide-react';
+import { Eraser, GraduationCap, Send, CheckCircle2, Loader2, Search, XCircle, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import {
@@ -25,7 +25,18 @@ interface ActiveStudentFormValues {
   studyProgramName: string;
   faculty: string;
   university: string;
+  carbonCopies?: { role: string; name?: string }[];
 }
+
+const getInitialActiveStudentCc = () => {
+  try {
+    const saved = localStorage.getItem('core_fti_last_active_student_cc');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.error('Failed to load active student carbon copies:', e);
+  }
+  return [];
+};
 
 const defaultFormValues: ActiveStudentFormValues = {
   nim: '',
@@ -37,12 +48,20 @@ const defaultFormValues: ActiveStudentFormValues = {
   studyProgramLevel: '',
   studyProgramName: '',
   faculty: DEFAULT_FACULTY,
-  university: DEFAULT_UNIVERSITY
+  university: DEFAULT_UNIVERSITY,
+  carbonCopies: []
 };
 
 export function ActiveStudentForm() {
-  const { register, handleSubmit, watch, reset, setValue } = useForm<ActiveStudentFormValues>({
-    defaultValues: defaultFormValues
+  const { register, handleSubmit, watch, reset, setValue, control } = useForm<ActiveStudentFormValues>({
+    defaultValues: {
+      ...defaultFormValues,
+      carbonCopies: getInitialActiveStudentCc()
+    }
+  });
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "carbonCopies"
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -65,7 +84,10 @@ export function ActiveStudentForm() {
   };
 
   const resetFormState = () => {
-    reset(defaultFormValues);
+    reset({
+      ...defaultFormValues,
+      carbonCopies: getInitialActiveStudentCc()
+    });
     resetVerifiedFields();
     setIsVerified(false);
     setVerifyError('');
@@ -178,7 +200,10 @@ export function ActiveStudentForm() {
       const response = await api('/api/active-student', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          ...payload,
+          carbonCopies: data.carbonCopies || []
+        })
       });
 
       if (!response.ok) {
@@ -186,6 +211,7 @@ export function ActiveStudentForm() {
         throw new Error(errorJson?.error || 'Terjadi kesalahan saat mengirim permohonan.');
       }
 
+      localStorage.setItem('core_fti_last_active_student_cc', JSON.stringify(data.carbonCopies || []));
       setSubmitSuccess(true);
       resetFormState();
     } catch (error) {

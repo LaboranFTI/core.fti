@@ -3,6 +3,9 @@ export const DEFAULT_UNIVERSITY = 'Kristen Satya Wacana';
 
 export const getStudyProgramCodeFromNim = (nim = '') => {
   const normalizedNim = String(nim).replace(/\s+/g, '');
+  if (normalizedNim.includes('-')) {
+    return normalizedNim.split('-').pop();
+  }
   return normalizedNim.slice(0, 2);
 };
 

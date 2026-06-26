@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LetterLayout, ObservationData } from '../types';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { ValidationQrCode } from './ValidationQrCode';
+import { scopeHtml } from './activeStudentUtils';
+import { api } from '../../services/api';
 
 interface LetterPreviewProps {
-  data: ObservationData;
+  type?: 'observation' | 'active-student' | 'su-rek';
+  data: any & { html?: string };
   backgroundImageBase64?: string;
   layout?: LetterLayout;
   showLayoutGuide?: boolean;
@@ -15,19 +15,8 @@ interface LetterPreviewProps {
   letterDate?: string;
 }
 
-// Konversi jenjang program ke singkatan untuk penulisan di surat
-const shortLevel = (level?: string): string => {
-  if (!level) return 'S1';
-  const map: Record<string, string> = {
-    'Diploma Tiga': 'D3',
-    'Sarjana': 'S1',
-    'Magister': 'S2',
-    'Doktor': 'S3',
-  };
-  return map[level] || level;
-};
-
 export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps>(({
+  type = 'observation',
   data,
   backgroundImageBase64,
   layout,
@@ -35,135 +24,108 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   letterNumber,
   validationToken,
   validationUrl,
-  letterDate: propLetterDate
+  letterDate
 }, ref) => {
-  const baseDate = propLetterDate ? new Date(new Date(propLetterDate).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })) : new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-  const today = format(baseDate, 'dd MMMM yyyy', { locale: id });
-  const observationNumber = letterNumber || `AUTO/FTI-OBS/${format(baseDate, 'MM/yyyy')}`;
-  const pageLayout = layout || { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 };
-  const publicValidationUrl = validationUrl || (validationToken ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${validationToken}` : '');
+  const [html, setHtml] = useState<string>(data.html || '');
+  const [loading, setLoading] = useState<boolean>(!data.html);
+
+  useEffect(() => {
+    if (data.html) {
+      setHtml(data.html);
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    const fetchHtml = async () => {
+      setLoading(true);
+      try {
+        const res = await api('/api/tu/preview-html', {
+          method: 'POST',
+          data: {
+            type,
+            data: {
+              ...data,
+              letter_number: letterNumber,
+              validation_token: validationToken,
+              validation_url: validationUrl,
+              letter_generated_at: letterDate,
+              backgroundImageBase64,
+              layout
+            }
+          }
+        });
+        const text = await res.text();
+        if (active) {
+          setHtml(text);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to fetch letter preview:', err);
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      fetchHtml();
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [
+    type,
+    data.name,
+    data.nim,
+    data.recipientName,
+    data.berdasarkanNo,
+    data.perihal,
+    data.lampiran,
+    data.companyName,
+    data.companyAddress,
+    data.courseName,
+    data.lecturerName,
+    data.headOfProgramName,
+    data.studyProgramName,
+    data.studyProgramLevel,
+    data.students,
+    data.html,
+    letterNumber,
+    validationToken,
+    validationUrl,
+    letterDate,
+    backgroundImageBase64,
+    layout
+  ]);
+
+  if (loading && !html) {
+    return (
+      <div
+        ref={ref}
+        className="relative mx-auto h-[297mm] w-[210mm] flex items-center justify-center bg-white shadow-lg text-slate-500 font-sans"
+      >
+        <div className="flex flex-col items-center gap-2">
+          <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-sm font-semibold">Memuat pratinjau surat...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const scopedHtml = scopeHtml(html);
 
   return (
     <div
       ref={ref}
-      className="relative mx-auto h-[297mm] w-[210mm] overflow-hidden bg-white text-[11pt] leading-normal text-black shadow-lg"
-      style={{ fontFamily: '"Times New Roman", Times, serif' }}
-    >
-      {backgroundImageBase64 ? (
-        <img
-          src={backgroundImageBase64}
-          alt="Background Surat Observasi"
-          className="absolute inset-0 h-full w-full object-fill"
-        />
-      ) : null}
-
-      {showLayoutGuide ? (
-        <div
-          className="pointer-events-none absolute border border-dashed border-sky-400/40 print:hidden"
-          style={{
-            top: `${pageLayout.marginTopMm}mm`,
-            right: `${pageLayout.marginRightMm}mm`,
-            bottom: `${pageLayout.marginBottomMm}mm`,
-            left: `${pageLayout.marginLeftMm}mm`
-          }}
-        />
-      ) : null}
-
-      <div
-        className="relative z-10"
-        style={{
-          paddingTop: `${pageLayout.marginTopMm}mm`,
-          paddingRight: `${pageLayout.marginRightMm}mm`,
-          paddingBottom: `${pageLayout.marginBottomMm}mm`,
-          paddingLeft: `${pageLayout.marginLeftMm}mm`
-        }}
-      >
-        <div className="mb-[4mm] grid grid-cols-[1fr_78mm] gap-[10mm] text-[10.5pt]">
-          <div className="w-full max-w-[90mm]">
-            <p className="font-bold">Perihal:</p>
-            <p>Pengantar Observasi</p>
-          </div>
-
-          <div className="space-y-[0.8mm]">
-            <p>Kepada Yth:</p>
-            <p className="font-bold">{data.recipientName || '[Nama Penerima / Jabatan]'}</p>
-            <p className="font-bold">{data.companyName || '[Nama Perusahaan / Instansi]'}</p>
-            <p>{data.companyAddress || '[Alamat Instansi]'}</p>
-          </div>
-        </div>
-
-        <hr className="mb-[4mm] border-0 border-t border-black" />
-
-        <table className="mb-[7mm] w-full border-collapse text-[10.5pt]">
-          <tbody>
-            <tr>
-              <td className="w-[35%] py-[0.7mm] align-top font-bold">Acuan Kami</td>
-              <td className="w-[20%] py-[0.7mm] align-top font-bold">Acuan Anda</td>
-              <td className="w-[25%] py-[0.7mm] align-top font-bold">Tanggal</td>
-              <td className="w-[20%] py-[0.7mm] align-top font-bold">Lamp.</td>
-            </tr>
-            <tr>
-              <td className="py-[0.7mm] align-top">{observationNumber}</td>
-              <td className="py-[0.7mm] align-top">-</td>
-              <td className="py-[0.7mm] align-top">{today}</td>
-              <td className="py-[0.7mm] align-top">-</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div className="space-y-[5mm] text-justify">
-          <p>Dengan Hormat,</p>
-          <p>
-            Bersama dengan surat ini kami memberitahukan bahwa mahasiswa Fakultas Teknologi Informasi{' '}
-            Program Studi {shortLevel(data.studyProgramLevel)} {data.studyProgramName || 'Teknik Informatika'} Universitas Kristen Satya Wacana berikut ini:
-          </p>
-
-          <table className="mb-[6mm] ml-[12mm] w-[calc(100%-12mm)] border-collapse text-left text-[10.5pt]">
-            <tbody>
-              {data.students.length > 0 ? data.students.map((student, index) => (
-                <tr key={index}>
-                  <td className="py-[0.8mm] align-top">{student.name || '-'}</td>
-                  <td className="py-[0.8mm] align-top">{student.nim || '-'}</td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={2} className="italic text-gray-500 py-[0.8mm]">Data mahasiswa belum ditambahkan</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          <p>
-            Bahwa sebagai salah satu syarat untuk memenuhi sebagian tugas dari mata kuliah{' '}
-            <span className="font-bold">{data.courseName || '[Nama Mata Kuliah]'}</span>, yang diwajibkan oleh Fakultas,
-            maka melalui surat ini kami mohon kesediaan Bapak/Ibu memberikan izin untuk dapat melakukan observasi dan
-            wawancara di <span className="font-bold">{data.companyName || '[Nama Perusahaan / Instansi]'}</span>.
-          </p>
-
-          <p>
-            Demikian surat ini kami sampaikan. Atas perhatian dan izin yang diberikan diucapkan terima kasih.
-            Kiranya kerja sama ini dapat berlanjut di masa yang akan datang.
-          </p>
-        </div>
-
-        <div className="mt-[14mm] flex items-start justify-start gap-[4mm]">
-          <div className="inline-flex flex-col items-start gap-[1mm] text-[7.5pt] leading-none">
-            {publicValidationUrl ? (
-              <ValidationQrCode value={publicValidationUrl} size={92} />
-            ) : (
-              <div className="h-[24mm] w-[24mm]" />
-            )}
-          </div>
-
-          <div className="w-auto leading-tight text-left">
-            <p>Salam,</p>
-            <div className="h-[6mm]" />
-            <p className="font-bold">{data.lecturerName || '[Nama Dosen Pengampu]'}</p>
-            <p>Pengampu Mata Kuliah</p>
-          </div>
-        </div>
-      </div>
-    </div>
+      className="print:block print:w-full print:m-0 print:p-0"
+      dangerouslySetInnerHTML={{ __html: scopedHtml }}
+    />
   );
 });
 

@@ -610,6 +610,7 @@ function toMbps(bitsPerSecond) {
     return Number((bitsPerSecond / 1_000_000).toFixed(2));
 }
 async function monitorInterfaceTraffic(client, ifaceName, fallbackId = ifaceName) {
+    const timestamp = Date.now();
     try {
         const rows = await client.execute('/interface/monitor-traffic', {
             interface: ifaceName,
@@ -621,6 +622,8 @@ async function monitorInterfaceTraffic(client, ifaceName, fallbackId = ifaceName
             name: ifaceName,
             rxRate: Number(traffic['rx-bits-per-second'] || 0),
             txRate: Number(traffic['tx-bits-per-second'] || 0),
+            timestamp,
+            source: 'router',
         };
     }
     catch {
@@ -629,6 +632,8 @@ async function monitorInterfaceTraffic(client, ifaceName, fallbackId = ifaceName
             name: ifaceName,
             rxRate: 0,
             txRate: 0,
+            timestamp,
+            source: 'router',
         };
     }
 }
@@ -735,11 +740,14 @@ async function getTrafficForInterfaces(ifaces) {
     });
 }
 function mockTraffic() {
+    const timestamp = Date.now();
     return mockInterfaces.map((iface) => ({
         id: iface.id,
         name: iface.name,
         rxRate: iface.enabled ? Math.floor(Math.random() * 3_000_000) + 80_000 : 0,
         txRate: iface.enabled ? Math.floor(Math.random() * 900_000) + 20_000 : 0,
+        timestamp,
+        source: 'simulation',
     }));
 }
 function mockUplinkTraffic() {
@@ -748,6 +756,8 @@ function mockUplinkTraffic() {
         name: UPLINK_INTERFACE || 'ether2-backboneUKSW',
         rxRate: Math.floor(Math.random() * 180_000_000) + 40_000_000,
         txRate: Math.floor(Math.random() * 120_000_000) + 20_000_000,
+        timestamp: Date.now(),
+        source: 'simulation',
     };
 }
 async function getUplinkTraffic() {

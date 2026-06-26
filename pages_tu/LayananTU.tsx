@@ -4,14 +4,16 @@ import { ActiveStudentForm } from './components/ActiveStudentForm';
 import { AdminPanel } from './components/AdminPanel';
 import { LetterArchivePanel } from './components/LetterArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
+import { SuRekForm } from './components/SuRekForm';
 import { LetterPreview } from './components/LetterPreview';
-import { PageTabs, PageTabItem, PageTabSummary } from '../components/ui/page-tabs';
+import { PageTabs, PageTabItem } from '../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../components/ui/tabs';
 import PageHeader from '../components/PageHeader';
 import { TUSegmentedControl } from './components/TUPageComponents';
-import { Archive, FileText, Layout, NotePencil, ShieldCheck } from '@phosphor-icons/react';
+import { Archive, ArrowLeft, Award, FileText, Layout, PencilLine, ShieldCheck, Settings } from 'lucide-react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
+import { cn } from '../lib/utils';
 
 interface HalamanTUProps {
   role: Role;
@@ -25,7 +27,8 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
+  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
 const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
@@ -49,6 +52,16 @@ type ObservationFeedback = {
   type: 'success' | 'error' | 'info';
   message: string;
 } | null;
+
+type LetterServiceId = 'aktif' | 'observasi' | 'rekomendasi' | 'arsip-surat' | 'panel-admin';
+
+interface LetterServiceCard {
+  value: LetterServiceId;
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  group: 'letter' | 'admin';
+}
 
 const waitForNextPaint = () =>
   new Promise<void>((resolve) => {
@@ -82,7 +95,6 @@ const validateObservationData = (data: ObservationData) => {
   if (!data.companyAddress) return 'Alamat perusahaan tujuan masih perlu dilengkapi.';
   if (!data.courseName) return 'Nama mata kuliah observasi belum diisi.';
   if (!data.lecturerName) return 'Nama dosen pengampu masih kosong.';
-  if (!data.headOfProgramName) return 'Nama kaprodi masih kosong.';
   if (data.students.length === 0) return 'Tambahkan minimal satu mahasiswa untuk surat observasi.';
 
   const invalidStudent = data.students.find((student) => !student.name || !student.nim);
@@ -107,7 +119,14 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     role.toString().toUpperCase() === Role.ADMIN.toString().toUpperCase() ||
     role.toString().toUpperCase() === Role.ADMIN_TU.toString().toUpperCase();
   const isMahasiswa = role.toString().toUpperCase() === Role.MAHASISWA.toString().toUpperCase();
-  const [activeTab, setActiveTab] = useState(isMahasiswa ? "observasi" : isTUAdmin ? "panel-admin" : "aktif");
+  const [activeMainTab, setActiveMainTab] = useState<string>('surat');
+  const handleMainTabChange = (value: string) => {
+    setActiveMainTab(value);
+    if (value !== 'surat') {
+      setActiveServiceId(null);
+    }
+  };
+  const [activeServiceId, setActiveServiceId] = useState<LetterServiceId | null>(null);
   const [observationView, setObservationView] = useState<"form" | "preview">("form");
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
@@ -116,30 +135,51 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
   const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
   const lastSavedObservationSignatureRef = useRef<string | null>(null);
-  const activeTabMeta: Record<string, { title: string; description: string; icon: React.ElementType }> = {
-    aktif: {
+  const letterServiceCards: LetterServiceCard[] = [
+    {
+      value: 'aktif',
       title: 'Surat Aktif Kuliah',
-      description: 'Alur singkat untuk cek KST, lalu ajukan permohonan surat aktif kuliah.',
-      icon: FileText
+      description: 'Form pengajuan surat keterangan status mahasiswa aktif untuk kebutuhan administrasi.',
+      icon: FileText,
+      group: 'letter'
     },
-    observasi: {
+    {
+      value: 'observasi',
       title: 'Surat Ijin Observasi',
       description: isMahasiswa
-        ? 'Role Mahasiswa hanya dapat melihat template dan preview surat observasi pada halaman ini.'
-        : 'Isi data observasi dan cek preview surat secara langsung sebelum dicetak.',
-      icon: observationView === 'form' ? NotePencil : Layout
+        ? 'Preview surat observasi untuk kegiatan mata kuliah ke instansi tujuan.'
+        : 'Form surat ijin observasi untuk kegiatan mata kuliah ke instansi tujuan.',
+      icon: PencilLine,
+      group: 'letter'
     },
-    'arsip-surat': {
-      title: 'Arsip Surat',
-      description: 'Lihat data surat aktif kuliah dan observasi yang tersimpan, lalu cetak ulang atau kirim email kembali saat diperlukan.',
-      icon: Archive
-    },
-    'panel-admin': {
-      title: 'Panel Admin TU',
-      description: 'Kelola pengajuan, atur semester berjalan, dan siapkan pengesahan surat dari satu tempat.',
-      icon: ShieldCheck
+    {
+      value: 'rekomendasi',
+      title: 'Rekomendasi Afirmasi',
+      description: 'Form permohonan surat rekomendasi untuk pendaftaran Beasiswa Afirmasi Cemerlang.',
+      icon: Award,
+      group: 'letter'
     }
-  };
+  ];
+  const adminToolCards: LetterServiceCard[] = [
+    {
+      value: 'panel-admin',
+      title: 'Kelola Permohonan',
+      description: 'Buka panel validasi permohonan, pengaturan surat, dan proses pengiriman.',
+      icon: ShieldCheck,
+      group: 'admin'
+    },
+    {
+      value: 'arsip-surat',
+      title: 'Arsip Surat',
+      description: 'Buka daftar surat tersimpan untuk cetak ulang atau kirim ulang ke email.',
+      icon: Archive,
+      group: 'admin'
+    }
+  ];
+  const availableServiceCards = letterServiceCards.filter((item) => !isMahasiswa || item.value === 'observasi');
+  const selectedService = activeServiceId
+    ? availableServiceCards.find((item) => item.value === activeServiceId) || null
+    : null;
 
   // State untuk Preview Surat Observasi
   const [obsData, setObsData] = useState<ObservationData>({
@@ -166,8 +206,13 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     }
 
     try {
-      await persistObservationRequest(sanitizedData);
-      setObsData(sanitizedData);
+      const responseData = await persistObservationRequest(sanitizedData);
+      setObsData({
+        ...sanitizedData,
+        letterNumber: responseData?.letterNumber || obsData.letterNumber,
+        validationToken: responseData?.validationToken || obsData.validationToken,
+        accessCode: responseData?.accessCode || obsData.accessCode
+      });
       setObservationView('preview');
       setIsPreparingObservationOutput(true);
       setObservationFeedback({ type: 'info', message: 'Preview siap dicetak. Pastikan pengaturan printer memakai ukuran A4.' });
@@ -189,7 +234,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const persistObservationRequest = useCallback(async (data: ObservationData) => {
     const payloadSignature = JSON.stringify(data);
     if (lastSavedObservationSignatureRef.current === payloadSignature) {
-      return;
+      return null;
     }
 
     const response = await api('/api/observation-requests', {
@@ -214,6 +259,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
 
     lastSavedObservationSignatureRef.current = payloadSignature;
     setLetterArchiveRefreshKey((prev) => prev + 1);
+    return json;
   }, []);
 
   const fetchLetterBackgrounds = useCallback(async () => {
@@ -222,7 +268,13 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       const json = await res.json();
       if (res.ok && json?.letterBackgrounds) {
         setLetterBackgrounds(normalizeLetterBackgrounds(json.letterBackgrounds));
-        setLetterLayouts(json.letterLayouts || createEmptyLetterLayouts());
+        const defaultLayouts = createEmptyLetterLayouts();
+        const mergedLayouts = {
+          activeStudent: { ...defaultLayouts.activeStudent, ...json.letterLayouts?.activeStudent },
+          observation: { ...defaultLayouts.observation, ...json.letterLayouts?.observation },
+          suRek: { ...defaultLayouts.suRek, ...json.letterLayouts?.suRek }
+        };
+        setLetterLayouts(mergedLayouts);
       }
     } catch (error) {
       console.error('Failed to fetch TU letter backgrounds:', error);
@@ -234,10 +286,19 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   }, [fetchLetterBackgrounds]);
 
   useEffect(() => {
-    if (isMahasiswa && activeTab !== 'observasi') {
-      setActiveTab('observasi');
+    if (!activeServiceId) {
+      return;
     }
-  }, [activeTab, isMahasiswa]);
+
+    if (isMahasiswa && activeServiceId !== 'observasi') {
+      setActiveServiceId(null);
+      return;
+    }
+
+    if (!isTUAdmin && (activeServiceId === 'arsip-surat' || activeServiceId === 'panel-admin')) {
+      setActiveServiceId(null);
+    }
+  }, [activeServiceId, isMahasiswa, isTUAdmin]);
 
   useEffect(() => {
     const handleAfterPrint = () => {
@@ -248,86 +309,193 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  const ActiveTabIcon = activeTabMeta[activeTab]?.icon || FileText;
-  const serviceTabs: PageTabItem[] = [
-    !isMahasiswa && { value: 'aktif', label: 'Surat Aktif Kuliah', icon: FileText },
-    { value: 'observasi', label: 'Surat Ijin Observasi', icon: NotePencil },
-    isTUAdmin && { value: 'arsip-surat', label: 'Arsip Surat', icon: Archive },
-    isTUAdmin && { value: 'panel-admin', label: 'Panel Admin', icon: ShieldCheck }
-  ].filter(Boolean) as PageTabItem[];
+  const adminMainTabs: PageTabItem[] = [
+    { value: 'surat', label: 'Surat', icon: FileText },
+    { value: 'permohonan', label: 'Kelola Permohonan', icon: ShieldCheck },
+    { value: 'arsip', label: 'Arsip Surat', icon: Archive },
+    { value: 'konfigurasi', label: 'Konfigurasi Surat', icon: Settings }
+  ];
+
+  const renderServiceCard = (item: LetterServiceCard) => {
+    const Icon = item.icon;
+    const isActive = activeServiceId === item.value;
+
+    return (
+      <button
+        key={item.value}
+        type="button"
+        aria-pressed={isActive}
+        onClick={() => setActiveServiceId(item.value)}
+        className={cn(
+          'group flex aspect-square min-h-40 w-full flex-col justify-between rounded-lg border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-fti-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500 focus-visible:ring-offset-2 dark:bg-gray-900 dark:focus-visible:ring-offset-gray-900',
+          isActive
+            ? 'border-fti-blue-500 ring-1 ring-fti-blue-200 dark:border-fti-blue-300 dark:ring-fti-blue-300/30'
+            : 'border-slate-200 dark:border-gray-700'
+        )}
+      >
+        <span className="flex min-h-0 flex-col items-start">
+          <span
+            className={cn(
+              'flex h-10 w-10 flex-none items-center justify-center rounded-md border transition-colors',
+              isActive
+                ? 'border-fti-blue-200 bg-fti-blue-50 text-fti-blue-700 dark:border-fti-blue-300/30 dark:bg-fti-blue-300/10 dark:text-fti-blue-200'
+                : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:text-fti-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300 dark:group-hover:text-fti-blue-200'
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          <span className="mt-3 min-w-0">
+            <span className="block text-sm font-semibold text-slate-900 dark:text-white">{item.title}</span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">{item.description}</span>
+          </span>
+        </span>
+        <span
+          className={cn(
+            'mt-4 text-xs font-semibold uppercase text-slate-400 transition-colors dark:text-slate-500',
+            isActive && 'text-fti-blue-700 dark:text-fti-blue-200'
+          )}
+        >
+          {isActive ? 'Sedang dibuka' : 'Buka'}
+        </span>
+      </button>
+    );
+  };
+
+  const renderObservationService = () => (
+    <>
+      <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:hidden print:hidden">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+          {observationView === "form" ? <PencilLine className="h-4 w-4 text-slate-600 dark:text-slate-300" /> : <Layout className="h-4 w-4 text-slate-600 dark:text-slate-300" />}
+          {observationView === "form" ? 'Mode Formulir' : 'Mode Preview'}
+        </div>
+        <TUSegmentedControl
+          value={observationView}
+          options={[
+            { value: 'form', label: 'Form' },
+            { value: 'preview', label: 'Preview' }
+          ]}
+          onChange={(value) => setObservationView(value)}
+        />
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className={`${observationView === "preview" ? 'hidden xl:block' : 'block'} xl:col-span-5 print:hidden`}>
+          <ObservationForm
+            onDataChange={handleObservationDataChange}
+            onPrint={handlePrint}
+            feedback={observationFeedback}
+            readOnly={isMahasiswa}
+          />
+        </div>
+        <div className={`${observationView === "form" ? 'hidden xl:block' : 'block'} xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0`}>
+          <LetterPreview
+            data={obsData}
+            backgroundImageBase64={letterBackgrounds.document.imageBase64}
+            layout={letterLayouts.observation}
+            showLayoutGuide={!isPreparingObservationOutput}
+          />
+        </div>
+      </div>
+      <div className="pointer-events-none fixed -left-2500 top-0 opacity-100" aria-hidden="true">
+        <LetterPreview
+          ref={capturePreviewRef}
+          data={sanitizeObservationData(obsData)}
+          backgroundImageBase64={letterBackgrounds.document.imageBase64}
+          layout={letterLayouts.observation}
+          showLayoutGuide={false}
+        />
+      </div>
+    </>
+  );
+
+  const renderActiveService = () => {
+    switch (activeServiceId) {
+      case 'aktif':
+        return <ActiveStudentForm />;
+      case 'observasi':
+        return renderObservationService();
+      case 'rekomendasi':
+        return <SuRekForm />;
+      case 'arsip-surat':
+        return isTUAdmin ? <LetterArchivePanel refreshKey={letterArchiveRefreshKey} /> : null;
+      case 'panel-admin':
+        return isTUAdmin ? <AdminPanel onSettingsSaved={fetchLetterBackgrounds} /> : null;
+      default:
+        return null;
+    }
+  };
+  const SelectedServiceIcon = selectedService?.icon || FileText;
+  const isServiceMenuOpen = !selectedService;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
         title="Layanan Tata Usaha"
-        description="Layanan pengajuan Surat Keterangan Aktif Kuliah dan Surat Observasi."
+        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Observasi, dan Surat Rekomendasi."
         className="print:hidden"
       />
 
       {/* Konten Utama berdasarkan Role */}
       <div className="pt-2 print:p-0">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="flex w-full flex-col">
-          <PageTabs items={serviceTabs} className="mb-4 print:hidden" />
+        <Tabs value={activeMainTab} onValueChange={handleMainTabChange} className="flex w-full flex-col">
+          {isTUAdmin && <PageTabs items={adminMainTabs} className="mb-4 print:hidden" />}
 
+          <TabsContent value="surat" className="print:m-0 focus:outline-none">
+            {isServiceMenuOpen ? (
+              <div className="space-y-5 print:hidden">
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-semibold uppercase text-fti-blue-700 dark:text-fti-blue-200">
+                    Layanan Surat
+                  </p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Pilih Surat</h2>
+                </div>
 
-          <TabsContent value="aktif" className="print:m-0 focus:outline-none">
-            <ActiveStudentForm />
-          </TabsContent>
-          
-          <TabsContent value="observasi" className="print:m-0 focus:outline-none">
-            <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:hidden print:hidden">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                {observationView === "form" ? <NotePencil className="h-4 w-4 text-slate-600 dark:text-slate-300" /> : <Layout className="h-4 w-4 text-slate-600 dark:text-slate-300" />}
-                {observationView === "form" ? 'Mode Formulir' : 'Mode Preview'}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  {availableServiceCards.map(renderServiceCard)}
+                </div>
               </div>
-              <TUSegmentedControl
-                value={observationView}
-                options={[
-                  { value: 'form', label: 'Form' },
-                  { value: 'preview', label: 'Preview' }
-                ]}
-                onChange={(value) => setObservationView(value)}
-              />
-            </div>
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-              <div className={`${observationView === "preview" ? 'hidden xl:block' : 'block'} xl:col-span-5 print:hidden`}>
-                <ObservationForm
-                  onDataChange={handleObservationDataChange}
-                  onPrint={handlePrint}
-                  feedback={observationFeedback}
-                  readOnly={isMahasiswa}
-                />
-              </div>
-              <div className={`${observationView === "form" ? 'hidden xl:block' : 'block'} xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0`}>
-                <LetterPreview
-                  data={obsData}
-                  backgroundImageBase64={letterBackgrounds.document.imageBase64}
-                  layout={letterLayouts.observation}
-                  showLayoutGuide={!isPreparingObservationOutput}
-                />
-              </div>
-            </div>
-            <div className="pointer-events-none fixed -left-2500 top-0 opacity-100" aria-hidden="true">
-              <LetterPreview
-                ref={capturePreviewRef}
-                data={sanitizeObservationData(obsData)}
-                backgroundImageBase64={letterBackgrounds.document.imageBase64}
-                layout={letterLayouts.observation}
-                showLayoutGuide={false}
-              />
-            </div>
+            ) : (
+              <>
+                <div className="mb-5 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between print:hidden">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md border border-fti-blue-100 bg-fti-blue-50 text-fti-blue-700 dark:border-fti-blue-300/20 dark:bg-fti-blue-300/10 dark:text-fti-blue-200">
+                      <SelectedServiceIcon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase text-fti-blue-700 dark:text-fti-blue-200">
+                        Formulir Surat
+                      </p>
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">{selectedService.title}</h2>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveServiceId(null)}
+                    className="inline-flex w-fit items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-fti-blue-200 hover:text-fti-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-200 dark:hover:border-fti-blue-300/30 dark:hover:text-fti-blue-200"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Kembali ke menu surat
+                  </button>
+                </div>
+
+                <div className="print:mt-0">
+                  {renderActiveService()}
+                </div>
+              </>
+            )}
           </TabsContent>
 
           {isTUAdmin && (
-            <TabsContent value="arsip-surat" className="print:hidden focus:outline-none">
-              <LetterArchivePanel refreshKey={letterArchiveRefreshKey} />
-            </TabsContent>
-          )}
-
-          {isTUAdmin && (
-            <TabsContent value="panel-admin" className="print:hidden focus:outline-none">
-              <AdminPanel onSettingsSaved={fetchLetterBackgrounds} />
-            </TabsContent>
+            <>
+              <TabsContent value="permohonan" className="print:m-0 focus:outline-none">
+                <AdminPanel mode="requests" />
+              </TabsContent>
+              <TabsContent value="arsip" className="print:m-0 focus:outline-none">
+                <LetterArchivePanel refreshKey={letterArchiveRefreshKey} />
+              </TabsContent>
+              <TabsContent value="konfigurasi" className="print:m-0 focus:outline-none">
+                <AdminPanel mode="settings" onSettingsSaved={fetchLetterBackgrounds} />
+              </TabsContent>
+            </>
           )}
         </Tabs>
       </div>

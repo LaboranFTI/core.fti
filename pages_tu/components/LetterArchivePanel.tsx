@@ -10,6 +10,7 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { PageTabs } from '../../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../../components/ui/tabs';
@@ -18,6 +19,7 @@ import { EmailSuccessDialog } from './EmailSuccessDialog';
 import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
 import {
   ArrowLeft,
+  Award,
   Building2,
   CalendarDays,
   CheckCircle,
@@ -51,7 +53,8 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
+  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
 const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
@@ -62,18 +65,22 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
       ? backgrounds.activeStudent
       : backgrounds?.observation?.imageBase64
         ? backgrounds.observation
-        : empty.document;
+        : backgrounds?.suRek?.imageBase64
+          ? backgrounds.suRek
+          : empty.document;
 
   return {
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
-    observation: { ...empty.observation, ...sharedBackground }
+    observation: { ...empty.observation, ...sharedBackground },
+    suRek: { ...empty.suRek, ...sharedBackground }
   };
 };
 
 type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }
   | { type: 'observation'; item: ObservationRequest }
+  | { type: 'su-rek'; item: any }
   | null;
 
 type ArchiveStatus = ActiveStudentRequest['status'];
@@ -129,6 +136,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) {
   const [activeRequests, setActiveRequests] = useState<ActiveStudentRequest[]>([]);
   const [observationRequests, setObservationRequests] = useState<ObservationRequest[]>([]);
+  const [suRekRequests, setSuRekRequests] = useState<any[]>([]);
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const [currentSemesterCode, setCurrentSemesterCode] = useState('');
@@ -139,20 +147,21 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; title: string } | null>(null);
-  const [activeListTab, setActiveListTab] = useState<'active' | 'observation'>('active');
+  const [activeListTab, setActiveListTab] = useState<'active' | 'observation' | 'su-rek'>('active');
   const [selectedLetter, setSelectedLetter] = useState<ArchiveSelection>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   // Delete state
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'active' | 'observation'; label: string } | null>(null);
-  const [batchDeleteTargets, setBatchDeleteTargets] = useState<Array<{ id: string; type: 'active' | 'observation'; label: string }>>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'active' | 'observation' | 'su-rek'; label: string } | null>(null);
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<Array<{ id: string; type: 'active' | 'observation' | 'su-rek'; label: string }>>([]);
   const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const [selectedActiveIds, setSelectedActiveIds] = useState<Set<string>>(new Set());
   const [selectedObsIds, setSelectedObsIds] = useState<Set<string>>(new Set());
+  const [selectedSuRekIds, setSelectedSuRekIds] = useState<Set<string>>(new Set());
   // Edit observation state
-  const [editTarget, setEditTarget] = useState<ObservationRequest | null>(null);
+  const [editTarget, setEditTarget] = useState<any | null>(null);
 
   const formatSemesterLabel = (semesterCode: string) => {
     if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
@@ -201,15 +210,17 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     }
 
     try {
-      const [activeRes, observationRes, settingsRes] = await Promise.all([
+      const [activeRes, observationRes, suRekRes, settingsRes] = await Promise.all([
         api('/api/active-student'),
         api('/api/observation-requests'),
+        api('/api/su-rek-requests'),
         api('/api/tu/settings')
       ]);
 
-      const [activeJson, observationJson, settingsJson] = await Promise.all([
+      const [activeJson, observationJson, suRekJson, settingsJson] = await Promise.all([
         activeRes.json(),
         observationRes.json(),
+        suRekRes.json(),
         settingsRes.json()
       ]);
 
@@ -217,9 +228,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         activeRes.ok && activeJson.success && Array.isArray(activeJson.data) ? activeJson.data : [];
       const nextObservationRequests: ObservationRequest[] =
         observationRes.ok && observationJson.success && Array.isArray(observationJson.data) ? observationJson.data : [];
+      const nextSuRekRequests: any[] =
+        suRekRes.ok && suRekJson.success && Array.isArray(suRekJson.data) ? suRekJson.data : [];
 
       setActiveRequests(nextActiveRequests);
       setObservationRequests(nextObservationRequests);
+      setSuRekRequests(nextSuRekRequests);
 
       if (settingsRes.ok) {
         setLetterBackgrounds(normalizeLetterBackgrounds(settingsJson.letterBackgrounds));
@@ -233,6 +247,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         if (prev.type === 'active') {
           const updatedItem = nextActiveRequests.find((item: ActiveStudentRequest) => item.id === prev.item.id);
           return updatedItem ? { type: 'active', item: updatedItem } : null;
+        } else if (prev.type === 'su-rek') {
+          const updatedItem = nextSuRekRequests.find((item: any) => item.id === prev.item.id);
+          return updatedItem ? { type: 'su-rek', item: updatedItem } : null;
         }
 
         const updatedItem = nextObservationRequests.find((item: ObservationRequest) => item.id === prev.item.id);
@@ -281,7 +298,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     return () => clearInterval(interval);
   }, [refreshKey]);
 
-  const handleSendEmail = async (type: 'active-student' | 'observation', id: string) => {
+  const handleSendEmail = async (type: 'active-student' | 'observation' | 'su-rek', id: string) => {
     setIsProcessing(true);
     setIsSendingEmail(true);
     setFeedback(null);
@@ -289,7 +306,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       const selectedItem =
         type === 'active-student'
           ? activeRequests.find((item: ActiveStudentRequest) => item.id === id)
-          : observationRequests.find((item: ObservationRequest) => item.id === id);
+          : type === 'observation'
+            ? observationRequests.find((item: ObservationRequest) => item.id === id)
+            : suRekRequests.find((item: any) => item.id === id);
       const res = await api(`/api/tu/requests/${type}/${id}/send-email`, { method: 'POST' });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -301,7 +320,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       setEmailSuccessState({
         email: selectedItem?.email || '',
         letterNumber: json?.letterNumber || selectedItem?.letterNumber || null,
-        title: type === 'observation' ? 'Surat observasi berhasil dikirim' : 'Surat aktif kuliah berhasil dikirim'
+        title: type === 'observation' ? 'Surat observasi berhasil dikirim' : type === 'su-rek' ? 'Surat rekomendasi berhasil dikirim' : 'Surat aktif kuliah berhasil dikirim'
       });
     } catch (error) {
       console.error('Failed to send letter email:', error);
@@ -315,7 +334,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const handleDownloadPdf = async () => {
     if (!selectedLetter) return;
     const { type, item } = selectedLetter;
-    const apiType = type === 'active' ? 'active-student' : 'observation';
+    const apiType = type === 'active' ? 'active-student' : type === 'observation' ? 'observation' : 'su-rek';
 
     setIsProcessing(true);
     setFeedback(null);
@@ -445,7 +464,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   const handleCreateValidationToken = async () => {
     if (!selectedLetter) return;
-    const apiType = selectedLetter.type === 'active' ? 'active-student' : 'observation';
+    const apiType = selectedLetter.type === 'active' ? 'active-student' : selectedLetter.type === 'observation' ? 'observation' : 'su-rek';
 
     setIsProcessing(true);
     setFeedback(null);
@@ -469,7 +488,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 type: 'observation',
                 item: { ...prev.item, validationToken: json.validationToken }
               }
-            : prev
+            : prev?.type === 'su-rek'
+              ? {
+                  type: 'su-rek',
+                  item: { ...prev.item, validationToken: json.validationToken }
+                }
+              : prev
       );
       await fetchArchiveData({ showError: false });
       setFeedback({ type: 'success', message: 'Link validasi publik berhasil dibuat.' });
@@ -481,19 +505,19 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   };
 
   // ── Delete handlers ─────────────────────────────────────────────────────────
-  const openDeleteSingle = (id: string, type: 'active' | 'observation', label: string) => {
+  const openDeleteSingle = (id: string, type: 'active' | 'observation' | 'su-rek', label: string) => {
     setDeleteTarget({ id, type, label });
     setBatchDeleteTargets([]);
     setConfirmPhase(1);
     setConfirmText('');
   };
 
-  const openBatchDelete = (type: 'active' | 'observation') => {
-    const ids = type === 'active' ? selectedActiveIds : selectedObsIds;
-    const sourceList = type === 'active' ? activeRequests : observationRequests;
+  const openBatchDelete = (type: 'active' | 'observation' | 'su-rek') => {
+    const ids = type === 'active' ? selectedActiveIds : type === 'observation' ? selectedObsIds : selectedSuRekIds;
+    const sourceList = type === 'active' ? activeRequests : type === 'observation' ? observationRequests : suRekRequests;
     const targets = sourceList
       .filter(i => ids.has(i.id))
-      .map(i => ({ id: i.id, type, label: i.name + (type === 'observation' ? ` — ${(i as ObservationRequest).company || ''}` : '') }));
+      .map(i => ({ id: i.id, type, label: i.name }));
     setDeleteTarget(null);
     setBatchDeleteTargets(targets);
     setConfirmPhase(1);
@@ -508,14 +532,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     closeConfirm();
     try {
       if (deleteTarget) {
-        const apiType = deleteTarget.type === 'active' ? 'active-student' : 'observation';
+        const apiType = deleteTarget.type === 'active' ? 'active-student' : deleteTarget.type === 'observation' ? 'observation' : 'su-rek';
         const res = await api(`/api/tu/requests/${apiType}/${deleteTarget.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
         if (selectedLetter?.item.id === deleteTarget.id) setSelectedLetter(null);
         setFeedback({ type: 'success', message: `${deleteTarget.label} berhasil dihapus.` });
       } else {
         const type = batchDeleteTargets[0]?.type;
-        const apiType = type === 'active' ? 'active-student' : 'observation';
+        const apiType = type === 'active' ? 'active-student' : type === 'observation' ? 'observation' : 'su-rek';
         const ids = batchDeleteTargets.map(t => t.id);
         const res = await api(`/api/tu/requests/${apiType}/batch-delete`, {
           method: 'POST',
@@ -524,7 +548,8 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
         if (type === 'active') setSelectedActiveIds(new Set());
-        else setSelectedObsIds(new Set());
+        else if (type === 'observation') setSelectedObsIds(new Set());
+        else setSelectedSuRekIds(new Set());
         setFeedback({ type: 'success', message: `${batchDeleteTargets.length} arsip berhasil dihapus.` });
       }
       await fetchArchiveData({ showError: false });
@@ -537,8 +562,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   const toggleActiveId = (id: string) => setSelectedActiveIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleObsId = (id: string) => setSelectedObsIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSuRekId = (id: string) => setSelectedSuRekIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAllActive = () => setSelectedActiveIds(selectedActiveIds.size === filteredActiveRequests.length ? new Set() : new Set(filteredActiveRequests.map(i => i.id)));
   const toggleAllObs = () => setSelectedObsIds(selectedObsIds.size === filteredObservationRequests.length ? new Set() : new Set(filteredObservationRequests.map(i => i.id)));
+  const toggleAllSuRek = () => setSelectedSuRekIds(selectedSuRekIds.size === filteredSuRekRequests.length ? new Set() : new Set(filteredSuRekRequests.map(i => i.id)));
 
   // ── Edit Observation ────────────────────────────────────────────────────────
   const handleSaveObservationEdit = async (data: Partial<ObservationRequest> & { students: { name: string; nim: string }[] }) => {
@@ -555,6 +582,33 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       setEditTarget(null);
       await fetchArchiveData({ showError: false });
       setFeedback({ type: 'success', message: 'Data surat observasi berhasil diperbarui.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menyimpan perubahan.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSaveSuRekEdit = async (data: any) => {
+    if (!editTarget) return;
+    setIsProcessing(true);
+    try {
+      const res = await api(`/api/tu/requests/su-rek/${editTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientName: data.recipientName,
+          berdasarkanNo: data.berdasarkanNo,
+          perihal: data.perihal,
+          lampiran: data.lampiran,
+          carbonCopies: data.carbonCopies
+        })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan.');
+      setEditTarget(null);
+      await fetchArchiveData({ showError: false });
+      setFeedback({ type: 'success', message: 'Data surat rekomendasi berhasil diperbarui.' });
     } catch (err) {
       setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menyimpan perubahan.' });
     } finally {
@@ -597,18 +651,44 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     ])
   );
 
-  const totalArchiveCount = activeRequests.length + observationRequests.length;
-  const pendingCount = [...activeRequests, ...observationRequests].filter(
-    (item: ActiveStudentRequest | ObservationRequest) => item.status === 'pending'
+  const filteredSuRekRequests = suRekRequests.filter((item: any) =>
+    matchesStatus(item.status) &&
+    matchesQuery([
+      item.name,
+      item.nim,
+      item.email,
+      item.recipientName,
+      item.berdasarkanNo,
+      item.perihal,
+      item.lampiran,
+      item.letterNumber,
+      formatArchiveDate(item.createdAt)
+    ])
+  );
+
+  const totalArchiveCount = activeRequests.length + observationRequests.length + suRekRequests.length;
+  const pendingCount = [...activeRequests, ...observationRequests, ...suRekRequests].filter(
+    (item: any) => item.status === 'pending'
   ).length;
-  const verifiedCount = [...activeRequests, ...observationRequests].filter(
-    (item: ActiveStudentRequest | ObservationRequest) => item.status === 'verified'
+  const verifiedCount = [...activeRequests, ...observationRequests, ...suRekRequests].filter(
+    (item: any) => item.status === 'verified'
   ).length;
-  const sentCount = [...activeRequests, ...observationRequests].filter(
-    (item: ActiveStudentRequest | ObservationRequest) => item.status === 'sent'
+  const sentCount = [...activeRequests, ...observationRequests, ...suRekRequests].filter(
+    (item: any) => item.status === 'sent'
   ).length;
-  const currentResultsCount = activeListTab === 'active' ? filteredActiveRequests.length : filteredObservationRequests.length;
-  const currentTotalCount = activeListTab === 'active' ? activeRequests.length : observationRequests.length;
+  const currentResultsCount =
+    activeListTab === 'active'
+      ? filteredActiveRequests.length
+      : activeListTab === 'observation'
+        ? filteredObservationRequests.length
+        : filteredSuRekRequests.length;
+  const currentTotalCount =
+    activeListTab === 'active'
+      ? activeRequests.length
+      : activeListTab === 'observation'
+        ? observationRequests.length
+        : suRekRequests.length;
+
   const emailUx = (
     <>
       <EmailActionOverlay
@@ -629,8 +709,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   if (selectedLetter) {
     const semesterMeta = getSemesterMeta(currentSemesterCode);
     const isObservation = selectedLetter.type === 'observation';
+    const isSuRek = selectedLetter.type === 'su-rek';
     const observationItem = selectedLetter.type === 'observation' ? selectedLetter.item : null;
     const activeItem = selectedLetter.type === 'active' ? selectedLetter.item : null;
+    const suRekItem = selectedLetter.type === 'su-rek' ? selectedLetter.item : null;
     const item = selectedLetter.item;
     const canSendEmail = item.status === 'verified' || item.status === 'sent';
     const validationUrl = getPublicValidationUrl(item.validationToken);
@@ -638,7 +720,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       item.status === 'pending'
         ? isObservation
           ? 'Verifikasi surat observasi untuk membuat nomor surat dan mengaktifkan pengiriman email.'
-          : 'Surat aktif kuliah masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
+          : isSuRek
+            ? 'Surat rekomendasi masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
+            : 'Surat aktif kuliah masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
         : item.status === 'verified'
           ? 'Surat sudah siap dicetak ulang atau dikirim langsung ke email mahasiswa.'
           : 'Surat sudah pernah dikirim dan tetap bisa dicetak ulang atau dikirim kembali kapan saja.';
@@ -660,12 +744,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300">
-                    {isObservation ? 'Surat Observasi' : 'Surat Aktif Kuliah'}
+                    {isObservation ? 'Surat Observasi' : isSuRek ? 'Rekomendasi Afirmasi' : 'Surat Aktif Kuliah'}
                   </Badge>
                   {getStatusBadge(item.status)}
                 </div>
                 <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-                  {isObservation ? 'Detail Arsip Surat Observasi' : 'Detail Arsip Surat Aktif Kuliah'}
+                  {isObservation ? 'Detail Arsip Surat Observasi' : isSuRek ? 'Detail Arsip Surat Rekomendasi' : 'Detail Arsip Surat Aktif Kuliah'}
                 </h2>
                 <p className="text-sm text-slate-600 dark:text-gray-400">
                   {item.name} ({item.nim}){item.email ? ` | ${item.email}` : ''}
@@ -725,6 +809,25 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     validationUrl={validationUrl}
                     letterDate={observationItem?.letterGeneratedAt || observationItem?.createdAt}
                   />
+                ) : isSuRek ? (
+                  <LetterPreview
+                    type="su-rek"
+                    data={{
+                      ...suRekItem,
+                      recipientName: suRekItem?.recipientName || '',
+                      berdasarkanNo: suRekItem?.berdasarkanNo || '',
+                      perihal: suRekItem?.perihal || '',
+                      lampiran: suRekItem?.lampiran || '',
+                      status: suRekItem?.status
+                    }}
+                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
+                    layout={letterLayouts.suRek}
+                    showLayoutGuide={false}
+                    letterNumber={suRekItem?.letterNumber}
+                    validationToken={suRekItem?.validationToken}
+                    validationUrl={validationUrl}
+                    letterDate={suRekItem?.letterGeneratedAt || suRekItem?.createdAt}
+                  />
                 ) : (
                   <ActiveStudentLetter
                     data={{
@@ -762,17 +865,17 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <Download className="mr-2 h-4 w-4" /> Download PDF
                 </Button>
                 <Button
-                  onClick={() => handleSendEmail(isObservation ? 'observation' : 'active-student', item.id)}
+                  onClick={() => handleSendEmail(isObservation ? 'observation' : isSuRek ? 'su-rek' : 'active-student', item.id)}
                   disabled={!canSendEmail || isProcessing || isSendingEmail}
                   className="w-full justify-center"
                 >
                   {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   {isSendingEmail ? 'Mengirim Email...' : canSendEmail ? 'Kirim ke Email' : 'Email Belum Tersedia'}
                 </Button>
-                {isObservation && (
+                {(isObservation || isSuRek) && (
                   <Button
                     variant="outline"
-                    onClick={() => setEditTarget(observationItem)}
+                    onClick={() => setEditTarget(isSuRek ? { ...suRekItem, type: 'su-rek' } : observationItem)}
                     disabled={isProcessing}
                     className="w-full justify-center border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
                   >
@@ -781,7 +884,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 )}
                 <Button
                   variant="outline"
-                  onClick={() => openDeleteSingle(item.id, isObservation ? 'observation' : 'active', item.name)}
+                  onClick={() => openDeleteSingle(item.id, isObservation ? 'observation' : isSuRek ? 'su-rek' : 'active', item.name)}
                   disabled={isProcessing}
                   className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
@@ -947,11 +1050,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         description="Cari arsip berdasarkan nama, NIM, tujuan surat, instansi, nomor surat, atau tanggal pembuatan."
         contentClassName="space-y-5"
         actions={
-          <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation')}>
+          <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation' | 'su-rek')}>
             <PageTabs
               items={[
                 { value: 'active', label: `Aktif Kuliah (${activeRequests.length})`, icon: GraduationCap },
-                { value: 'observation', label: `Observasi (${observationRequests.length})`, icon: Building2 }
+                { value: 'observation', label: `Observasi (${observationRequests.length})`, icon: Building2 },
+                { value: 'su-rek', label: `Rekomendasi (${suRekRequests.length})`, icon: Award }
               ]}
               className="w-full sm:w-fit"
             />
@@ -964,7 +1068,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={activeListTab === 'active' ? 'Cari nama, NIM, email, prodi, atau nomor surat...' : 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...'}
+              placeholder={activeListTab === 'active' ? 'Cari nama, NIM, email, prodi, atau nomor surat...' : activeListTab === 'observation' ? 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...' : 'Cari nama, NIM, perihal, atau nomor surat...'}
               className="pl-10 dark:bg-gray-800 dark:border-gray-700"
             />
           </div>
@@ -997,7 +1101,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   Menampilkan {currentResultsCount} dari {currentTotalCount} arsip
                 </p>
                 <p className="text-sm text-slate-500 dark:text-gray-400">
-                  {activeListTab === 'active' ? 'Daftar surat aktif kuliah yang tersimpan di sistem.' : 'Daftar surat observasi yang dapat diverifikasi, dicetak, atau dikirim ulang.'}
+                  {activeListTab === 'active' ? 'Daftar surat aktif kuliah yang tersimpan di sistem.' : activeListTab === 'observation' ? 'Daftar surat observasi yang dapat diverifikasi, dicetak, atau dikirim ulang.' : 'Daftar surat rekomendasi afirmasi cemerlang yang tersimpan di sistem.'}
                 </p>
               </div>
             </div>
@@ -1261,6 +1365,128 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 </>
               )}
             </TabsContent>
+
+            <TabsContent value="su-rek" className="mt-0">
+              {/* Batch Delete Toolbar */}
+              {selectedSuRekIds.size > 0 && (
+                <div className="mb-4 flex items-center justify-between rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-3">
+                  <span className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {selectedSuRekIds.size} surat dipilih
+                  </span>
+                  <Button
+                    variant="outline" size="sm"
+                    className="border-red-300 text-red-600 hover:bg-red-100 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/40"
+                    onClick={() => openBatchDelete('su-rek')}
+                    disabled={isProcessing}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Hapus Terpilih
+                  </Button>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
+                  Memuat arsip surat rekomendasi...
+                </div>
+              ) : filteredSuRekRequests.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center">
+                  <FileText className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-gray-600" />
+                  <p className="text-base font-medium text-slate-700 dark:text-gray-300">
+                    {suRekRequests.length === 0 ? 'Belum ada data surat rekomendasi yang tersimpan.' : 'Tidak ada arsip yang cocok dengan filter saat ini.'}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">Coba kata kunci lain atau reset filter untuk melihat seluruh arsip.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                          <TableHead className="w-10">
+                            <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                              checked={selectedSuRekIds.size === filteredSuRekRequests.length && filteredSuRekRequests.length > 0}
+                              onChange={toggleAllSuRek} />
+                          </TableHead>
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Nama Mahasiswa</TableHead>
+                          <TableHead>NIM</TableHead>
+                          <TableHead>Perihal</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredSuRekRequests.map((item: any) => (
+                          <TableRow key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-gray-800/50 ${selectedSuRekIds.has(item.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                            <TableCell>
+                              <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                                checked={selectedSuRekIds.has(item.id)}
+                                onChange={() => toggleSuRekId(item.id)} />
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600 dark:text-gray-300">{formatArchiveDate(item.createdAt)}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-slate-900 dark:text-white">{item.name}</p>
+                                <p className="text-xs text-slate-500 dark:text-gray-400">{item.letterNumber || 'Nomor surat belum dibuat'}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600 dark:text-gray-300">{item.nim}</TableCell>
+                            <TableCell className="text-sm text-slate-600 dark:text-gray-300 max-w-[200px] truncate">{item.perihal || '-'}</TableCell>
+                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'su-rek', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
+                                  <Eye className="mr-2 h-4 w-4" /> Detail
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setEditTarget({ ...item, type: 'su-rek' })} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'su-rek', item.name + ' — ' + (item.nim || ''))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="space-y-3 md:hidden">
+                    {filteredSuRekRequests.map((item: any) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white">{item.name}</p>
+                            <p className="text-sm text-slate-500 dark:text-gray-400">{item.nim}</p>
+                          </div>
+                          {getStatusBadge(item.status)}
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
+                            <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">Perihal</p>
+                            <p className="mt-1 text-sm font-medium text-slate-800 dark:text-white">{item.perihal || '-'}</p>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
+                            <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">Tanggal</p>
+                            <p className="mt-1 text-sm font-medium text-slate-800 dark:text-white">{formatArchiveDate(item.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-gray-300">
+                          <div className="flex items-center gap-2">
+                            <Award className="h-4 w-4 text-slate-400 dark:text-gray-500" />
+                            {item.perihal || 'Beasiswa Afirmasi Cemerlang'}
+                          </div>
+                        </div>
+                        <Button variant="outline" className="mt-4 w-full justify-center dark:border-gray-700 dark:hover:bg-gray-700" onClick={() => setSelectedLetter({ type: 'su-rek', item })}>
+                          <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </TabsContent>
           </Tabs>
       </TUSectionCard>
 
@@ -1330,7 +1556,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         </div>
       )}
 
-      {/* ── Edit Observation Modal ─────────────────────────────────────────── */}
+      {/* ── Edit Observation & Recommendation Modal ─────────────────────────────────────────── */}
       {editTarget && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
@@ -1340,7 +1566,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <Pencil className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit Data Observasi</h3>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                    {editTarget.type === 'su-rek' ? 'Edit Data Rekomendasi' : 'Edit Data Observasi'}
+                  </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Nomor surat tidak akan berubah.</p>
                 </div>
               </div>
@@ -1350,94 +1578,191 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             </div>
             
             <div className="p-5 overflow-y-auto space-y-4 flex-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Tujuan Surat</label>
-                  <Input 
-                    value={editTarget.recipientName || ''} 
-                    onChange={e => setEditTarget({...editTarget, recipientName: e.target.value})} 
-                  />
+              {editTarget.type === 'su-rek' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Yang Terhormat (Penerima)</label>
+                    <Textarea 
+                      value={editTarget.recipientName || ''} 
+                      onChange={e => setEditTarget({...editTarget, recipientName: e.target.value})} 
+                      className="min-h-[80px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Berdasarkan Surat No</label>
+                    <Input 
+                      value={editTarget.berdasarkanNo || ''} 
+                      onChange={e => setEditTarget({...editTarget, berdasarkanNo: e.target.value})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Lampiran</label>
+                    <Input 
+                      value={editTarget.lampiran || ''} 
+                      onChange={e => setEditTarget({...editTarget, lampiran: e.target.value})} 
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Hal / Perihal</label>
+                    <Input 
+                      value={editTarget.perihal || ''} 
+                      onChange={e => setEditTarget({...editTarget, perihal: e.target.value})} 
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Instansi</label>
-                  <Input 
-                    value={editTarget.company || ''} 
-                    onChange={e => setEditTarget({...editTarget, company: e.target.value})} 
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Alamat Instansi</label>
-                  <Input 
-                    value={editTarget.companyAddress || ''} 
-                    onChange={e => setEditTarget({...editTarget, companyAddress: e.target.value})} 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Mata Kuliah</label>
-                  <Input 
-                    value={editTarget.courseName || ''} 
-                    onChange={e => setEditTarget({...editTarget, courseName: e.target.value})} 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Dosen Pengampu</label>
-                  <Input 
-                    value={editTarget.lecturerName || ''} 
-                    onChange={e => setEditTarget({...editTarget, lecturerName: e.target.value})} 
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Tujuan Surat</label>
+                      <Input 
+                        value={editTarget.recipientName || ''} 
+                        onChange={e => setEditTarget({...editTarget, recipientName: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Instansi</label>
+                      <Input 
+                        value={editTarget.company || ''} 
+                        onChange={e => setEditTarget({...editTarget, company: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Alamat Instansi</label>
+                      <Input 
+                        value={editTarget.companyAddress || ''} 
+                        onChange={e => setEditTarget({...editTarget, companyAddress: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Mata Kuliah</label>
+                      <Input 
+                        value={editTarget.courseName || ''} 
+                        onChange={e => setEditTarget({...editTarget, courseName: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Dosen Pengampu</label>
+                      <Input 
+                        value={editTarget.lecturerName || ''} 
+                        onChange={e => setEditTarget({...editTarget, lecturerName: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 border-t border-slate-100 dark:border-gray-700 pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Daftar Mahasiswa ({editTarget.students.length})</label>
+                      <Button 
+                        type="button" variant="outline" size="sm" 
+                        onClick={() => setEditTarget({...editTarget, students: [...editTarget.students, {name: '', nim: ''}]})}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> Tambah Mahasiswa
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {editTarget.students.map((stu: any, i: number) => (
+                        <div key={i} className="flex gap-2">
+                          <Input 
+                            placeholder="NIM" className="w-1/3" value={stu.nim} 
+                            onChange={e => {
+                              const newStudents = [...editTarget.students];
+                              newStudents[i].nim = e.target.value;
+                              setEditTarget({...editTarget, students: newStudents});
+                            }} 
+                          />
+                          <Input 
+                            placeholder="Nama Lengkap" className="flex-1" value={stu.name} 
+                            onChange={e => {
+                              const newStudents = [...editTarget.students];
+                              newStudents[i].name = e.target.value;
+                              setEditTarget({...editTarget, students: newStudents});
+                            }} 
+                          />
+                          <Button 
+                            type="button" variant="outline" size="icon" className="shrink-0 border-red-200 text-red-500 hover:bg-red-50"
+                            onClick={() => {
+                              const newStudents = [...editTarget.students];
+                              newStudents.splice(i, 1);
+                              setEditTarget({...editTarget, students: newStudents});
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="mt-6 border-t border-slate-100 dark:border-gray-700 pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Daftar Mahasiswa ({editTarget.students.length})</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Tembusan Surat (Opsional)</label>
                   <Button 
                     type="button" variant="outline" size="sm" 
-                    onClick={() => setEditTarget({...editTarget, students: [...editTarget.students, {name: '', nim: ''}]})}
+                    onClick={() => setEditTarget({
+                      ...editTarget, 
+                      carbonCopies: [...(editTarget.carbonCopies || []), { role: '', name: '' }]
+                    })}
                   >
-                    <Plus className="w-4 h-4 mr-1" /> Tambah Mahasiswa
+                    <Plus className="w-4 h-4 mr-1" /> Tambah Tembusan
                   </Button>
                 </div>
-                <div className="space-y-2">
-                  {editTarget.students.map((stu, i) => (
-                    <div key={i} className="flex gap-2">
-                      <Input 
-                        placeholder="NIM" className="w-1/3" value={stu.nim} 
-                        onChange={e => {
-                          const newStudents = [...editTarget.students];
-                          newStudents[i].nim = e.target.value;
-                          setEditTarget({...editTarget, students: newStudents});
-                        }} 
-                      />
-                      <Input 
-                        placeholder="Nama Lengkap" className="flex-1" value={stu.name} 
-                        onChange={e => {
-                          const newStudents = [...editTarget.students];
-                          newStudents[i].name = e.target.value;
-                          setEditTarget({...editTarget, students: newStudents});
-                        }} 
-                      />
-                      <Button 
-                        type="button" variant="outline" size="icon" className="shrink-0 border-red-200 text-red-500 hover:bg-red-50"
-                        onClick={() => {
-                          const newStudents = [...editTarget.students];
-                          newStudents.splice(i, 1);
-                          setEditTarget({...editTarget, students: newStudents});
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                {(!editTarget.carbonCopies || editTarget.carbonCopies.length === 0) ? (
+                  <p className="text-xs text-slate-500 italic">Tidak ada tembusan.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {editTarget.carbonCopies.map((cc: any, i: number) => (
+                      <div key={i} className="flex gap-2">
+                        <Input 
+                          placeholder="Jabatan (contoh: Dekan FTI UKSW)" 
+                          className="flex-1" 
+                          value={cc.role || ''} 
+                          onChange={e => {
+                            const newCc = [...(editTarget.carbonCopies || [])];
+                            newCc[i].role = e.target.value;
+                            setEditTarget({...editTarget, carbonCopies: newCc});
+                          }} 
+                        />
+                        <Input 
+                          placeholder="Nama (contoh: Dr. Ir. X - Opsional)" 
+                          className="flex-1" 
+                          value={cc.name || ''} 
+                          onChange={e => {
+                            const newCc = [...(editTarget.carbonCopies || [])];
+                            newCc[i].name = e.target.value;
+                            setEditTarget({...editTarget, carbonCopies: newCc});
+                          }} 
+                        />
+                        <Button 
+                          type="button" variant="outline" size="icon" className="shrink-0 border-red-200 text-red-500 hover:bg-red-50"
+                          onClick={() => {
+                            const newCc = [...(editTarget.carbonCopies || [])];
+                            newCc.splice(i, 1);
+                            setEditTarget({...editTarget, carbonCopies: newCc});
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="p-5 border-t border-slate-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 flex justify-end gap-3 rounded-b-2xl">
               <Button variant="outline" onClick={() => setEditTarget(null)}>Batal</Button>
               <Button 
-                onClick={() => handleSaveObservationEdit(editTarget)} 
-                disabled={isProcessing || editTarget.students.length === 0}
+                onClick={() => {
+                  if (editTarget.type === 'su-rek') {
+                    handleSaveSuRekEdit(editTarget);
+                  } else {
+                    handleSaveObservationEdit(editTarget);
+                  }
+                }} 
+                disabled={isProcessing || (editTarget.type !== 'su-rek' && editTarget.students.length === 0)}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 <Pencil className="w-4 h-4 mr-2" /> Simpan Perubahan

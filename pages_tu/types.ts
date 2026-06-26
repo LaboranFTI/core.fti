@@ -13,6 +13,7 @@ export interface TULetterBackgrounds {
   document: LetterAsset;
   activeStudent: LetterAsset;
   observation: LetterAsset;
+  suRek?: LetterAsset;
 }
 
 export interface LetterLayout {
@@ -25,6 +26,7 @@ export interface LetterLayout {
 export interface TULetterLayouts {
   activeStudent: LetterLayout;
   observation: LetterLayout;
+  suRek?: LetterLayout;
 }
 
 export interface ObservationData {
@@ -38,6 +40,10 @@ export interface ObservationData {
   studyProgramName?: string;
   studyProgramLevel?: string;
   students: Student[];
+  carbonCopies?: { role: string; name?: string }[];
+  letterNumber?: string;
+  validationToken?: string;
+  accessCode?: string;
 }
 
 export interface ObservationRequest {
@@ -63,6 +69,7 @@ export interface ObservationRequest {
   validationToken?: string;
   accessCode?: string;
   letterGeneratedAt?: string;
+  carbonCopies?: { role: string; name?: string }[];
 }
 
 export interface ActiveStudentRequest {
@@ -88,4 +95,25 @@ export interface ActiveStudentRequest {
   letterNumber?: string;
   validationToken?: string;
   letterGeneratedAt?: string;
+  carbonCopies?: { role: string; name?: string }[];
+}
+
+export interface SuRekRequest {
+  id: string;
+  name: string;
+  nim: string;
+  email: string;
+  recipientName?: string;
+  berdasarkanNo?: string;
+  perihal?: string;
+  lampiran?: string;
+  status: 'pending' | 'verified' | 'sent';
+  createdAt: string;
+  signatureBase64?: string;
+  stampBase64?: string;
+  letterNumber?: string;
+  validationToken?: string;
+  accessCode?: string;
+  letterGeneratedAt?: string;
+  carbonCopies?: { role: string; name?: string }[];
 }

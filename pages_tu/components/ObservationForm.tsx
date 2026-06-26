@@ -27,6 +27,16 @@ import { ValidationQrCode } from './ValidationQrCode';
 
 const MAX_OBSERVATION_STUDENTS = 7;
 
+const getInitialObservationCc = () => {
+  try {
+    const saved = localStorage.getItem('core_fti_last_observation_cc');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.error('Failed to load observation carbon copies:', e);
+  }
+  return [];
+};
+
 const createDefaultObservationData = (): ObservationData => ({
   recipientName: '',
   companyName: '',
@@ -37,7 +47,8 @@ const createDefaultObservationData = (): ObservationData => ({
   studyProgramId: '',
   studyProgramName: '',
   studyProgramLevel: '',
-  students: [{ name: '', nim: '' }]
+  students: [{ name: '', nim: '' }],
+  carbonCopies: getInitialObservationCc()
 });
 
 interface ObservationFormProps {
@@ -72,11 +83,10 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Program Studi & Dosen data
-  const { studyPrograms, fetchKaprodi } = useStudyPrograms();
+  const { studyPrograms } = useStudyPrograms();
   const { lecturers } = useLecturers();
   const [selectedProdiId, setSelectedProdiId] = useState('');
   const [isProdiSelected, setIsProdiSelected] = useState(false);
-  const [isFetchingKaprodi, setIsFetchingKaprodi] = useState(false);
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -97,6 +107,11 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     name: "students"
   });
 
+  const { fields: ccFields, append: ccAppend, remove: ccRemove } = useFieldArray({
+    control,
+    name: "carbonCopies"
+  });
+
   const normalizeAccessCodeInput = (value: string) => value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
 
   const normalizeLoadedObservationData = (data: Partial<ObservationData> = {}): ObservationData => ({
@@ -109,7 +124,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     studyProgramId: data.studyProgramId || '',
     studyProgramName: data.studyProgramName || '',
     studyProgramLevel: data.studyProgramLevel || '',
-    students: data.students && data.students.length > 0 ? data.students : [{ name: '', nim: '' }]
+    students: data.students && data.students.length > 0 ? data.students : [{ name: '', nim: '' }],
+    carbonCopies: data.carbonCopies || []
   });
 
   // Build lecturer options for SearchableSelect
@@ -142,21 +158,9 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setValue('studyProgramId', selectedProdi.id);
     setValue('studyProgramName', selectedProdi.name);
     setValue('studyProgramLevel', selectedProdi.level);
+    setValue('headOfProgramName', '');
     setIsProdiSelected(true);
-
-    // Auto-fetch Kaprodi
-    setIsFetchingKaprodi(true);
-    try {
-      const kaprodi = await fetchKaprodi(prodiId);
-      if (kaprodi) {
-        setValue('headOfProgramName', kaprodi.nama);
-      } else {
-        setValue('headOfProgramName', '');
-      }
-    } finally {
-      setIsFetchingKaprodi(false);
-    }
-  }, [studyPrograms, fetchKaprodi, setValue]);
+  }, [studyPrograms, setValue]);
 
   // Watch for changes and pass them up
   React.useEffect(() => {
@@ -173,7 +177,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setFormMode('new');
     setSelectedProdiId('');
     setIsProdiSelected(false);
-    setIsFetchingKaprodi(false);
     setQrUrl(null);
     setQrAccessCode(null);
     setQrExpiresAt(null);
@@ -261,6 +264,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         letterNumber: json.letter.letterNumber || accessLetterState.letterNumber || null,
         status: json.letter.status || accessLetterState.status || null
       });
+      localStorage.setItem('core_fti_last_observation_cc', JSON.stringify(formData.carbonCopies || []));
       setFormFeedback({
         type: 'success',
         message: 'Perubahan surat disimpan. Nomor surat tetap sama.'
@@ -301,6 +305,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       });
       const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
       if (!res.ok) throw new Error(json.error);
+      localStorage.setItem('core_fti_last_observation_cc', JSON.stringify(formData.carbonCopies || []));
       setFormFeedback({
         type: 'success',
         message: `Surat berhasil dikirim ke ${targetEmail}. Kode akses surat juga dikirim melalui email.`
@@ -334,6 +339,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         }
       });
 
+      localStorage.setItem('core_fti_last_observation_cc', JSON.stringify(formData.carbonCopies || []));
       setFormFeedback({ type: 'success', message: 'Surat berhasil diarsipkan dengan nomor resmi.' });
       setTimeout(() => onPrint(), 300);
     } catch (error) {
@@ -425,6 +431,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
+      localStorage.setItem('core_fti_last_observation_cc', JSON.stringify(formData.carbonCopies || []));
       setFormFeedback({
         type: 'success',
         message: accessCode
@@ -456,6 +463,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         throw new Error(json.details ? `${json.error} Details: ${json.details}` : (json.error || 'Gagal menghasilkan QR Code.'));
       }
 
+      localStorage.setItem('core_fti_last_observation_cc', JSON.stringify(formData.carbonCopies || []));
       setQrUrl(json.validationUrl || json.qrUrl || null);
       setQrAccessCode(json.accessCode || null);
       setQrExpiresAt(json.expiresAt || null);
@@ -620,7 +628,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
               <h3 className="font-semibold text-lg">Langkah 1: Pilih Program Studi</h3>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 -mt-3">
-              Pilih program studi terlebih dahulu. Nama Kaprodi akan terisi otomatis jika data tersedia.
+              Pilih program studi terlebih dahulu untuk mulai mengisi form.
             </p>
             <div className="space-y-1.5">
               <Label className="text-slate-700 dark:text-slate-300 font-medium">
@@ -635,30 +643,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                 disabled={readOnly}
               />
             </div>
-
-            {isFetchingKaprodi && (
-              <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Mengambil data Kaprodi...
-              </div>
-            )}
-
-            {isProdiSelected && !isFetchingKaprodi && (
-              <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
-                <Label className="text-slate-700 dark:text-slate-300 font-medium">Nama Kaprodi</Label>
-                <Input
-                  value={watch('headOfProgramName') || ''}
-                  placeholder="Data Kaprodi belum tersedia di database"
-                  disabled
-                  className="bg-slate-50 dark:bg-gray-800 cursor-not-allowed"
-                />
-                {watch('headOfProgramName') ? (
-                  <p className="text-xs text-green-600 dark:text-green-400">Kaprodi terisi otomatis dari database.</p>
-                ) : (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">⚠ Kaprodi belum diatur untuk prodi ini. Silakan tambahkan di Manajemen Dosen.</p>
-                )}
-              </div>
-            )}
           </div>
           )}
 
