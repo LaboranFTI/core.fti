@@ -29,7 +29,7 @@ describe('suratAktifKuliah dean signature layout', () => {
     assert.match(signatureBlock, /display:\s*grid;/);
     assert.match(signatureBlock, /grid-template-columns:\s*28mm max-content;/);
     assert.match(signatureBlock, /justify-content:\s*start;/);
-    assert.match(signatureBlock, /column-gap:\s*8mm;/);
+    assert.match(signatureBlock, /column-gap:\s*4mm;/);
     assert.match(signatureContentBlock, /min-width:\s*58mm;/);
     assert.match(signatureContentBlock, /min-height:\s*28mm;/);
     assert.match(signatureContentBlock, /display:\s*flex;/);
