@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 const source = readFileSync(new URL('./tu.routes.v2.js', import.meta.url), 'utf8');
+const recommendationTemplate = readFileSync(new URL('../lettersTU/suratRekomendasiAfirmasiV2.html', import.meta.url), 'utf8');
 
 const sliceBetween = (startText, endText) => {
   const start = source.indexOf(startText);
@@ -26,6 +27,17 @@ describe('su-rek admin routes', () => {
     assert.match(createRoute, /accessEmail/);
   });
 
+  it('uses configurable default carbon copies for new recommendation requests', () => {
+    const createRoute = sliceBetween(
+      "router.post('/su-rek-requests'",
+      "router.delete('/tu/requests/su-rek/:id'"
+    );
+
+    assert.match(createRoute, /settingsPayload\.suRekTembusan/);
+    assert.match(createRoute, /carbon_copies:\s*Array\.isArray\(settingsPayload\.suRekTembusan\) \? settingsPayload\.suRekTembusan : \[\]/);
+    assert.doesNotMatch(createRoute, /Direktur penjaringan Beasiswa dan CSR/);
+  });
+
   it('exposes public resend by access code after verification', () => {
     const sendEmailRoute = sliceBetween(
       "router.post('/tu/public/su-rek/send-email'",
@@ -38,6 +50,48 @@ describe('su-rek admin routes', () => {
     assert.match(sendEmailRoute, /buildLetterPdfBuffer\('su-rek', requestData, req\)/);
     assert.match(sendEmailRoute, /transporter\.sendMail/);
     assert.match(sendEmailRoute, /SET status = 'sent'/);
+  });
+
+  it('uses database Wakil Dekan data for recommendation preview and PDF rendering', () => {
+    const helperBlock = sliceBetween(
+      'const getRecommendationSigner = async () => {',
+      'const formatLetterNumber ='
+    );
+    const recommendationConfig = sliceBetween(
+      "'su-rek': {",
+      'const ensureLetterNumber'
+    );
+    const publicValidationRoute = sliceBetween(
+      "router.get('/tu/public/letter-validation/:token'",
+      "router.get('/tu/public/letter-validation/:token/download'"
+    );
+
+    assert.match(helperBlock, /FROM lecturer/);
+    assert.match(helperBlock, /WHERE jabatan ILIKE 'Wakil Dekan%'/);
+    assert.doesNotMatch(helperBlock, /jabatan ILIKE 'Dekan%'\s+OR/);
+    assert.match(recommendationConfig, /await getRecommendationSigner\(\)/);
+    assert.match(publicValidationRoute, /letterPayload\.signer = await getRecommendationSigner\(\)/);
+    assert.match(source, /const html = await buildLetterHtml\('su-rek', suRekResult\.rows\[0\], req\)/);
+    assert.match(source, /const pdfBuffer = await buildLetterPdfBuffer\('su-rek', requestData, req\)/);
+  });
+
+  it('rate-limits public validation downloads and blocks draft archive downloads', () => {
+    assert.match(source, /router\.get\('\/tu\/public\/letter-validation\/:token\/download', publicValidationLimiter/);
+
+    const archiveDownloadRoute = sliceBetween(
+      "router.get('/tu/requests/:type/:id/download'",
+      "router.get('/active-student/summary'"
+    );
+
+    assert.match(archiveDownloadRoute, /!\['verified', 'sent'\]\.includes\(result\.rows\[0\]\.status\)/);
+    assert.match(archiveDownloadRoute, /Surat belum berstatus resmi/);
+    assert.match(archiveDownloadRoute, /const requestData = await ensureLetterValidationToken\(pool, type, result\.rows\[0\]\)/);
+  });
+
+  it('only bolds the Wakil Dekan name in the recommendation signature', () => {
+    assert.match(recommendationTemplate, /<p class="signature-name">\{\{dekanNama\}\}<\/p>/);
+    assert.match(recommendationTemplate, /<p>\{\{dekanTitle\}\}<\/p>/);
+    assert.doesNotMatch(recommendationTemplate, /<strong>\{\{dekanTitle\}\}<\/strong>/);
   });
 
   it('keeps single delete idempotent for stale admin lists', () => {

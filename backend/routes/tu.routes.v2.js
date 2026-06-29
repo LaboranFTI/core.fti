@@ -709,10 +709,11 @@ const createQrSvgDataUrl = async (value) => {
   const logoSize = Math.max(8, size * 0.25);
   const logoPadding = Math.max(1.25, size * 0.045);
   const logoFrameSize = logoSize + logoPadding * 2;
-  const logoFrameX = (size - logoFrameSize) / 2;
+  const logoFrameCenter = size / 2;
+  const logoFrameRadius = logoFrameSize / 2;
   const logoX = (size - logoSize) / 2;
   const logoMarkup = logoDataUrl
-    ? `<rect x="${logoFrameX}" y="${logoFrameX}" width="${logoFrameSize}" height="${logoFrameSize}" rx="${logoPadding}" fill="#fff"/><image href="${logoDataUrl}" x="${logoX}" y="${logoX}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>`
+    ? `<circle cx="${logoFrameCenter}" cy="${logoFrameCenter}" r="${logoFrameRadius}" fill="#fff" shape-rendering="geometricPrecision"/><image href="${logoDataUrl}" x="${logoX}" y="${logoX}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>`
     : '';
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${size}v${size}H0z"/><g fill="#000">${rects.join('')}</g>${logoMarkup}</svg>`;
@@ -930,6 +931,30 @@ const getStudyProgramByNim = async (nim, queryable = pool) => {
   );
 
   return mapStudyProgramRow(result.rows[0]);
+};
+
+const getRecommendationSigner = async () => {
+  let name = 'Nama Wakil Dekan Belum Diatur';
+  let title = 'Wakil Dekan';
+
+  try {
+    const result = await pool.query(`
+      SELECT nama, jabatan
+      FROM lecturer
+      WHERE jabatan ILIKE 'Wakil Dekan%'
+      ORDER BY nama ASC
+      LIMIT 1
+    `);
+
+    if (result.rows.length > 0) {
+      name = result.rows[0].nama;
+      title = result.rows[0].jabatan;
+    }
+  } catch (e) {
+    console.error('Failed to fetch recommendation signer data:', e);
+  }
+
+  return { name, title };
 };
 
 const formatLetterNumber = (type, sequence, date) => {
@@ -1272,24 +1297,7 @@ const letterConfig = {
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
     `,
     getPlaceholders: async ({ data, letterNumber, semesterMeta }) => {
-      let dekanNama = 'Nama Dekan Belum Diatur';
-      let dekanJabatan = 'Wakil Dekan';
-
-      try {
-        const deanResult = await pool.query(`
-          SELECT nama, jabatan
-          FROM lecturer
-          WHERE jabatan ILIKE 'Dekan%' OR jabatan ILIKE 'Wakil Dekan%'
-          ORDER BY CASE WHEN jabatan ILIKE 'Wakil Dekan%' THEN 0 ELSE 1 END, nama ASC
-          LIMIT 1
-        `);
-        if (deanResult.rows.length > 0) {
-          dekanNama = deanResult.rows[0].nama;
-          dekanJabatan = deanResult.rows[0].jabatan;
-        }
-      } catch (e) {
-        console.error('Failed to fetch Dean data:', e);
-      }
+      const recommendationSigner = await getRecommendationSigner();
 
       const studyProgram = await getStudyProgramByNim(data.nim);
       const programLevel = studyProgram?.studyProgramLevel || 'Sarjana';
@@ -1313,8 +1321,8 @@ const letterConfig = {
         '{{name}}': (data.name || '').toUpperCase(),
         '{{nim}}': (data.nim || '').toUpperCase(),
         '{{programStudi}}': formattedProdi,
-        '{{dekanNama}}': dekanNama,
-        '{{dekanTitle}}': dekanJabatan,
+        '{{dekanNama}}': recommendationSigner.name,
+        '{{dekanTitle}}': recommendationSigner.title,
         '{{tanggalSurat}}': tanggalSurat,
         '{{tahunAkademikDashed}}': academicYearDashed
       };
@@ -1962,7 +1970,7 @@ router.post('/su-rek-requests', verifyRole(TU_SUBMIT_ROLES), async (req, res) =>
         berdasarkan_no: settingsPayload.suRekBerdasarkanNo,
         perihal: settingsPayload.suRekPerihal,
         lampiran: settingsPayload.suRekLampiran,
-        carbon_copies: [{ role: 'Direktur penjaringan Beasiswa dan CSR', name: '' }]
+        carbon_copies: Array.isArray(settingsPayload.suRekTembusan) ? settingsPayload.suRekTembusan : []
       }, 'pending');
 
       let accessEmail = { sent: false, error: null, previewUrl: null };
@@ -3086,25 +3094,7 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
       const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
       const letterPayload = buildLetterValidationPayload('su-rek', suRekResult.rows[0], req);
 
-      let deanName = 'Nama Dekan Belum Diatur';
-      let deanTitle = 'Dekan';
-      try {
-        const deanResult = await pool.query(`
-          SELECT nama, jabatan
-          FROM lecturer
-          WHERE jabatan ILIKE 'Dekan%' OR jabatan ILIKE 'Wakil Dekan%'
-          ORDER BY CASE WHEN jabatan ILIKE 'Dekan%' THEN 0 ELSE 1 END, nama ASC
-          LIMIT 1
-        `);
-        if (deanResult.rows.length > 0) {
-          deanName = deanResult.rows[0].nama;
-          deanTitle = deanResult.rows[0].jabatan;
-        }
-      } catch (e) {
-        console.error('Failed to fetch Dean data:', e);
-      }
-
-      letterPayload.signer = { name: deanName, title: deanTitle };
+      letterPayload.signer = await getRecommendationSigner();
       const html = await buildLetterHtml('su-rek', suRekResult.rows[0], req);
       return res.json({
         success: true,
@@ -3124,7 +3114,7 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
   }
 });
 
-router.get('/tu/public/letter-validation/:token/download', async (req, res) => {
+router.get('/tu/public/letter-validation/:token/download', publicValidationLimiter, async (req, res) => {
   const token = String(req.params.token || '').trim();
   if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {
     return res.status(400).json({ error: 'Token validasi tidak valid.' });
@@ -3341,6 +3331,10 @@ router.get('/tu/requests/:type/:id/download', verifyRole(TU_ACCESS_ROLES), async
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
     }
+    if (!['verified', 'sent'].includes(result.rows[0].status)) {
+      return res.status(403).json({ error: 'Surat belum berstatus resmi.' });
+    }
+
     const requestData = await ensureLetterValidationToken(pool, type, result.rows[0]);
     const pdfBuffer = await buildLetterPdfBuffer(type, requestData, req);
 

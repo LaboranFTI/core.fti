@@ -6,6 +6,7 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { FileText, Send, CheckCircle2, Loader2, Search, XCircle, Download, Printer, Mail, Key } from 'lucide-react';
 import { api } from '../../services/api';
+import { API_BASE_URL } from '../../config';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 
 interface SuRekFormValues {
@@ -178,7 +179,8 @@ export function SuRekForm() {
 
   const handlePrintLetter = () => {
     if (!accessSearchResult || !accessSearchResult.validationToken) return;
-    const printWindow = window.open(`/api/tu/public/letter-validation/${accessSearchResult.validationToken}/preview-html`, '_blank');
+    const previewUrl = `${API_BASE_URL}/api/tu/public/letter-validation/${accessSearchResult.validationToken}/preview-html`;
+    const printWindow = window.open(previewUrl, '_blank');
     if (printWindow) {
       printWindow.onload = () => {
         printWindow.print();

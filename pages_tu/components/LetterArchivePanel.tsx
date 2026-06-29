@@ -48,7 +48,8 @@ import {
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' }
+  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
+  suRek: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
@@ -858,11 +859,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     <ShieldCheck className="mr-2 h-4 w-4" /> Verifikasi Surat
                   </Button>
                 )}
-                <Button variant="outline" onClick={handlePrint} className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800">
+                <Button variant="outline" onClick={handlePrint} disabled={!canSendEmail || isProcessing} className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800">
                   <Printer className="mr-2 h-4 w-4" /> Cetak Ulang
                 </Button>
-                <Button variant="outline" onClick={handleDownloadPdf} disabled={isProcessing} className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800">
-                  <Download className="mr-2 h-4 w-4" /> Download PDF
+                <Button variant="outline" onClick={handleDownloadPdf} disabled={!canSendEmail || isProcessing} className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800">
+                  <Download className="mr-2 h-4 w-4" /> {canSendEmail ? 'Download PDF' : 'PDF Belum Tersedia'}
                 </Button>
                 <Button
                   onClick={() => handleSendEmail(isObservation ? 'observation' : isSuRek ? 'su-rek' : 'active-student', item.id)}

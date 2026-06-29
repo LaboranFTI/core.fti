@@ -56,6 +56,8 @@ describe('TU letter public validation tokens', () => {
   it('embeds the FTI center logo in generated QR SVGs with high error correction', () => {
     assert.match(source, /QR_CENTER_LOGO_PATH\s*=\s*path\.join\(__dirname,\s*'\.\.',\s*'\.\.',\s*'src',\s*'assets',\s*'FTI_nobg\.svg'\)/);
     assert.match(source, /qrcode\(value,\s*\{\s*errorCorrectLevel:\s*qrcode\.ErrorCorrectLevel\.H\s*\}\)/);
+    assert.match(source, /<circle cx="\$\{logoFrameCenter\}" cy="\$\{logoFrameCenter\}" r="\$\{logoFrameRadius\}" fill="#fff" shape-rendering="geometricPrecision"\/>/);
+    assert.doesNotMatch(source, /<rect x="\$\{logoFrameX\}" y="\$\{logoFrameX\}" width="\$\{logoFrameSize\}" height="\$\{logoFrameSize\}"/);
     assert.match(source, /<image href="\$\{logoDataUrl\}"/);
     assert.match(source, /const validationQrImage = await createQrSvgDataUrl\(validationUrl\)/);
   });

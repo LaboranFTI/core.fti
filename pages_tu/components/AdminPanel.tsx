@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ActiveStudentRequest, ObservationRequest, SuRekRequest, LetterAsset, TULetterBackgrounds, TULetterLayouts } from '../types';
+import { ActiveStudentRequest, ObservationRequest, SuRekRequest, LetterAsset, LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -35,21 +35,50 @@ const createEmptyLetterAsset = (): LetterAsset => ({
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   document: createEmptyLetterAsset(),
   activeStudent: createEmptyLetterAsset(),
-  observation: createEmptyLetterAsset()
+  observation: createEmptyLetterAsset(),
+  suRek: createEmptyLetterAsset()
 });
 
-const createEmptyLetterLayouts = (): TULetterLayouts => ({
+type LetterLayoutKey = 'activeStudent' | 'observation' | 'suRek';
+
+const DEFAULT_LETTER_LAYOUTS: Record<LetterLayoutKey, LetterLayout> = {
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
+};
+
+const PREVIEW_LETTER_TYPE_CODES: Record<Exclude<LetterLayoutKey, 'suRek'>, string> = {
+  activeStudent: 'S.Ket',
+  observation: 'FTI-OBS'
+};
+
+const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number, date = new Date()) => {
+  const paddedSequence = String(sequence).padStart(3, '0');
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+
+  if (key === 'suRek') {
+    return `${paddedSequence}/FTI/Su.Rek/${month}/${year}`;
+  }
+
+  return `${paddedSequence}/${PREVIEW_LETTER_TYPE_CODES[key]}/${String(month).padStart(2, '0')}/${year}`;
+};
+
+const getDefaultLetterLayout = (key: LetterLayoutKey): LetterLayout => ({
+  ...DEFAULT_LETTER_LAYOUTS[key]
+});
+
+const createEmptyLetterLayouts = (): TULetterLayouts => ({
+  activeStudent: getDefaultLetterLayout('activeStudent'),
+  observation: getDefaultLetterLayout('observation'),
+  suRek: getDefaultLetterLayout('suRek')
 });
 
 const normalizeLetterLayouts = (layouts?: Partial<TULetterLayouts>): TULetterLayouts => {
-  const empty = createEmptyLetterLayouts();
   return {
-    activeStudent: { ...empty.activeStudent, ...layouts?.activeStudent },
-    observation: { ...empty.observation, ...layouts?.observation },
-    suRek: { ...empty.suRek, ...layouts?.suRek }
+    activeStudent: { ...getDefaultLetterLayout('activeStudent'), ...layouts?.activeStudent },
+    observation: { ...getDefaultLetterLayout('observation'), ...layouts?.observation },
+    suRek: { ...getDefaultLetterLayout('suRek'), ...layouts?.suRek }
   };
 };
 
@@ -61,17 +90,20 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
       ? backgrounds.activeStudent
       : backgrounds?.observation?.imageBase64
         ? backgrounds.observation
-        : empty.document;
+        : backgrounds?.suRek?.imageBase64
+          ? backgrounds.suRek
+          : empty.document;
 
   return {
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
-    observation: { ...empty.observation, ...sharedBackground }
+    observation: { ...empty.observation, ...sharedBackground },
+    suRek: { ...empty.suRek, ...sharedBackground }
   };
 };
 
 const letterLayoutSections: Array<{
-  key: keyof TULetterLayouts;
+  key: LetterLayoutKey;
   title: string;
   description: string;
 }> = [
@@ -112,25 +144,38 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [batchDeleteTargets, setBatchDeleteTargets] = useState<any[]>([]);
   const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
   const [confirmText, setConfirmText] = useState('');
-  const [selectedLayoutConfigKey, setSelectedLayoutConfigKey] = useState<'activeStudent' | 'observation' | 'suRek'>('activeStudent');
+  const [selectedLayoutConfigKey, setSelectedLayoutConfigKey] = useState<LetterLayoutKey>('activeStudent');
 
-  const getDummyDataForPreview = (key: 'activeStudent' | 'observation' | 'suRek') => {
+  const getDummyDataForPreview = (key: LetterLayoutKey) => {
+    const previewDate = new Date();
+    const previewBaseUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+    const firmandez = {
+      name: 'Firmandez Febrian Afandy',
+      nim: '682022013',
+      email: '682022013@student.uksw.edu',
+      birthPlace: 'Salatiga',
+      birthDate: '2024-02-13',
+      birthPlaceAndDate: 'Salatiga, 13 Februari 2024',
+      studyProgramLevel: 'S1',
+      studyProgramName: 'Sistem Informasi'
+    };
+    const nauval = {
+      name: 'Nauval Caesaro Premana',
+      nim: '682021062',
+      email: '682021062@student.uksw.edu',
+      studyProgramLevel: 'S1',
+      studyProgramName: 'Sistem Informasi'
+    };
+
     if (key === 'activeStudent') {
       return {
-        name: 'Kenanya Nadine',
-        nim: '672021001',
-        email: '672021001@student.uksw.edu',
-        birthPlace: 'Salatiga',
-        birthDate: '2001-01-01',
-        birthPlaceAndDate: 'Salatiga, 1 Januari 2001',
-        studyProgramLevel: 'S1',
-        studyProgramName: 'Teknik Informatika',
+        ...firmandez,
         faculty: 'Teknologi Informasi',
         university: 'Universitas Kristen Satya Wacana',
-        letterNumber: '001/Dean/FTI/2026',
+        letterNumber: formatPreviewLetterNumber('activeStudent', 1, previewDate),
         validationToken: 'dummy-token-active',
-        validationUrl: 'https://example.com/validate/dummy-token-active',
-        letterDate: new Date().toISOString()
+        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-active`,
+        letterDate: previewDate.toISOString()
       };
     }
     if (key === 'observation') {
@@ -138,34 +183,32 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         recipientName: 'Manajer SDM',
         companyName: 'PT Teknologi Maju',
         companyAddress: 'Jl. Jenderal Sudirman No. 123, Jakarta',
-        courseName: 'Rekayasa Perangkat Lunak',
+        courseName: 'Analisis dan Perancangan Sistem Informasi',
         lecturerName: 'Dr. Jane Smith',
         headOfProgramName: 'Dr. Albert Wesker',
-        studyProgramName: 'Teknik Informatika',
+        studyProgramName: 'Sistem Informasi',
         studyProgramLevel: 'S1',
         students: [
-          { name: 'Kenanya Nadine', nim: '672021001' },
-          { name: 'Alice Smith', nim: '672021002' }
+          { name: firmandez.name, nim: firmandez.nim },
+          { name: nauval.name, nim: nauval.nim }
         ],
-        letterNumber: '002/Dean/FTI/2026',
+        letterNumber: formatPreviewLetterNumber('observation', 2, previewDate),
         validationToken: 'dummy-token-obs',
-        validationUrl: 'https://example.com/validate/dummy-token-obs',
-        letterDate: new Date().toISOString()
+        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-obs`,
+        letterDate: previewDate.toISOString()
       };
     }
     return {
-      name: 'Kenanya Nadine',
-      nim: '672021001',
-      email: '672021001@student.uksw.edu',
+      ...firmandez,
       recipientName: tempSuRekYangTerhormat || 'Panitia Seleksi Beasiswa Afirmasi',
       berdasarkanNo: tempSuRekBerdasarkanNo || '008/WR-KK/02/2026',
       perihal: tempSuRekPerihal || 'Rekomendasi Pendaftaran Beasiswa Afirmasi Cemerlang',
       lampiran: tempSuRekLampiran || '-',
       carbonCopies: tempSuRekTembusan.length > 0 ? [...tempSuRekTembusan] : [],
-      letterNumber: '003/Dean/FTI/2026',
+      letterNumber: formatPreviewLetterNumber('suRek', 3, previewDate),
       validationToken: 'dummy-token-rek',
-      validationUrl: 'https://example.com/validate/dummy-token-rek',
-      letterDate: new Date().toISOString()
+      validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-rek`,
+      letterDate: previewDate.toISOString()
     };
   };
 
@@ -323,7 +366,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       nextValidationToken !== selectedRequest.validationToken;
 
     if (needsSync) {
-      setSelectedRequest((prev) => prev && prev.id === latestRequest.id
+      setSelectedRequest((prev: any | null) => prev && prev.id === latestRequest.id
         ? { ...prev, ...latestRequest, validationToken: nextValidationToken }
         : prev
       );
@@ -354,11 +397,11 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.validationToken || isCancelled) return;
 
-        setSelectedRequest((prev) => prev && prev.id === selectedRequest.id
+        setSelectedRequest((prev: any | null) => prev && prev.id === selectedRequest.id
           ? { ...prev, validationToken: json.validationToken, letterNumber: json.letterNumber || prev.letterNumber }
           : prev
         );
-        setRequests((prev) => prev.map((request) => request.id === selectedRequest.id
+        setRequests((prev: any[]) => prev.map((request) => request.id === selectedRequest.id
           ? { ...request, validationToken: json.validationToken, letterNumber: json.letterNumber || request.letterNumber }
           : request
         ));
@@ -393,22 +436,24 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         ...prev,
         document: nextAsset,
         activeStudent: nextAsset,
-        observation: nextAsset
+        observation: nextAsset,
+        suRek: nextAsset
       }));
     };
     reader.readAsDataURL(file);
   };
 
   const handleLetterLayoutChange = (
-    letterKey: keyof TULetterLayouts,
-    field: keyof TULetterLayouts['activeStudent'],
+    letterKey: LetterLayoutKey,
+    field: keyof LetterLayout,
     value: string
   ) => {
     const sanitized = value === '' ? '' : value.replace(',', '.');
-    setTempLetterLayouts((prev) => ({
+    setTempLetterLayouts((prev: TULetterLayouts) => ({
       ...prev,
       [letterKey]: {
-        ...prev[letterKey],
+        ...getDefaultLetterLayout(letterKey),
+        ...(prev[letterKey] || {}),
         [field]: sanitized === '' ? 0 : Number(sanitized)
       }
     }));
@@ -445,7 +490,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       if (res.ok) {
         const nextLetterNumber = json?.letterNumber || selectedRequest?.letterNumber || '';
         const nextValidationToken = json?.validationToken || selectedRequest?.validationToken || '';
-        setRequests((prev) => prev.map((request) => request.id === reqId
+        setRequests((prev: any[]) => prev.map((request) => request.id === reqId
           ? {
               ...request,
               status: 'verified',
@@ -455,7 +500,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
           : request
         ));
         if (selectedRequest?.id === reqId) {
-          setSelectedRequest(prev => prev ? {
+          setSelectedRequest((prev: any | null) => prev ? {
             ...prev,
             status: 'verified',
             letterNumber: nextLetterNumber || prev.letterNumber,
@@ -521,7 +566,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       if (res.ok) {
         await fetchRequests();
         if (selectedRequest?.id === reqId) {
-          setSelectedRequest(prev => prev ? { ...prev, status: 'sent' } : null);
+          setSelectedRequest((prev: any | null) => prev ? { ...prev, status: 'sent' } : null);
         }
         const requestEmail =
           selectedRequest?.id === reqId
@@ -1015,6 +1060,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     );
   }
 
+  const selectedLayoutConfig = tempLetterLayouts[selectedLayoutConfigKey] || getDefaultLetterLayout(selectedLayoutConfigKey);
+  const selectedPreviewData = getDummyDataForPreview(selectedLayoutConfigKey);
+
   return (
     <div className="flex flex-col gap-6 print:hidden">
       {/* Tab Switcher if mode === 'all' */}
@@ -1119,148 +1167,6 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
             <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-2">
               <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
                 <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Konfigurasi Surat Rekomendasi
-                </CardTitle>
-                <CardDescription className="dark:text-gray-400">
-                  Ubah parameter default konten untuk Surat Rekomendasi Afirmasi Cemerlang.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="suRekYangTerhormat" className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Yang Terhormat (Penerima)
-                    </Label>
-                    <Textarea
-                      id="suRekYangTerhormat"
-                      value={tempSuRekYangTerhormat}
-                      onChange={(e) => setTempSuRekYangTerhormat(e.target.value)}
-                      placeholder="Contoh: Wakil Rektor Bidang Kerjasama dan Kealumnian..."
-                      className="bg-white dark:bg-gray-800 min-h-[96px]"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Target penerima rekomendasi. Gunakan baris baru untuk memisahkan baris pada surat.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="suRekBerdasarkanNo" className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Berdasarkan Surat No
-                    </Label>
-                    <Input
-                      id="suRekBerdasarkanNo"
-                      value={tempSuRekBerdasarkanNo}
-                      onChange={(e) => setTempSuRekBerdasarkanNo(e.target.value)}
-                      placeholder="Contoh: 008/WR-KK/02/2025"
-                      className="bg-white dark:bg-gray-800"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Nomor surat rujukan dasar pemberian rekomendasi.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="suRekLampiran" className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Lampiran
-                    </Label>
-                    <Input
-                      id="suRekLampiran"
-                      value={tempSuRekLampiran}
-                      onChange={(e) => setTempSuRekLampiran(e.target.value)}
-                      placeholder="Contoh: 1 bendel atau -"
-                      className="bg-white dark:bg-gray-800"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Keterangan lampiran berkas pada surat.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="suRekPerihal" className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Hal / Perihal
-                    </Label>
-                    <Input
-                      id="suRekPerihal"
-                      value={tempSuRekPerihal}
-                      onChange={(e) => setTempSuRekPerihal(e.target.value)}
-                      placeholder="Contoh: Beasiswa Afirmasi Cemerlang..."
-                      className="bg-white dark:bg-gray-800"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Perihal yang tertera di surat rekomendasi.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 md:col-span-2 border-t border-slate-200 dark:border-gray-600 pt-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                        Tembusan Default (Opsional)
-                      </Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setTempSuRekTembusan([...tempSuRekTembusan, { role: '', name: '' }])}
-                      >
-                        <Plus className="w-4 h-4 mr-1" /> Tambah Tembusan
-                      </Button>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Daftar tembusan yang akan otomatis terisi pada setiap surat rekomendasi baru.
-                    </p>
-                    {tempSuRekTembusan.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic">Belum ada tembusan default.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {tempSuRekTembusan.map((cc, i) => (
-                          <div key={i} className="flex gap-2 items-center">
-                            <Input
-                              placeholder="Jabatan (contoh: Dekan FTI UKSW)"
-                              className="flex-1 bg-white dark:bg-gray-800"
-                              value={cc.role || ''}
-                              onChange={(e) => {
-                                const newCc = [...tempSuRekTembusan];
-                                newCc[i] = { ...newCc[i], role: e.target.value };
-                                setTempSuRekTembusan(newCc);
-                              }}
-                            />
-                            <Input
-                              placeholder="Nama (Opsional)"
-                              className="flex-1 bg-white dark:bg-gray-800"
-                              value={cc.name || ''}
-                              onChange={(e) => {
-                                const newCc = [...tempSuRekTembusan];
-                                newCc[i] = { ...newCc[i], name: e.target.value };
-                                setTempSuRekTembusan(newCc);
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0 border-red-200 text-red-500 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/30"
-                              onClick={() => {
-                                const newCc = [...tempSuRekTembusan];
-                                newCc.splice(i, 1);
-                                setTempSuRekTembusan(newCc);
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-3">
-              <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-                <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
                   <Settings className="w-5 h-5" />
                   Background Surat
                 </CardTitle>
@@ -1268,11 +1174,11 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                   Upload satu PNG ukuran A4 sebagai background bersama untuk semua format surat TU.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Background Utama</p>
-                    <div className="flex h-72 items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-100 p-2 dark:bg-gray-900/50">
+                    <div className="flex h-64 items-center justify-center overflow-hidden rounded-xl border border-dashed bg-slate-100 p-2 dark:bg-gray-900/50">
                       {tempLetterBackgrounds.document.imageBase64 ? (
                         <img
                           src={tempLetterBackgrounds.document.imageBase64}
@@ -1302,10 +1208,23 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                     Saat format surat bertambah, admin cukup menyesuaikan template dan margin area tulisan tanpa mengupload ulang background yang sama.
                   </div>
                 </div>
+              </CardContent>
+            </Card>
 
-                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-                  <div className="mb-4">
-                    <h3 className="text-base font-bold text-slate-800 dark:text-white">Pengaturan & Pratinjau Margin Surat</h3>
+            <Card className="shadow-sm border-slate-200 dark:border-gray-700 xl:col-span-3">
+              <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <CardTitle className="text-xl text-slate-800 dark:text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Pengaturan & Pratinjau Margin Surat
+                </CardTitle>
+                <CardDescription className="dark:text-gray-400">
+                  Atur batas area tulisan, konten rekomendasi, dan tembusan sambil melihat preview surat.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800 dark:text-white">Pilih jenis surat</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Pilih jenis surat di bawah untuk menyesuaikan batas margin tulisan secara langsung dengan preview visual.</p>
                   </div>
 
@@ -1343,6 +1262,71 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                         </p>
                       </div>
 
+                      {selectedLayoutConfigKey === 'suRek' && (
+                        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Konten Surat Rekomendasi</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                              Nilai default ini dipakai pada pengajuan rekomendasi baru dan langsung terlihat di preview.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="suRekYangTerhormat" className="text-xs text-slate-500 dark:text-slate-400">
+                              Yang Terhormat (Penerima)
+                            </Label>
+                            <Textarea
+                              id="suRekYangTerhormat"
+                              value={tempSuRekYangTerhormat}
+                              onChange={(e) => setTempSuRekYangTerhormat(e.target.value)}
+                              placeholder="Contoh: Wakil Rektor Bidang Kerjasama dan Kealumnian..."
+                              className="min-h-24 bg-white text-sm dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="suRekBerdasarkanNo" className="text-xs text-slate-500 dark:text-slate-400">
+                              Berdasarkan Surat No
+                            </Label>
+                            <Input
+                              id="suRekBerdasarkanNo"
+                              value={tempSuRekBerdasarkanNo}
+                              onChange={(e) => setTempSuRekBerdasarkanNo(e.target.value)}
+                              placeholder="Contoh: 008/WR-KK/02/2025"
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="suRekLampiran" className="text-xs text-slate-500 dark:text-slate-400">
+                                Lampiran
+                              </Label>
+                              <Input
+                                id="suRekLampiran"
+                                value={tempSuRekLampiran}
+                                onChange={(e) => setTempSuRekLampiran(e.target.value)}
+                                placeholder="Contoh: 1 bendel atau -"
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="suRekPerihal" className="text-xs text-slate-500 dark:text-slate-400">
+                                Hal / Perihal
+                              </Label>
+                              <Input
+                                id="suRekPerihal"
+                                value={tempSuRekPerihal}
+                                onChange={(e) => setTempSuRekPerihal(e.target.value)}
+                                placeholder="Contoh: Beasiswa Afirmasi Cemerlang..."
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Margin Area Tulisan (mm)</p>
                         
@@ -1354,7 +1338,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                               min="0"
                               max="80"
                               step="0.5"
-                              value={tempLetterLayouts[selectedLayoutConfigKey].marginTopMm}
+                              value={selectedLayoutConfig.marginTopMm}
                               onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginTopMm', e.target.value)}
                               className="bg-white dark:bg-gray-800"
                             />
@@ -1366,7 +1350,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                               min="0"
                               max="80"
                               step="0.5"
-                              value={tempLetterLayouts[selectedLayoutConfigKey].marginRightMm}
+                              value={selectedLayoutConfig.marginRightMm}
                               onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginRightMm', e.target.value)}
                               className="bg-white dark:bg-gray-800"
                             />
@@ -1378,7 +1362,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                               min="0"
                               max="80"
                               step="0.5"
-                              value={tempLetterLayouts[selectedLayoutConfigKey].marginBottomMm}
+                              value={selectedLayoutConfig.marginBottomMm}
                               onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginBottomMm', e.target.value)}
                               className="bg-white dark:bg-gray-800"
                             />
@@ -1390,13 +1374,83 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                               min="0"
                               max="80"
                               step="0.5"
-                              value={tempLetterLayouts[selectedLayoutConfigKey].marginLeftMm}
+                              value={selectedLayoutConfig.marginLeftMm}
                               onChange={(e) => handleLetterLayoutChange(selectedLayoutConfigKey, 'marginLeftMm', e.target.value)}
                               className="bg-white dark:bg-gray-800"
                             />
                           </div>
                         </div>
                       </div>
+
+                      {selectedLayoutConfigKey === 'suRek' && (
+                        <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Tembusan Default</p>
+                              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                Tembusan ini otomatis masuk ke pengajuan rekomendasi baru dan tampil di preview.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              className="h-8 shrink-0 px-2 text-xs"
+                              onClick={() => setTempSuRekTembusan([...tempSuRekTembusan, { role: '', name: '' }])}
+                            >
+                              <Plus className="mr-1 h-3.5 w-3.5" /> Tambah
+                            </Button>
+                          </div>
+
+                          {tempSuRekTembusan.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                              Belum ada tembusan default.
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {tempSuRekTembusan.map((cc, i) => (
+                                <div key={i} className="grid grid-cols-[1fr_auto] gap-2">
+                                  <div className="grid grid-cols-1 gap-2">
+                                    <Input
+                                      placeholder="Jabatan tembusan"
+                                      className="h-9 bg-white text-xs dark:bg-gray-800"
+                                      value={cc.role || ''}
+                                      onChange={(e) => {
+                                        const newCc = [...tempSuRekTembusan];
+                                        newCc[i] = { ...newCc[i], role: e.target.value };
+                                        setTempSuRekTembusan(newCc);
+                                      }}
+                                    />
+                                    <Input
+                                      placeholder="Nama (opsional)"
+                                      className="h-9 bg-white text-xs dark:bg-gray-800"
+                                      value={cc.name || ''}
+                                      onChange={(e) => {
+                                        const newCc = [...tempSuRekTembusan];
+                                        newCc[i] = { ...newCc[i], name: e.target.value };
+                                        setTempSuRekTembusan(newCc);
+                                      }}
+                                    />
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0 border-red-200 text-red-500 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/30"
+                                    onClick={() => {
+                                      const newCc = [...tempSuRekTembusan];
+                                      newCc.splice(i, 1);
+                                      setTempSuRekTembusan(newCc);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <div className="text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-3">
                         * Nilai margin dinyatakan dalam milimeter (mm), menyesuaikan area kosong pada kop surat background.
@@ -1413,13 +1467,17 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                       <div className="w-full overflow-auto bg-slate-200/50 dark:bg-gray-900/50 rounded-xl p-4 flex justify-center items-start border border-slate-100 dark:border-slate-800 min-h-[450px]">
                         <div 
                           className="scale-[0.5] sm:scale-[0.6] md:scale-[0.7] lg:scale-[0.65] xl:scale-[0.75] origin-top my-4"
-                          key={`${selectedLayoutConfigKey}-${tempLetterLayouts[selectedLayoutConfigKey].marginTopMm}-${tempLetterLayouts[selectedLayoutConfigKey].marginRightMm}-${tempLetterLayouts[selectedLayoutConfigKey].marginBottomMm}-${tempLetterLayouts[selectedLayoutConfigKey].marginLeftMm}-${tempLetterBackgrounds.document.imageBase64 ? 'has-bg' : 'no-bg'}`}
+                          key={`${selectedLayoutConfigKey}-${selectedLayoutConfig.marginTopMm}-${selectedLayoutConfig.marginRightMm}-${selectedLayoutConfig.marginBottomMm}-${selectedLayoutConfig.marginLeftMm}-${tempLetterBackgrounds.document.imageBase64 ? 'has-bg' : 'no-bg'}`}
                         >
                           <LetterPreview
                             type={selectedLayoutConfigKey === 'activeStudent' ? 'active-student' : selectedLayoutConfigKey === 'observation' ? 'observation' : 'su-rek'}
-                            data={getDummyDataForPreview(selectedLayoutConfigKey)}
+                            data={selectedPreviewData}
                             backgroundImageBase64={tempLetterBackgrounds.document.imageBase64}
-                            layout={tempLetterLayouts[selectedLayoutConfigKey]}
+                            layout={selectedLayoutConfig}
+                            letterNumber={selectedPreviewData.letterNumber}
+                            validationToken={selectedPreviewData.validationToken}
+                            validationUrl={selectedPreviewData.validationUrl}
+                            letterDate={selectedPreviewData.letterDate}
                             showLayoutGuide={true}
                           />
                         </div>
