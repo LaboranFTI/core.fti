@@ -647,7 +647,10 @@ const formatPublicDate = (value) => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
+  // PostgreSQL TIMESTAMP (without timezone) stores WIB local time as-is.
+  // node-pg interprets it as UTC, so toISOString() labels it 'Z' incorrectly.
+  // We re-label it as +07:00 (WIB) so the frontend displays the correct local time.
+  return date.toISOString().replace('Z', '+07:00');
 };
 
 const buildPublicValidationUrl = (req, token) => {
@@ -1402,8 +1405,8 @@ const buildLetterHtml = async (type, requestData, req) => {
   const letterGeneratedAt = requestData.letter_generated_at || requestData.letterGeneratedAt;
 
   const tanggalSurat = letterGeneratedAt
-    ? new Date(letterGeneratedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-    : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    ? new Date(letterGeneratedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' })
+    : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
   const validationUrl = buildPublicValidationUrl(req, validationToken);
   const validationQrImage = await createQrSvgDataUrl(validationUrl);
 

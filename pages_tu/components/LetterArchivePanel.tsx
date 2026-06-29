@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { format } from 'date-fns';
-import { id as localeId } from 'date-fns/locale';
+// date-fns format/locale no longer needed – using Intl.DateTimeFormat with explicit timezone
 import { ActiveStudentRequest, ObservationRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
@@ -104,7 +103,14 @@ function formatArchiveDate(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
 
-  return format(date, 'dd MMM yyyy HH:mm', { locale: localeId });
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta'
+  }).format(date);
 }
 
 function ArchiveMetricCard({
