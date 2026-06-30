@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { FileText, Send, CheckCircle2, Loader2, Search, XCircle, Download, Printer, Mail, Key } from 'lucide-react';
+import { FileText, Send, CheckCircle2, Loader2, Search, XCircle, Download, Printer, Mail, Key, Plus } from 'lucide-react';
 import { api } from '../../services/api';
 import { API_BASE_URL } from '../../config';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 
 interface SuRekFormValues {
   name: string;
@@ -15,8 +14,13 @@ interface SuRekFormValues {
   email: string;
 }
 
+const buildStudentEmail = (identifier?: string) => {
+  const cleanIdentifier = String(identifier || '').trim();
+  return cleanIdentifier ? `${cleanIdentifier}@student.uksw.edu` : '';
+};
+
 export function SuRekForm() {
-  const { register, handleSubmit, reset } = useForm<SuRekFormValues>({
+  const { register, handleSubmit, reset, watch, setValue } = useForm<SuRekFormValues>({
     defaultValues: {
       name: '',
       nim: '',
@@ -26,7 +30,9 @@ export function SuRekForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [activeFormTab, setActiveFormTab] = useState<string>('request');
+  const [activeFormTab, setActiveFormTab] = useState<'request' | 'track'>('request');
+  const identifierValue = watch('nim');
+  const [useStudentEmail, setUseStudentEmail] = useState(false);
   const [createdRequest, setCreatedRequest] = useState<{
     id: string;
     accessCode: string;
@@ -48,8 +54,15 @@ export function SuRekForm() {
 
   const resetFormState = () => {
     reset({ name: '', nim: '', email: '' });
+    setUseStudentEmail(false);
     setFormFeedback(null);
   };
+
+  useEffect(() => {
+    if (useStudentEmail) {
+      setValue('email', buildStudentEmail(identifierValue), { shouldDirty: true, shouldValidate: true });
+    }
+  }, [useStudentEmail, identifierValue, setValue]);
 
   const onSubmit = async (data: SuRekFormValues) => {
     setIsSubmitting(true);
@@ -261,36 +274,55 @@ export function SuRekForm() {
 
   return (
     <div className="mx-auto w-full max-w-2xl print:hidden">
-      <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="w-full flex flex-col gap-6">
-        <div className="flex justify-center">
-          <TabsList className="grid w-full max-w-md grid-cols-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-            <TabsTrigger value="request" className="flex items-center justify-center gap-2">
-              <FileText className="w-4 h-4" />
-              Pengajuan Baru
-            </TabsTrigger>
-            <TabsTrigger value="track" className="flex items-center justify-center gap-2">
-              <Key className="w-4 h-4" />
-              Lacak & Unduh
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
+        <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
+          <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">
+            {activeFormTab === 'request' ? 'Buat Surat Rekomendasi Baru' : 'Buka Surat Rekomendasi Lama'}
+          </CardTitle>
+          <CardDescription className="text-slate-500 dark:text-gray-400">
+            {activeFormTab === 'request'
+              ? 'Lengkapi data permohonan baru. Kode akses akan dikirim ke email aktif.'
+              : 'Masukkan kode akses untuk mengecek status, mengunduh PDF, atau mencetak surat.'}
+          </CardDescription>
 
-        <TabsContent value="request">
-          {/* Form Pendaftaran Surat */}
-          <Card className="shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
-            <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">Surat Rekomendasi Afirmasi</CardTitle>
-                  <CardDescription className="text-slate-500 dark:text-gray-400">Ajukan surat rekomendasi afirmasi cemerlang dengan mengisi nama, nomor formulir/NIM, dan email aktif.</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-900/50">
+            <button
+              type="button"
+              onClick={() => setActiveFormTab('request')}
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                activeFormTab === 'request'
+                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Plus className="h-4 w-4" />
+              Buat Surat Baru
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveFormTab('track')}
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                activeFormTab === 'track'
+                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Buka Surat Lama
+            </button>
+          </div>
+        </CardHeader>
 
-            <CardContent className="p-6">
+        <CardContent className="p-0">
+          <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+            <div className="px-6 py-4 bg-blue-50/80 text-sm text-blue-700 dark:bg-blue-950/20 dark:text-blue-300">
+              {activeFormTab === 'request'
+                ? 'Surat rekomendasi afirmasi ini diajukan dengan data mahasiswa dan email aktif. Data akan masuk ke arsip, lalu TU memverifikasi sebelum surat bisa diunduh.'
+                : 'Gunakan kode akses yang dikirim ke email atau tampil setelah pengajuan. Surat lama bisa dicek dan diunduh setelah diverifikasi TU.'}
+            </div>
+
+            {activeFormTab === 'request' ? (
+              <div className="p-6">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {formFeedback && (
                   <div className={`rounded-xl border px-4 py-3 text-sm ${formFeedback.type === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
@@ -320,12 +352,35 @@ export function SuRekForm() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">Email Aktif</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">Email Aktif</Label>
+                    <label htmlFor="su-rek-email-student" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                      <input
+                        id="su-rek-email-student"
+                        type="checkbox"
+                        checked={useStudentEmail}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setUseStudentEmail(checked);
+                          setValue('email', checked ? buildStudentEmail(identifierValue) : '', {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                            shouldValidate: true
+                          });
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500"
+                      />
+                      Email student?
+                    </label>
+                  </div>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="contoh: nama@student.uksw.edu"
+                    placeholder={useStudentEmail ? "682022013@student.uksw.edu" : "contoh: nama@student.uksw.edu"}
+                    readOnly={useStudentEmail}
+                    className={useStudentEmail ? "bg-slate-50 dark:bg-slate-900/50" : undefined}
                     {...register("email", { required: true })}
+                    required
                   />
                   <p className="text-xs text-slate-400">
                     Kode akses permohonan akan dikirim ke email ini.
@@ -346,20 +401,13 @@ export function SuRekForm() {
                   )}
                 </Button>
               </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="track">
-          {/* Card Lacak/Akses Surat */}
-          <Card className="shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
-            <CardHeader className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-              <CardTitle className="text-base text-slate-800 dark:text-white font-bold flex items-center gap-2">
-                <Key className="w-4 h-4 text-blue-500" />
-                Lacak & Unduh Surat Rekomendasi
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-4">
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+              <div className="flex items-center gap-2 text-slate-800 dark:text-white">
+                <Key className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-semibold text-lg">Buka Surat Lama dengan Kode</h3>
+              </div>
               <form onSubmit={handleLookupAccessCode} className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
@@ -427,10 +475,11 @@ export function SuRekForm() {
                   )}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -11,10 +11,12 @@ export const apiLimiter = rateLimit({
   message: { error: 'Terlalu banyak request, silakan coba lagi setelah 15 menit.' }
 });
 
+const normalizeRole = (role) => String(role || '').trim().replace(/\s+/g, ' ').toUpperCase();
+
 // --- 5. Role-Based Access Control (RBAC) Middleware ---
 export const verifyRole = (allowedRoles) => (req, res, next) => {
-  const currentRole = req.user?.role?.toString().toUpperCase();
-  const hasAccess = !!currentRole && allowedRoles.some(role => role.toString().toUpperCase() === currentRole);
+  const currentRole = normalizeRole(req.user?.role);
+  const hasAccess = !!currentRole && allowedRoles.some(role => normalizeRole(role) === currentRole);
 
   if (!req.user || !hasAccess) {
     return res.status(403).json({ error: 'Akses ditolak. Anda tidak memiliki izin yang cukup.' });
@@ -28,7 +30,7 @@ export const requireCalendarWriteRole = (req, res, next) => {
   }
 
   const allowedRoles = ['ADMIN', 'LABORAN', 'SUPERVISOR'];
-  const userRole = req.user.role ? req.user.role.toUpperCase() : '';
+  const userRole = normalizeRole(req.user.role);
 
   if (!allowedRoles.includes(userRole)) {
     return res.status(403).json({ error: 'Akses ditolak. Anda tidak memiliki izin untuk mengedit Calendar.' });

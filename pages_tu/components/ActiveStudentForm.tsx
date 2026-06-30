@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Eraser, GraduationCap, Send, CheckCircle2, Loader2, Search, XCircle, Plus, Trash2 } from 'lucide-react';
+import { GraduationCap, Send, CheckCircle2, Loader2, Search, X, XCircle, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import {
@@ -52,6 +52,11 @@ const defaultFormValues: ActiveStudentFormValues = {
   carbonCopies: []
 };
 
+const buildStudentEmail = (identifier?: string) => {
+  const cleanIdentifier = String(identifier || '').trim();
+  return cleanIdentifier ? `${cleanIdentifier}@student.uksw.edu` : '';
+};
+
 export function ActiveStudentForm() {
   const { register, handleSubmit, watch, reset, setValue, control } = useForm<ActiveStudentFormValues>({
     defaultValues: {
@@ -66,6 +71,7 @@ export function ActiveStudentForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const nimValue = watch('nim');
+  const [useStudentEmail, setUseStudentEmail] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [verifyError, setVerifyError] = useState('');
@@ -88,6 +94,7 @@ export function ActiveStudentForm() {
       ...defaultFormValues,
       carbonCopies: getInitialActiveStudentCc()
     });
+    setUseStudentEmail(false);
     resetVerifiedFields();
     setIsVerified(false);
     setVerifyError('');
@@ -96,6 +103,8 @@ export function ActiveStudentForm() {
 
   const handleClearNim = () => {
     setValue('nim', '', { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    setUseStudentEmail(false);
+    setValue('email', '', { shouldDirty: true, shouldTouch: true, shouldValidate: true });
     resetVerifiedFields();
     setIsVerified(false);
     setVerifyError('');
@@ -107,6 +116,12 @@ export function ActiveStudentForm() {
       setVerifyError('');
     }
   }, [nimValue, isVerified]);
+
+  useEffect(() => {
+    if (useStudentEmail) {
+      setValue('email', buildStudentEmail(nimValue), { shouldDirty: true, shouldValidate: true });
+    }
+  }, [useStudentEmail, nimValue, setValue]);
 
   const handleVerifyKST = async () => {
     if (!nimValue) {
@@ -307,7 +322,7 @@ export function ActiveStudentForm() {
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Input
                     id="nim"
-                    placeholder="Contoh: 672019000"
+                    placeholder="Contoh: 682022013"
                     {...register("nim", { required: true })}
                     readOnly={isVerified}
                     className={isVerified ? "bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 sm:flex-1" : "sm:flex-1"}
@@ -332,7 +347,7 @@ export function ActiveStudentForm() {
                         title="Bersihkan NIM"
                         className="border-slate-300 text-slate-600 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:text-white"
                       >
-                        <Eraser className="w-4 h-4" />
+                        <X className="w-4 h-4" />
                       </Button>
                     )}
                     {!isVerified && (
@@ -390,8 +405,36 @@ export function ActiveStudentForm() {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">Email (Untuk pengiriman surat)</Label>
-                    <Input id="email" type="email" placeholder="nama@domain.com" {...register("email", { required: true })} />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">Email (wajib)</Label>
+                      <label htmlFor="active-student-email-student" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                        <input
+                          id="active-student-email-student"
+                          type="checkbox"
+                          checked={useStudentEmail}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setUseStudentEmail(checked);
+                            setValue('email', checked ? buildStudentEmail(nimValue) : '', {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500"
+                        />
+                        Email student?
+                      </label>
+                    </div>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder={useStudentEmail ? "682022013@student.uksw.edu" : "nama@domain.com"}
+                      readOnly={useStudentEmail}
+                      className={useStudentEmail ? "bg-slate-50 dark:bg-slate-900/50" : undefined}
+                      {...register("email", { required: true })}
+                      required
+                    />
                   </div>
 
                   <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11 text-base" disabled={isSubmitting}>

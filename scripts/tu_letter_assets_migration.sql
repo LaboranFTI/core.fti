@@ -10,6 +10,45 @@ ALTER TABLE observation_requests
   ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
   ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64);
 
+CREATE TABLE IF NOT EXISTS counseling_requests (
+  id VARCHAR(50) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  nim VARCHAR(50) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  subject VARCHAR(255),
+  recipient_name TEXT,
+  referral_unit VARCHAR(255),
+  study_program_level VARCHAR(100),
+  study_program_name VARCHAR(255),
+  faculty VARCHAR(255),
+  signature_base64 TEXT,
+  stamp_base64 TEXT,
+  letter_number VARCHAR(100),
+  letter_sequence INTEGER,
+  letter_generated_at TIMESTAMP,
+  validation_token VARCHAR(64),
+  qr_download_token_hash VARCHAR(64),
+  qr_download_token_expires_at TIMESTAMPTZ,
+  status VARCHAR(20) DEFAULT 'pending',
+  carbon_copies JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgname = 'update_counseling_requests_updated_at'
+  ) THEN
+    CREATE TRIGGER update_counseling_requests_updated_at
+    BEFORE UPDATE ON counseling_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS tu_letter_backgrounds (
   id SERIAL PRIMARY KEY,
   letter_type VARCHAR(50) NOT NULL,
@@ -117,3 +156,23 @@ WHERE letter_number IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_validation_token_unique
 ON observation_requests(validation_token)
 WHERE validation_token IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_counseling_requests_letter_number_unique
+ON counseling_requests(letter_number)
+WHERE letter_number IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_counseling_requests_validation_token_unique
+ON counseling_requests(validation_token)
+WHERE validation_token IS NOT NULL;
+
+INSERT INTO system_settings (key, value) VALUES ('tu_counseling_subject', 'Pengantar Konseling')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO system_settings (key, value) VALUES ('tu_counseling_recipient_name', 'Pusat Layanan Konseling
+Fakultas Psikologi
+Universitas Kristen Satya Wacana
+Salatiga')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO system_settings (key, value) VALUES ('tu_counseling_referral_unit', 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.')
+ON CONFLICT (key) DO NOTHING;

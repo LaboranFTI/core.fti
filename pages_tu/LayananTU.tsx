@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Role } from '../types';
 import { ActiveStudentForm } from './components/ActiveStudentForm';
 import { AdminPanel } from './components/AdminPanel';
+import { CounselingForm } from './components/CounselingForm';
 import { LetterArchivePanel } from './components/LetterArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
 import { SuRekForm } from './components/SuRekForm';
@@ -22,12 +23,14 @@ interface HalamanTUProps {
 const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' }
+  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
+  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
@@ -37,14 +40,17 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
     ? backgrounds.document
     : backgrounds?.activeStudent?.imageBase64
       ? backgrounds.activeStudent
-      : backgrounds?.observation?.imageBase64
-        ? backgrounds.observation
-        : empty.document;
+    : backgrounds?.observation?.imageBase64
+      ? backgrounds.observation
+      : backgrounds?.counseling?.imageBase64
+        ? backgrounds.counseling
+      : empty.document;
 
   return {
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
-    observation: { ...empty.observation, ...sharedBackground }
+    observation: { ...empty.observation, ...sharedBackground },
+    counseling: { ...empty.counseling, ...sharedBackground }
   };
 };
 
@@ -53,7 +59,7 @@ type ObservationFeedback = {
   message: string;
 } | null;
 
-type LetterServiceId = 'aktif' | 'observasi' | 'rekomendasi' | 'arsip-surat' | 'panel-admin';
+type LetterServiceId = 'aktif' | 'observasi' | 'konseling' | 'rekomendasi' | 'arsip-surat' | 'panel-admin';
 
 interface LetterServiceCard {
   value: LetterServiceId;
@@ -61,6 +67,7 @@ interface LetterServiceCard {
   description: string;
   icon: React.ElementType;
   group: 'letter' | 'admin';
+  adminOnly?: boolean;
 }
 
 const waitForNextPaint = () =>
@@ -144,6 +151,13 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       group: 'letter'
     },
     {
+      value: 'konseling',
+      title: 'Pengantar Konseling',
+      description: 'Buat surat pengantar konseling untuk mahasiswa ke Pusat Layanan Konseling Fakultas Psikologi.',
+      icon: FileText,
+      group: 'letter'
+    },
+    {
       value: 'observasi',
       title: 'Surat Ijin Observasi',
       description: isMahasiswa
@@ -176,7 +190,10 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       group: 'admin'
     }
   ];
-  const availableServiceCards = letterServiceCards.filter((item) => !isMahasiswa || item.value === 'observasi');
+  const availableServiceCards = letterServiceCards.filter((item) => {
+    if (item.adminOnly && !isTUAdmin) return false;
+    return !isMahasiswa || item.value === 'observasi';
+  });
   const selectedService = activeServiceId
     ? availableServiceCards.find((item) => item.value === activeServiceId) || null
     : null;
@@ -272,6 +289,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         const mergedLayouts = {
           activeStudent: { ...defaultLayouts.activeStudent, ...json.letterLayouts?.activeStudent },
           observation: { ...defaultLayouts.observation, ...json.letterLayouts?.observation },
+          counseling: { ...defaultLayouts.counseling, ...json.letterLayouts?.counseling },
           suRek: { ...defaultLayouts.suRek, ...json.letterLayouts?.suRek }
         };
         setLetterLayouts(mergedLayouts);
@@ -298,6 +316,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     if (!isTUAdmin && (activeServiceId === 'arsip-surat' || activeServiceId === 'panel-admin')) {
       setActiveServiceId(null);
     }
+
   }, [activeServiceId, isMahasiswa, isTUAdmin]);
 
   useEffect(() => {
@@ -413,6 +432,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         return <ActiveStudentForm />;
       case 'observasi':
         return renderObservationService();
+      case 'konseling':
+        return <CounselingForm />;
       case 'rekomendasi':
         return <SuRekForm />;
       case 'arsip-surat':
@@ -430,7 +451,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
         title="Layanan Tata Usaha"
-        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Observasi, dan Surat Rekomendasi."
+        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Pengantar Konseling, Surat Observasi, dan Surat Rekomendasi."
         className="print:hidden"
       />
 

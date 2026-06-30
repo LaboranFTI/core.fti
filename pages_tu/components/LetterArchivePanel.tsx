@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 // date-fns format/locale no longer needed – using Intl.DateTimeFormat with explicit timezone
-import { ActiveStudentRequest, ObservationRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
+import { ActiveStudentRequest, ObservationRequest, CounselingRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
 import { ValidationQrCode } from './ValidationQrCode';
@@ -48,12 +48,14 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
+  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   suRek: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
@@ -63,8 +65,10 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
     ? backgrounds.document
     : backgrounds?.activeStudent?.imageBase64
       ? backgrounds.activeStudent
-      : backgrounds?.observation?.imageBase64
-        ? backgrounds.observation
+    : backgrounds?.observation?.imageBase64
+      ? backgrounds.observation
+      : backgrounds?.counseling?.imageBase64
+        ? backgrounds.counseling
         : backgrounds?.suRek?.imageBase64
           ? backgrounds.suRek
           : empty.document;
@@ -73,6 +77,7 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
     observation: { ...empty.observation, ...sharedBackground },
+    counseling: { ...empty.counseling, ...sharedBackground },
     suRek: { ...empty.suRek, ...sharedBackground }
   };
 };
@@ -80,6 +85,7 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
 type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }
   | { type: 'observation'; item: ObservationRequest }
+  | { type: 'counseling'; item: CounselingRequest }
   | { type: 'su-rek'; item: any }
   | null;
 
@@ -143,6 +149,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) {
   const [activeRequests, setActiveRequests] = useState<ActiveStudentRequest[]>([]);
   const [observationRequests, setObservationRequests] = useState<ObservationRequest[]>([]);
+  const [counselingRequests, setCounselingRequests] = useState<CounselingRequest[]>([]);
   const [suRekRequests, setSuRekRequests] = useState<any[]>([]);
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
@@ -154,18 +161,19 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; title: string } | null>(null);
-  const [activeListTab, setActiveListTab] = useState<'active' | 'observation' | 'su-rek'>('active');
+  const [activeListTab, setActiveListTab] = useState<'active' | 'observation' | 'counseling' | 'su-rek'>('active');
   const [selectedLetter, setSelectedLetter] = useState<ArchiveSelection>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   // Delete state
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'active' | 'observation' | 'su-rek'; label: string } | null>(null);
-  const [batchDeleteTargets, setBatchDeleteTargets] = useState<Array<{ id: string; type: 'active' | 'observation' | 'su-rek'; label: string }>>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'active' | 'observation' | 'counseling' | 'su-rek'; label: string } | null>(null);
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<Array<{ id: string; type: 'active' | 'observation' | 'counseling' | 'su-rek'; label: string }>>([]);
   const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const [selectedActiveIds, setSelectedActiveIds] = useState<Set<string>>(new Set());
   const [selectedObsIds, setSelectedObsIds] = useState<Set<string>>(new Set());
+  const [selectedCounselingIds, setSelectedCounselingIds] = useState<Set<string>>(new Set());
   const [selectedSuRekIds, setSelectedSuRekIds] = useState<Set<string>>(new Set());
   // Edit observation state
   const [editTarget, setEditTarget] = useState<any | null>(null);
@@ -210,23 +218,25 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     showLoader?: boolean;
     showError?: boolean;
   } = {}) => {
-    if (showLoader && activeRequests.length === 0 && observationRequests.length === 0) {
+    if (showLoader && activeRequests.length === 0 && observationRequests.length === 0 && counselingRequests.length === 0) {
       setLoading(true);
     } else {
       setIsRefreshing(true);
     }
 
     try {
-      const [activeRes, observationRes, suRekRes, settingsRes] = await Promise.all([
+      const [activeRes, observationRes, counselingRes, suRekRes, settingsRes] = await Promise.all([
         api('/api/active-student'),
         api('/api/observation-requests'),
+        api('/api/counseling-requests'),
         api('/api/su-rek-requests'),
         api('/api/tu/settings')
       ]);
 
-      const [activeJson, observationJson, suRekJson, settingsJson] = await Promise.all([
+      const [activeJson, observationJson, counselingJson, suRekJson, settingsJson] = await Promise.all([
         activeRes.json(),
         observationRes.json(),
+        counselingRes.json(),
         suRekRes.json(),
         settingsRes.json()
       ]);
@@ -235,11 +245,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         activeRes.ok && activeJson.success && Array.isArray(activeJson.data) ? activeJson.data : [];
       const nextObservationRequests: ObservationRequest[] =
         observationRes.ok && observationJson.success && Array.isArray(observationJson.data) ? observationJson.data : [];
+      const nextCounselingRequests: CounselingRequest[] =
+        counselingRes.ok && counselingJson.success && Array.isArray(counselingJson.data) ? counselingJson.data : [];
       const nextSuRekRequests: any[] =
         suRekRes.ok && suRekJson.success && Array.isArray(suRekJson.data) ? suRekJson.data : [];
 
       setActiveRequests(nextActiveRequests);
       setObservationRequests(nextObservationRequests);
+      setCounselingRequests(nextCounselingRequests);
       setSuRekRequests(nextSuRekRequests);
 
       if (settingsRes.ok) {
@@ -254,6 +267,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         if (prev.type === 'active') {
           const updatedItem = nextActiveRequests.find((item: ActiveStudentRequest) => item.id === prev.item.id);
           return updatedItem ? { type: 'active', item: updatedItem } : null;
+        } else if (prev.type === 'counseling') {
+          const updatedItem = nextCounselingRequests.find((item: CounselingRequest) => item.id === prev.item.id);
+          return updatedItem ? { type: 'counseling', item: updatedItem } : null;
         } else if (prev.type === 'su-rek') {
           const updatedItem = nextSuRekRequests.find((item: any) => item.id === prev.item.id);
           return updatedItem ? { type: 'su-rek', item: updatedItem } : null;
@@ -305,7 +321,19 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     return () => clearInterval(interval);
   }, [refreshKey]);
 
-  const handleSendEmail = async (type: 'active-student' | 'observation' | 'su-rek', id: string) => {
+  const getArchiveApiType = (type: 'active' | 'observation' | 'counseling' | 'su-rek') => {
+    if (type === 'active') return 'active-student';
+    return type;
+  };
+
+  const getArchiveTitle = (type: 'active' | 'observation' | 'counseling' | 'su-rek') => {
+    if (type === 'active') return 'Surat aktif kuliah';
+    if (type === 'observation') return 'Surat observasi';
+    if (type === 'counseling') return 'Surat konseling';
+    return 'Surat rekomendasi';
+  };
+
+  const handleSendEmail = async (type: 'active-student' | 'observation' | 'counseling' | 'su-rek', id: string) => {
     setIsProcessing(true);
     setIsSendingEmail(true);
     setFeedback(null);
@@ -315,7 +343,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
           ? activeRequests.find((item: ActiveStudentRequest) => item.id === id)
           : type === 'observation'
             ? observationRequests.find((item: ObservationRequest) => item.id === id)
-            : suRekRequests.find((item: any) => item.id === id);
+            : type === 'counseling'
+              ? counselingRequests.find((item: CounselingRequest) => item.id === id)
+              : suRekRequests.find((item: any) => item.id === id);
       const res = await api(`/api/tu/requests/${type}/${id}/send-email`, { method: 'POST' });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -327,7 +357,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       setEmailSuccessState({
         email: selectedItem?.email || '',
         letterNumber: json?.letterNumber || selectedItem?.letterNumber || null,
-        title: type === 'observation' ? 'Surat observasi berhasil dikirim' : type === 'su-rek' ? 'Surat rekomendasi berhasil dikirim' : 'Surat aktif kuliah berhasil dikirim'
+        title: type === 'observation'
+          ? 'Surat observasi berhasil dikirim'
+          : type === 'counseling'
+            ? 'Surat konseling berhasil dikirim'
+            : type === 'su-rek'
+              ? 'Surat rekomendasi berhasil dikirim'
+              : 'Surat aktif kuliah berhasil dikirim'
       });
     } catch (error) {
       console.error('Failed to send letter email:', error);
@@ -341,7 +377,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const handleDownloadPdf = async () => {
     if (!selectedLetter) return;
     const { type, item } = selectedLetter;
-    const apiType = type === 'active' ? 'active-student' : type === 'observation' ? 'observation' : 'su-rek';
+    const apiType = getArchiveApiType(type);
 
     setIsProcessing(true);
     setFeedback(null);
@@ -434,13 +470,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     setIsProcessing(true);
     setFeedback(null);
     try {
-      const res = await api(`/api/observation-requests/${id}/verify`, {
+      const isCounselingTarget = selectedLetter?.type === 'counseling';
+      const res = await api(isCounselingTarget ? `/api/counseling-requests/${id}/verify` : `/api/observation-requests/${id}/verify`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(json?.error || 'Gagal memverifikasi surat observasi.');
+        throw new Error(json?.error || `Gagal memverifikasi ${isCounselingTarget ? 'surat konseling' : 'surat observasi'}.`);
       }
 
       await fetchArchiveData({ showError: false });
@@ -457,10 +494,23 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             }
           : prev
       );
-      setFeedback({ type: 'success', message: 'Surat observasi berhasil diverifikasi dan diberi nomor surat.' });
+      setSelectedLetter((prev) =>
+        prev && prev.type === 'counseling' && prev.item.id === id
+          ? {
+              type: 'counseling',
+              item: {
+                ...prev.item,
+                status: 'verified',
+                letterNumber: json?.letterNumber || prev.item.letterNumber,
+                validationToken: json?.validationToken || prev.item.validationToken
+              }
+            }
+          : prev
+      );
+      setFeedback({ type: 'success', message: `${isCounselingTarget ? 'Surat konseling' : 'Surat observasi'} berhasil diverifikasi dan diberi nomor surat.` });
     } catch (error) {
       console.error('Failed to verify observation:', error);
-      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memverifikasi surat observasi.' });
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memverifikasi surat.' });
     } finally {
       setIsProcessing(false);
     }
@@ -471,7 +521,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   const handleCreateValidationToken = async () => {
     if (!selectedLetter) return;
-    const apiType = selectedLetter.type === 'active' ? 'active-student' : selectedLetter.type === 'observation' ? 'observation' : 'su-rek';
+    const apiType = getArchiveApiType(selectedLetter.type);
 
     setIsProcessing(true);
     setFeedback(null);
@@ -512,16 +562,28 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   };
 
   // ── Delete handlers ─────────────────────────────────────────────────────────
-  const openDeleteSingle = (id: string, type: 'active' | 'observation' | 'su-rek', label: string) => {
+  const openDeleteSingle = (id: string, type: 'active' | 'observation' | 'counseling' | 'su-rek', label: string) => {
     setDeleteTarget({ id, type, label });
     setBatchDeleteTargets([]);
     setConfirmPhase(1);
     setConfirmText('');
   };
 
-  const openBatchDelete = (type: 'active' | 'observation' | 'su-rek') => {
-    const ids = type === 'active' ? selectedActiveIds : type === 'observation' ? selectedObsIds : selectedSuRekIds;
-    const sourceList = type === 'active' ? activeRequests : type === 'observation' ? observationRequests : suRekRequests;
+  const openBatchDelete = (type: 'active' | 'observation' | 'counseling' | 'su-rek') => {
+    const ids = type === 'active'
+      ? selectedActiveIds
+      : type === 'observation'
+        ? selectedObsIds
+        : type === 'counseling'
+          ? selectedCounselingIds
+          : selectedSuRekIds;
+    const sourceList = type === 'active'
+      ? activeRequests
+      : type === 'observation'
+        ? observationRequests
+        : type === 'counseling'
+          ? counselingRequests
+          : suRekRequests;
     const targets = sourceList
       .filter(i => ids.has(i.id))
       .map(i => ({ id: i.id, type, label: i.name }));
@@ -539,14 +601,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     closeConfirm();
     try {
       if (deleteTarget) {
-        const apiType = deleteTarget.type === 'active' ? 'active-student' : deleteTarget.type === 'observation' ? 'observation' : 'su-rek';
+        const apiType = getArchiveApiType(deleteTarget.type);
         const res = await api(`/api/tu/requests/${apiType}/${deleteTarget.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
         if (selectedLetter?.item.id === deleteTarget.id) setSelectedLetter(null);
         setFeedback({ type: 'success', message: `${deleteTarget.label} berhasil dihapus.` });
       } else {
         const type = batchDeleteTargets[0]?.type;
-        const apiType = type === 'active' ? 'active-student' : type === 'observation' ? 'observation' : 'su-rek';
+        const apiType = type ? getArchiveApiType(type) : 'active-student';
         const ids = batchDeleteTargets.map(t => t.id);
         const res = await api(`/api/tu/requests/${apiType}/batch-delete`, {
           method: 'POST',
@@ -556,6 +618,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
         if (type === 'active') setSelectedActiveIds(new Set());
         else if (type === 'observation') setSelectedObsIds(new Set());
+        else if (type === 'counseling') setSelectedCounselingIds(new Set());
         else setSelectedSuRekIds(new Set());
         setFeedback({ type: 'success', message: `${batchDeleteTargets.length} arsip berhasil dihapus.` });
       }
@@ -569,9 +632,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   const toggleActiveId = (id: string) => setSelectedActiveIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleObsId = (id: string) => setSelectedObsIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleCounselingId = (id: string) => setSelectedCounselingIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSuRekId = (id: string) => setSelectedSuRekIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAllActive = () => setSelectedActiveIds(selectedActiveIds.size === filteredActiveRequests.length ? new Set() : new Set(filteredActiveRequests.map(i => i.id)));
   const toggleAllObs = () => setSelectedObsIds(selectedObsIds.size === filteredObservationRequests.length ? new Set() : new Set(filteredObservationRequests.map(i => i.id)));
+  const toggleAllCounseling = () => setSelectedCounselingIds(selectedCounselingIds.size === filteredCounselingRequests.length ? new Set() : new Set(filteredCounselingRequests.map(i => i.id)));
   const toggleAllSuRek = () => setSelectedSuRekIds(selectedSuRekIds.size === filteredSuRekRequests.length ? new Set() : new Set(filteredSuRekRequests.map(i => i.id)));
 
   // ── Edit Observation ────────────────────────────────────────────────────────
@@ -623,6 +688,32 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     }
   };
 
+  const handleSaveCounselingEdit = async (data: any) => {
+    if (!editTarget) return;
+    setIsProcessing(true);
+    try {
+      const res = await api(`/api/tu/requests/counseling/${editTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: data.subject,
+          recipientName: data.recipientName,
+          referralUnit: data.referralUnit,
+          carbonCopies: data.carbonCopies
+        })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan.');
+      setEditTarget(null);
+      await fetchArchiveData({ showError: false });
+      setFeedback({ type: 'success', message: 'Data surat konseling berhasil diperbarui.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menyimpan perubahan.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const matchesStatus = (status: ArchiveStatus) => statusFilter === 'all' || status === statusFilter;
@@ -658,6 +749,21 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     ])
   );
 
+  const filteredCounselingRequests = counselingRequests.filter((item: CounselingRequest) =>
+    matchesStatus(item.status) &&
+    matchesQuery([
+      item.name,
+      item.nim,
+      item.email,
+      item.subject,
+      item.recipientName,
+      item.referralUnit,
+      item.studyProgramName,
+      item.letterNumber,
+      formatArchiveDate(item.createdAt)
+    ])
+  );
+
   const filteredSuRekRequests = suRekRequests.filter((item: any) =>
     matchesStatus(item.status) &&
     matchesQuery([
@@ -673,14 +779,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     ])
   );
 
-  const totalArchiveCount = activeRequests.length + observationRequests.length + suRekRequests.length;
-  const pendingCount = [...activeRequests, ...observationRequests, ...suRekRequests].filter(
+  const totalArchiveCount = activeRequests.length + observationRequests.length + counselingRequests.length + suRekRequests.length;
+  const pendingCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
     (item: any) => item.status === 'pending'
   ).length;
-  const verifiedCount = [...activeRequests, ...observationRequests, ...suRekRequests].filter(
+  const verifiedCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
     (item: any) => item.status === 'verified'
   ).length;
-  const sentCount = [...activeRequests, ...observationRequests, ...suRekRequests].filter(
+  const sentCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
     (item: any) => item.status === 'sent'
   ).length;
   const currentResultsCount =
@@ -688,13 +794,17 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       ? filteredActiveRequests.length
       : activeListTab === 'observation'
         ? filteredObservationRequests.length
-        : filteredSuRekRequests.length;
+        : activeListTab === 'counseling'
+          ? filteredCounselingRequests.length
+          : filteredSuRekRequests.length;
   const currentTotalCount =
     activeListTab === 'active'
       ? activeRequests.length
       : activeListTab === 'observation'
         ? observationRequests.length
-        : suRekRequests.length;
+        : activeListTab === 'counseling'
+          ? counselingRequests.length
+          : suRekRequests.length;
 
   const emailUx = (
     <>
@@ -716,8 +826,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   if (selectedLetter) {
     const semesterMeta = getSemesterMeta(currentSemesterCode);
     const isObservation = selectedLetter.type === 'observation';
+    const isCounseling = selectedLetter.type === 'counseling';
     const isSuRek = selectedLetter.type === 'su-rek';
     const observationItem = selectedLetter.type === 'observation' ? selectedLetter.item : null;
+    const counselingItem = selectedLetter.type === 'counseling' ? selectedLetter.item : null;
     const activeItem = selectedLetter.type === 'active' ? selectedLetter.item : null;
     const suRekItem = selectedLetter.type === 'su-rek' ? selectedLetter.item : null;
     const item = selectedLetter.item;
@@ -727,9 +839,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       item.status === 'pending'
         ? isObservation
           ? 'Verifikasi surat observasi untuk membuat nomor surat dan mengaktifkan pengiriman email.'
-          : isSuRek
-            ? 'Surat rekomendasi masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
-            : 'Surat aktif kuliah masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
+          : isCounseling
+            ? 'Verifikasi surat konseling untuk membuat nomor surat dan mengaktifkan pengiriman email.'
+            : isSuRek
+              ? 'Surat rekomendasi masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
+              : 'Surat aktif kuliah masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
         : item.status === 'verified'
           ? 'Surat sudah siap dicetak ulang atau dikirim langsung ke email mahasiswa.'
           : 'Surat sudah pernah dikirim dan tetap bisa dicetak ulang atau dikirim kembali kapan saja.';
@@ -751,12 +865,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300">
-                    {isObservation ? 'Surat Observasi' : isSuRek ? 'Rekomendasi Afirmasi' : 'Surat Aktif Kuliah'}
+                    {isObservation ? 'Surat Observasi' : isCounseling ? 'Surat Konseling' : isSuRek ? 'Rekomendasi Afirmasi' : 'Surat Aktif Kuliah'}
                   </Badge>
                   {getStatusBadge(item.status)}
                 </div>
                 <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-                  {isObservation ? 'Detail Arsip Surat Observasi' : isSuRek ? 'Detail Arsip Surat Rekomendasi' : 'Detail Arsip Surat Aktif Kuliah'}
+                  {isObservation ? 'Detail Arsip Surat Observasi' : isCounseling ? 'Detail Arsip Surat Konseling' : isSuRek ? 'Detail Arsip Surat Rekomendasi' : 'Detail Arsip Surat Aktif Kuliah'}
                 </h2>
                 <p className="text-sm text-slate-600 dark:text-gray-400">
                   {item.name} ({item.nim}){item.email ? ` | ${item.email}` : ''}
@@ -816,6 +930,27 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     validationUrl={validationUrl}
                     letterDate={observationItem?.letterGeneratedAt || observationItem?.createdAt}
                   />
+                ) : isCounseling ? (
+                  <LetterPreview
+                    type="counseling"
+                    data={{
+                      ...counselingItem,
+                      subject: counselingItem?.subject || 'Pengantar Konseling',
+                      recipientName: counselingItem?.recipientName || '',
+                      referralUnit: counselingItem?.referralUnit || '',
+                      studyProgramName: counselingItem?.studyProgramName,
+                      studyProgramLevel: counselingItem?.studyProgramLevel,
+                      faculty: counselingItem?.faculty || 'FTI',
+                      status: counselingItem?.status
+                    }}
+                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
+                    layout={letterLayouts.counseling}
+                    showLayoutGuide={false}
+                    letterNumber={counselingItem?.letterNumber}
+                    validationToken={counselingItem?.validationToken}
+                    validationUrl={validationUrl}
+                    letterDate={counselingItem?.letterGeneratedAt || counselingItem?.createdAt}
+                  />
                 ) : isSuRek ? (
                   <LetterPreview
                     type="su-rek"
@@ -860,7 +995,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 <CardDescription className="dark:text-gray-400">{actionHint}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
-                {isObservation && item.status === 'pending' && (
+                {(isObservation || isCounseling) && item.status === 'pending' && (
                   <Button onClick={() => handleVerifyObservation(item.id)} disabled={isProcessing} className="w-full justify-center">
                     <ShieldCheck className="mr-2 h-4 w-4" /> Verifikasi Surat
                   </Button>
@@ -872,17 +1007,17 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <Download className="mr-2 h-4 w-4" /> {canSendEmail ? 'Download PDF' : 'PDF Belum Tersedia'}
                 </Button>
                 <Button
-                  onClick={() => handleSendEmail(isObservation ? 'observation' : isSuRek ? 'su-rek' : 'active-student', item.id)}
+                  onClick={() => handleSendEmail(isObservation ? 'observation' : isCounseling ? 'counseling' : isSuRek ? 'su-rek' : 'active-student', item.id)}
                   disabled={!canSendEmail || isProcessing || isSendingEmail}
                   className="w-full justify-center"
                 >
                   {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   {isSendingEmail ? 'Mengirim Email...' : canSendEmail ? 'Kirim ke Email' : 'Email Belum Tersedia'}
                 </Button>
-                {(isObservation || isSuRek) && (
+                {(isObservation || isCounseling || isSuRek) && (
                   <Button
                     variant="outline"
-                    onClick={() => setEditTarget(isSuRek ? { ...suRekItem, type: 'su-rek' } : observationItem)}
+                    onClick={() => setEditTarget(isSuRek ? { ...suRekItem, type: 'su-rek' } : isCounseling ? { ...counselingItem, type: 'counseling' } : observationItem)}
                     disabled={isProcessing}
                     className="w-full justify-center border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
                   >
@@ -891,7 +1026,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 )}
                 <Button
                   variant="outline"
-                  onClick={() => openDeleteSingle(item.id, isObservation ? 'observation' : isSuRek ? 'su-rek' : 'active', item.name)}
+                  onClick={() => openDeleteSingle(item.id, isObservation ? 'observation' : isCounseling ? 'counseling' : isSuRek ? 'su-rek' : 'active', item.name)}
                   disabled={isProcessing}
                   className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
@@ -966,6 +1101,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                     <DetailRow label="Instansi" value={observationItem?.company || '-'} />
                     <DetailRow label="Mahasiswa di Surat" value={`${observationItem?.students?.length || 0} orang`} />
                   </>
+                ) : isCounseling ? (
+                  <>
+                    <DetailRow label="Hal" value={counselingItem?.subject || '-'} />
+                    <DetailRow label="Yang Terhormat" value={(counselingItem?.recipientName || '-').replace(/\n/g, ' / ')} />
+                    <DetailRow label="Unit Rujukan" value={counselingItem?.referralUnit || '-'} />
+                    <DetailRow label="Program Studi" value={counselingItem?.studyProgramName || '-'} />
+                  </>
                 ) : (
                   <>
                     <DetailRow label="Program Studi" value={activeItem?.studyProgramName || '-'} />
@@ -1004,7 +1146,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
       <TUSectionCard
         title="Kelola arsip surat lebih cepat"
-        description="Arsip menyimpan data surat aktif kuliah dan observasi agar dapat dilihat kembali, dicetak ulang, atau dikirim email tanpa menyimpan file PDF hasil generate."
+        description="Arsip menyimpan data surat TU agar dapat dilihat kembali, dicetak ulang, atau dikirim email tanpa menyimpan file PDF hasil generate."
         className="overflow-visible"
         contentClassName="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
         actions={
@@ -1025,7 +1167,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         <ArchiveMetricCard
           title="Total Arsip"
           value={String(totalArchiveCount)}
-          description={`${activeRequests.length} surat aktif kuliah dan ${observationRequests.length} surat observasi.`}
+          description={`${activeRequests.length} aktif kuliah, ${observationRequests.length} observasi, ${counselingRequests.length} konseling.`}
           accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
           icon={<FileText className="h-5 w-5" />}
         />
@@ -1057,11 +1199,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         description="Cari arsip berdasarkan nama, NIM, tujuan surat, instansi, nomor surat, atau tanggal pembuatan."
         contentClassName="space-y-5"
         actions={
-          <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation' | 'su-rek')}>
+          <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation' | 'counseling' | 'su-rek')}>
             <PageTabs
               items={[
                 { value: 'active', label: `Aktif Kuliah (${activeRequests.length})`, icon: GraduationCap },
                 { value: 'observation', label: `Observasi (${observationRequests.length})`, icon: Building2 },
+                { value: 'counseling', label: `Konseling (${counselingRequests.length})`, icon: FileText },
                 { value: 'su-rek', label: `Rekomendasi (${suRekRequests.length})`, icon: Award }
               ]}
               className="w-full sm:w-fit"
@@ -1075,7 +1218,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={activeListTab === 'active' ? 'Cari nama, NIM, email, prodi, atau nomor surat...' : activeListTab === 'observation' ? 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...' : 'Cari nama, NIM, perihal, atau nomor surat...'}
+              placeholder={activeListTab === 'active'
+                ? 'Cari nama, NIM, email, prodi, atau nomor surat...'
+                : activeListTab === 'observation'
+                  ? 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...'
+                  : activeListTab === 'counseling'
+                    ? 'Cari nama, NIM, hal, tujuan, unit rujukan, atau nomor surat...'
+                    : 'Cari nama, NIM, perihal, atau nomor surat...'}
               className="pl-10 dark:bg-gray-800 dark:border-gray-700"
             />
           </div>
@@ -1108,7 +1257,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   Menampilkan {currentResultsCount} dari {currentTotalCount} arsip
                 </p>
                 <p className="text-sm text-slate-500 dark:text-gray-400">
-                  {activeListTab === 'active' ? 'Daftar surat aktif kuliah yang tersimpan di sistem.' : activeListTab === 'observation' ? 'Daftar surat observasi yang dapat diverifikasi, dicetak, atau dikirim ulang.' : 'Daftar surat rekomendasi afirmasi cemerlang yang tersimpan di sistem.'}
+                  {activeListTab === 'active'
+                    ? 'Daftar surat aktif kuliah yang tersimpan di sistem.'
+                    : activeListTab === 'observation'
+                      ? 'Daftar surat observasi yang dapat diverifikasi, dicetak, atau dikirim ulang.'
+                      : activeListTab === 'counseling'
+                        ? 'Daftar surat pengantar konseling yang dapat diedit, dicetak, atau dikirim ulang.'
+                        : 'Daftar surat rekomendasi afirmasi cemerlang yang tersimpan di sistem.'}
                 </p>
               </div>
             </div>
@@ -1373,6 +1528,132 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
             </TabsContent>
 
+            <TabsContent value="counseling" className="mt-0">
+              {selectedCounselingIds.size > 0 && (
+                <div className="mb-4 flex items-center justify-between rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-3">
+                  <span className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {selectedCounselingIds.size} surat dipilih
+                  </span>
+                  <Button
+                    variant="outline" size="sm"
+                    className="border-red-300 text-red-600 hover:bg-red-100 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/40"
+                    onClick={() => openBatchDelete('counseling')}
+                    disabled={isProcessing}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Hapus Terpilih
+                  </Button>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
+                  Memuat arsip surat konseling...
+                </div>
+              ) : filteredCounselingRequests.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center">
+                  <FileText className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-gray-600" />
+                  <p className="text-base font-medium text-slate-700 dark:text-gray-300">
+                    {counselingRequests.length === 0 ? 'Belum ada data surat konseling yang tersimpan.' : 'Tidak ada arsip yang cocok dengan filter saat ini.'}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">Coba kata kunci lain atau reset filter untuk melihat seluruh arsip.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                          <TableHead className="w-10">
+                            <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                              checked={selectedCounselingIds.size === filteredCounselingRequests.length && filteredCounselingRequests.length > 0}
+                              onChange={toggleAllCounseling} />
+                          </TableHead>
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Mahasiswa</TableHead>
+                          <TableHead>Hal</TableHead>
+                          <TableHead>Unit Rujukan</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCounselingRequests.map((item: CounselingRequest) => (
+                          <TableRow key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-gray-800/50 ${selectedCounselingIds.has(item.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                            <TableCell>
+                              <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
+                                checked={selectedCounselingIds.has(item.id)}
+                                onChange={() => toggleCounselingId(item.id)} />
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600 dark:text-gray-300">{formatArchiveDate(item.createdAt)}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-slate-900 dark:text-white">{item.name}</p>
+                                <p className="text-xs text-slate-500 dark:text-gray-400">{item.nim}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="text-sm font-medium text-slate-900 dark:text-white">{item.subject || '-'}</p>
+                                <p className="text-xs text-slate-500 dark:text-gray-400">{item.letterNumber || 'Nomor surat belum dibuat'}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600 dark:text-gray-300 max-w-[220px] truncate">{item.referralUnit || '-'}</TableCell>
+                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'counseling', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
+                                  <Eye className="mr-2 h-4 w-4" /> Detail
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setEditTarget({ ...item, type: 'counseling' })} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'counseling', item.name + ' - ' + (item.subject || 'Konseling'))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="space-y-3 md:hidden">
+                    {filteredCounselingRequests.map((item: CounselingRequest) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white">{item.name}</p>
+                            <p className="text-sm text-slate-500 dark:text-gray-400">{item.nim}</p>
+                          </div>
+                          {getStatusBadge(item.status)}
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
+                            <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">Hal</p>
+                            <p className="mt-1 text-sm font-medium text-slate-800 dark:text-white">{item.subject || '-'}</p>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
+                            <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">Tanggal</p>
+                            <p className="mt-1 text-sm font-medium text-slate-800 dark:text-white">{formatArchiveDate(item.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-gray-300">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-slate-400 dark:text-gray-500" />
+                            {item.referralUnit || 'Unit rujukan belum diisi'}
+                          </div>
+                        </div>
+                        <Button variant="outline" className="mt-4 w-full justify-center dark:border-gray-700 dark:hover:bg-gray-700" onClick={() => setSelectedLetter({ type: 'counseling', item })}>
+                          <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
             <TabsContent value="su-rek" className="mt-0">
               {/* Batch Delete Toolbar */}
               {selectedSuRekIds.size > 0 && (
@@ -1574,7 +1855,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 dark:text-white">
-                    {editTarget.type === 'su-rek' ? 'Edit Data Rekomendasi' : 'Edit Data Observasi'}
+                    {editTarget.type === 'su-rek' ? 'Edit Data Rekomendasi' : editTarget.type === 'counseling' ? 'Edit Data Konseling' : 'Edit Data Observasi'}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Nomor surat tidak akan berubah.</p>
                 </div>
@@ -1615,6 +1896,38 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                       value={editTarget.perihal || ''} 
                       onChange={e => setEditTarget({...editTarget, perihal: e.target.value})} 
                     />
+                  </div>
+                </div>
+              ) : editTarget.type === 'counseling' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Hal</label>
+                    <Input
+                      value={editTarget.subject || ''}
+                      onChange={e => setEditTarget({ ...editTarget, subject: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Unit Rujukan</label>
+                    <Input
+                      value={editTarget.referralUnit || ''}
+                      onChange={e => setEditTarget({ ...editTarget, referralUnit: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Yang Terhormat</label>
+                    <Textarea
+                      value={editTarget.recipientName || ''}
+                      onChange={e => setEditTarget({ ...editTarget, recipientName: e.target.value })}
+                      className="min-h-[100px]"
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm font-medium text-slate-700 dark:text-gray-300">Mahasiswa</label>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <Input value={editTarget.name || ''} readOnly className="bg-slate-50 dark:bg-gray-900/50" />
+                      <Input value={editTarget.nim || ''} readOnly className="bg-slate-50 dark:bg-gray-900/50" />
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1765,11 +2078,13 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 onClick={() => {
                   if (editTarget.type === 'su-rek') {
                     handleSaveSuRekEdit(editTarget);
+                  } else if (editTarget.type === 'counseling') {
+                    handleSaveCounselingEdit(editTarget);
                   } else {
                     handleSaveObservationEdit(editTarget);
                   }
                 }} 
-                disabled={isProcessing || (editTarget.type !== 'su-rek' && editTarget.students.length === 0)}
+                disabled={isProcessing || (!['su-rek', 'counseling'].includes(editTarget.type) && editTarget.students.length === 0)}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 <Pencil className="w-4 h-4 mr-2" /> Simpan Perubahan

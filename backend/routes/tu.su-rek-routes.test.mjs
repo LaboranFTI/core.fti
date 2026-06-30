@@ -55,11 +55,19 @@ describe('su-rek admin routes', () => {
   it('uses database Wakil Dekan data for recommendation preview and PDF rendering', () => {
     const helperBlock = sliceBetween(
       'const getRecommendationSigner = async () => {',
-      'const formatLetterNumber ='
+      'const getDeanSigner = async () => {'
     );
     const recommendationConfig = sliceBetween(
       "'su-rek': {",
       'const ensureLetterNumber'
+    );
+    const previewRoute = sliceBetween(
+      "router.post('/tu/preview-html'",
+      "router.get('/tu/requests/:type/:id/preview-html'"
+    );
+    const savedPreviewRoute = sliceBetween(
+      "router.get('/tu/requests/:type/:id/preview-html'",
+      "router.get('/tu/public/letter-validation/:token/preview-html'"
     );
     const publicValidationRoute = sliceBetween(
       "router.get('/tu/public/letter-validation/:token'",
@@ -70,6 +78,11 @@ describe('su-rek admin routes', () => {
     assert.match(helperBlock, /WHERE jabatan ILIKE 'Wakil Dekan%'/);
     assert.doesNotMatch(helperBlock, /jabatan ILIKE 'Dekan%'\s+OR/);
     assert.match(recommendationConfig, /await getRecommendationSigner\(\)/);
+    assert.match(recommendationConfig, /'\{\{dekanNama\}\}': escapeXml\(recommendationSigner\.name\)/);
+    assert.match(recommendationConfig, /'\{\{dekanTitle\}\}': escapeXml\(recommendationSigner\.title\)/);
+    assert.doesNotMatch(recommendationConfig, /getDeanSigner\(\)/);
+    assert.match(previewRoute, /buildLetterHtml\(type, data, req\)/);
+    assert.match(savedPreviewRoute, /buildLetterHtml\(type, requestData, req\)/);
     assert.match(publicValidationRoute, /letterPayload\.signer = await getRecommendationSigner\(\)/);
     assert.match(source, /const html = await buildLetterHtml\('su-rek', suRekResult\.rows\[0\], req\)/);
     assert.match(source, /const pdfBuffer = await buildLetterPdfBuffer\('su-rek', requestData, req\)/);

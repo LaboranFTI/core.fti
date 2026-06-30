@@ -53,4 +53,15 @@ describe('suratRekomendasiAfirmasiV2 template', () => {
     assert.match(validationQrImageBlock, /height:\s*28mm;/);
     assert.doesNotMatch(template, /signatureImage|stampImage|signature-area/);
   });
+
+  it('renders signer name and title in the signature block', () => {
+    const rendered = template
+      .replace(/\{\{dekanNama\}\}/g, 'Dr. Wakil Dekan FTI')
+      .replace(/\{\{dekanTitle\}\}/g, 'Wakil Dekan Bidang Akademik');
+
+    assert.match(rendered, /<p class="signature-name">Dr\. Wakil Dekan FTI<\/p>/);
+    assert.match(rendered, /<p>Wakil Dekan Bidang Akademik<\/p>/);
+    assert.doesNotMatch(rendered, /<p class="signature-name">Wakil Dekan Bidang Akademik<\/p>/);
+    assert.doesNotMatch(rendered, /\{\{dekanNama\}\}|\{\{dekanTitle\}\}/);
+  });
 });

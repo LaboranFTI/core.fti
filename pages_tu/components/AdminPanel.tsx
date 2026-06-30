@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ActiveStudentRequest, ObservationRequest, SuRekRequest, LetterAsset, LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
+import { ActiveStudentRequest, ObservationRequest, SuRekRequest, CounselingRequest, LetterAsset, LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -36,21 +36,32 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   document: createEmptyLetterAsset(),
   activeStudent: createEmptyLetterAsset(),
   observation: createEmptyLetterAsset(),
+  counseling: createEmptyLetterAsset(),
   suRek: createEmptyLetterAsset()
 });
 
-type LetterLayoutKey = 'activeStudent' | 'observation' | 'suRek';
+type LetterLayoutKey = 'activeStudent' | 'observation' | 'counseling' | 'suRek';
 
 const DEFAULT_LETTER_LAYOUTS: Record<LetterLayoutKey, LetterLayout> = {
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 };
 
 const PREVIEW_LETTER_TYPE_CODES: Record<Exclude<LetterLayoutKey, 'suRek'>, string> = {
   activeStudent: 'S.Ket',
-  observation: 'FTI-OBS'
+  observation: 'FTI-OBS',
+  counseling: 'FTI'
 };
+const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
+const DEFAULT_COUNSELING_RECIPIENT_NAME = [
+  'Pusat Layanan Konseling',
+  'Fakultas Psikologi',
+  'Universitas Kristen Satya Wacana',
+  'Salatiga'
+].join('\n');
+const DEFAULT_COUNSELING_REFERRAL_UNIT = 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.';
 
 const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number, date = new Date()) => {
   const paddedSequence = String(sequence).padStart(3, '0');
@@ -59,6 +70,9 @@ const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number, date 
 
   if (key === 'suRek') {
     return `${paddedSequence}/FTI/Su.Rek/${month}/${year}`;
+  }
+  if (key === 'counseling') {
+    return `${paddedSequence}/FTI/${month}/${year}`;
   }
 
   return `${paddedSequence}/${PREVIEW_LETTER_TYPE_CODES[key]}/${String(month).padStart(2, '0')}/${year}`;
@@ -71,6 +85,7 @@ const getDefaultLetterLayout = (key: LetterLayoutKey): LetterLayout => ({
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: getDefaultLetterLayout('activeStudent'),
   observation: getDefaultLetterLayout('observation'),
+  counseling: getDefaultLetterLayout('counseling'),
   suRek: getDefaultLetterLayout('suRek')
 });
 
@@ -78,6 +93,7 @@ const normalizeLetterLayouts = (layouts?: Partial<TULetterLayouts>): TULetterLay
   return {
     activeStudent: { ...getDefaultLetterLayout('activeStudent'), ...layouts?.activeStudent },
     observation: { ...getDefaultLetterLayout('observation'), ...layouts?.observation },
+    counseling: { ...getDefaultLetterLayout('counseling'), ...layouts?.counseling },
     suRek: { ...getDefaultLetterLayout('suRek'), ...layouts?.suRek }
   };
 };
@@ -88,8 +104,10 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
     ? backgrounds.document
     : backgrounds?.activeStudent?.imageBase64
       ? backgrounds.activeStudent
-      : backgrounds?.observation?.imageBase64
-        ? backgrounds.observation
+    : backgrounds?.observation?.imageBase64
+      ? backgrounds.observation
+      : backgrounds?.counseling?.imageBase64
+        ? backgrounds.counseling
         : backgrounds?.suRek?.imageBase64
           ? backgrounds.suRek
           : empty.document;
@@ -98,6 +116,7 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
     observation: { ...empty.observation, ...sharedBackground },
+    counseling: { ...empty.counseling, ...sharedBackground },
     suRek: { ...empty.suRek, ...sharedBackground }
   };
 };
@@ -118,6 +137,11 @@ const letterLayoutSections: Array<{
     description: 'Atur batas area tulisan untuk template surat observasi.'
   },
   {
+    key: 'counseling',
+    title: 'Surat Konseling',
+    description: 'Atur batas area tulisan untuk template surat pengantar konseling.'
+  },
+  {
     key: 'suRek',
     title: 'Surat Rekomendasi',
     description: 'Atur batas area tulisan untuk template surat rekomendasi.'
@@ -132,7 +156,7 @@ interface AdminPanelProps {
 export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [activeMainTab, setActiveMainTab] = useState<'requests' | 'settings'>('requests');
   const effectiveTab = (mode === 'requests' || mode === 'settings') ? mode : activeMainTab;
-  const [activeRequestType, setActiveRequestType] = useState<'activeStudent' | 'observation' | 'suRek'>('activeStudent');
+  const [activeRequestType, setActiveRequestType] = useState<'activeStudent' | 'observation' | 'counseling' | 'suRek'>('activeStudent');
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -198,6 +222,22 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         letterDate: previewDate.toISOString()
       };
     }
+    if (key === 'counseling') {
+      return {
+        ...firmandez,
+        email: firmandez.email,
+        subject: tempCounselingSubject || DEFAULT_COUNSELING_SUBJECT,
+        recipientName: tempCounselingRecipientName || DEFAULT_COUNSELING_RECIPIENT_NAME,
+        referralUnit: tempCounselingReferralUnit || DEFAULT_COUNSELING_REFERRAL_UNIT,
+        faculty: 'FTI',
+        studyProgramLevel: 'S1',
+        studyProgramName: 'Sistem Informasi',
+        letterNumber: formatPreviewLetterNumber('counseling', 4, previewDate),
+        validationToken: 'dummy-token-counseling',
+        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-counseling`,
+        letterDate: previewDate.toISOString()
+      };
+    }
     return {
       ...firmandez,
       recipientName: tempSuRekYangTerhormat || 'Panitia Seleksi Beasiswa Afirmasi',
@@ -227,6 +267,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [tempSignature, setTempSignature] = useState<string>('');
   const [tempStamp, setTempStamp] = useState<string>('');
   const [tempCurrentSemesterCode, setTempCurrentSemesterCode] = useState<string>('');
+  const [tempCounselingSubject, setTempCounselingSubject] = useState<string>(DEFAULT_COUNSELING_SUBJECT);
+  const [tempCounselingRecipientName, setTempCounselingRecipientName] = useState<string>(DEFAULT_COUNSELING_RECIPIENT_NAME);
+  const [tempCounselingReferralUnit, setTempCounselingReferralUnit] = useState<string>(DEFAULT_COUNSELING_REFERRAL_UNIT);
   const [tempSuRekYangTerhormat, setTempSuRekYangTerhormat] = useState<string>('');
   const [tempSuRekBerdasarkanNo, setTempSuRekBerdasarkanNo] = useState<string>('');
   const [tempSuRekPerihal, setTempSuRekPerihal] = useState<string>('');
@@ -267,6 +310,8 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       let endpoint = '/api/active-student';
       if (activeRequestType === 'observation') {
         endpoint = '/api/observation-requests';
+      } else if (activeRequestType === 'counseling') {
+        endpoint = '/api/counseling-requests';
       } else if (activeRequestType === 'suRek') {
         endpoint = '/api/su-rek-requests';
       }
@@ -303,6 +348,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         setTempSignature(json.signatureBase64);
         setTempStamp(json.stampBase64);
         setTempCurrentSemesterCode(json.currentSemesterCode || '');
+        setTempCounselingSubject(json.counselingSubject || DEFAULT_COUNSELING_SUBJECT);
+        setTempCounselingRecipientName(json.counselingRecipientName || DEFAULT_COUNSELING_RECIPIENT_NAME);
+        setTempCounselingReferralUnit(json.counselingReferralUnit || DEFAULT_COUNSELING_REFERRAL_UNIT);
         setTempSuRekYangTerhormat(json.suRekYangTerhormat || '');
         setTempSuRekBerdasarkanNo(json.suRekBerdasarkanNo || '');
         setTempSuRekPerihal(json.suRekPerihal || '');
@@ -339,6 +387,20 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     } catch (error) {
       console.error('Failed to fetch dean name:', error);
     }
+  };
+
+  const getRequestTypeSlug = (type = activeRequestType) => {
+    if (type === 'activeStudent') return 'active-student';
+    if (type === 'observation') return 'observation';
+    if (type === 'counseling') return 'counseling';
+    return 'su-rek';
+  };
+
+  const getRequestTypeTitle = (type = activeRequestType) => {
+    if (type === 'activeStudent') return 'Surat Aktif Kuliah';
+    if (type === 'observation') return 'Surat Observasi';
+    if (type === 'counseling') return 'Surat Konseling';
+    return 'Surat Rekomendasi';
   };
 
   useEffect(() => {
@@ -390,7 +452,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       setValidationTokenAttemptedId(selectedRequest.id);
 
       try {
-        const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+        const typeSlug = getRequestTypeSlug();
         const res = await api(`/api/tu/requests/${typeSlug}/${selectedRequest.id}/validation-token`, {
           method: 'POST'
         });
@@ -437,6 +499,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         document: nextAsset,
         activeStudent: nextAsset,
         observation: nextAsset,
+        counseling: nextAsset,
         suRek: nextAsset
       }));
     };
@@ -466,6 +529,8 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       let endpoint = `/api/active-student/${reqId}/verify`;
       if (activeRequestType === 'observation') {
         endpoint = `/api/observation-requests/${reqId}/verify`;
+      } else if (activeRequestType === 'counseling') {
+        endpoint = `/api/counseling-requests/${reqId}/verify`;
       } else if (activeRequestType === 'suRek') {
         endpoint = `/api/su-rek-requests/${reqId}/verify`;
       }
@@ -477,6 +542,13 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
           berdasarkanNo: selectedRequest.berdasarkanNo,
           perihal: selectedRequest.perihal,
           lampiran: selectedRequest.lampiran,
+          carbonCopies: selectedRequest.carbonCopies
+        });
+      } else if (activeRequestType === 'counseling' && selectedRequest) {
+        bodyData = JSON.stringify({
+          subject: selectedRequest.subject,
+          recipientName: selectedRequest.recipientName,
+          referralUnit: selectedRequest.referralUnit,
           carbonCopies: selectedRequest.carbonCopies
         });
       }
@@ -531,6 +603,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
           signatureBase64: tempSignature,
           stampBase64: tempStamp,
           currentSemesterCode: tempCurrentSemesterCode,
+          counselingSubject: tempCounselingSubject,
+          counselingRecipientName: tempCounselingRecipientName,
+          counselingReferralUnit: tempCounselingReferralUnit,
           suRekYangTerhormat: tempSuRekYangTerhormat,
           suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
           suRekPerihal: tempSuRekPerihal,
@@ -560,7 +635,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setIsSendingEmail(true);
     setPanelFeedback(null);
     try {
-      const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+      const typeSlug = getRequestTypeSlug();
       const res = await api(`/api/tu/requests/${typeSlug}/${reqId}/send-email`, { method: 'POST' });
       const json = await res.json().catch(() => null);
       if (res.ok) {
@@ -593,7 +668,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setIsProcessing(true);
     setPanelFeedback(null);
     try {
-      const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+      const typeSlug = getRequestTypeSlug();
       const res = await api(`/api/tu/requests/${typeSlug}/${selectedRequest.id}/download`, {
         method: 'GET'
       });
@@ -702,7 +777,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setIsProcessing(true);
     closeConfirm();
     try {
-      const typeSlug = activeRequestType === 'activeStudent' ? 'active-student' : activeRequestType === 'observation' ? 'observation' : 'su-rek';
+      const typeSlug = getRequestTypeSlug();
       if (deleteTarget) {
         const res = await api(`/api/tu/requests/${typeSlug}/${deleteTarget.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
@@ -750,7 +825,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     <>
       <EmailActionOverlay
         open={isSendingEmail}
-        title="Mengirim surat aktif kuliah..."
+        title={`Mengirim ${getRequestTypeTitle().toLowerCase()}...`}
         description="Dokumen final sedang diproses lalu dikirimkan ke email mahasiswa."
       />
       <EmailSuccessDialog
@@ -758,7 +833,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         onClose={() => setEmailSuccessState(null)}
         recipientEmail={emailSuccessState?.email}
         letterNumber={emailSuccessState?.letterNumber}
-        title="Surat aktif kuliah berhasil dikirim"
+        title={`${getRequestTypeTitle()} berhasil dikirim`}
       />
     </>
   );
@@ -768,6 +843,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     const selectedValidationUrl = selectedRequest.validationToken
       ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${selectedRequest.validationToken}`
       : '';
+    const showPendingContentEditor =
+      (activeRequestType === 'suRek' || activeRequestType === 'counseling') &&
+      selectedRequest.status === 'pending';
 
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -828,8 +906,8 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         </div>
 
         {/* Content */}
-        <div className={`grid grid-cols-1 ${activeRequestType === 'suRek' && selectedRequest.status === 'pending' ? 'lg:grid-cols-12' : ''} gap-6`}>
-          {activeRequestType === 'suRek' && selectedRequest.status === 'pending' && (
+        <div className={`grid grid-cols-1 ${showPendingContentEditor ? 'lg:grid-cols-12' : ''} gap-6`}>
+          {showPendingContentEditor && (
             <div className="lg:col-span-4 space-y-4 print:hidden">
               <Card className="shadow-sm border-slate-200 dark:border-gray-700">
                 <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4">
@@ -838,54 +916,94 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                     Kustomisasi Konten Surat
                   </CardTitle>
                   <CardDescription className="text-xs dark:text-gray-400">
-                    Sesuaikan parameter surat rekomendasi sebelum diverifikasi.
+                    Sesuaikan parameter surat sebelum diverifikasi.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="detail-recipientName" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Yang Terhormat (Penerima)
-                    </Label>
-                    <Textarea
-                      id="detail-recipientName"
-                      value={selectedRequest.recipientName || ''}
-                      onChange={(e) => setSelectedRequest({ ...selectedRequest, recipientName: e.target.value })}
-                      className="min-h-[80px]"
-                    />
-                  </div>
+                  {activeRequestType === 'suRek' ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-recipientName" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Yang Terhormat (Penerima)
+                        </Label>
+                        <Textarea
+                          id="detail-recipientName"
+                          value={selectedRequest.recipientName || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, recipientName: e.target.value })}
+                          className="min-h-[80px]"
+                        />
+                      </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="detail-berdasarkanNo" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Berdasarkan Surat No
-                    </Label>
-                    <Input
-                      id="detail-berdasarkanNo"
-                      value={selectedRequest.berdasarkanNo || ''}
-                      onChange={(e) => setSelectedRequest({ ...selectedRequest, berdasarkanNo: e.target.value })}
-                    />
-                  </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-berdasarkanNo" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Berdasarkan Surat No
+                        </Label>
+                        <Input
+                          id="detail-berdasarkanNo"
+                          value={selectedRequest.berdasarkanNo || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, berdasarkanNo: e.target.value })}
+                        />
+                      </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="detail-lampiran" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Lampiran
-                    </Label>
-                    <Input
-                      id="detail-lampiran"
-                      value={selectedRequest.lampiran || ''}
-                      onChange={(e) => setSelectedRequest({ ...selectedRequest, lampiran: e.target.value })}
-                    />
-                  </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-lampiran" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Lampiran
+                        </Label>
+                        <Input
+                          id="detail-lampiran"
+                          value={selectedRequest.lampiran || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, lampiran: e.target.value })}
+                        />
+                      </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="detail-perihal" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Hal / Perihal
-                    </Label>
-                    <Input
-                      id="detail-perihal"
-                      value={selectedRequest.perihal || ''}
-                      onChange={(e) => setSelectedRequest({ ...selectedRequest, perihal: e.target.value })}
-                    />
-                  </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-perihal" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Hal / Perihal
+                        </Label>
+                        <Input
+                          id="detail-perihal"
+                          value={selectedRequest.perihal || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, perihal: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-subject" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Hal
+                        </Label>
+                        <Input
+                          id="detail-subject"
+                          value={selectedRequest.subject || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, subject: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-recipientName" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Yang Terhormat
+                        </Label>
+                        <Textarea
+                          id="detail-recipientName"
+                          value={selectedRequest.recipientName || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, recipientName: e.target.value })}
+                          className="min-h-[96px]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="detail-referralUnit" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Unit Rujukan
+                        </Label>
+                        <Input
+                          id="detail-referralUnit"
+                          value={selectedRequest.referralUnit || ''}
+                          onChange={(e) => setSelectedRequest({ ...selectedRequest, referralUnit: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <div className="border-t border-slate-100 dark:border-gray-700 pt-3 space-y-2">
                     <div className="flex items-center justify-between">
@@ -955,7 +1073,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
             </div>
           )}
 
-          <div className={`${activeRequestType === 'suRek' && selectedRequest.status === 'pending' ? 'lg:col-span-8' : 'lg:col-span-12'} print:block print:w-full print:m-0 print:p-0`}>
+          <div className={`${showPendingContentEditor ? 'lg:col-span-8' : 'lg:col-span-12'} print:block print:w-full print:m-0 print:p-0`}>
             <Card className="shadow-sm border-slate-200 dark:border-gray-700 print:border-0 print:shadow-none h-full">
               <CardHeader className="bg-slate-50 dark:bg-gray-700/50 border-b dark:border-gray-700 py-4 print:hidden">
                 <CardTitle className="text-lg flex items-center gap-2 dark:text-white">
@@ -998,6 +1116,27 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                     }}
                     backgroundImageBase64={letterBackgrounds.document.imageBase64}
                     layout={letterLayouts.observation}
+                    showLayoutGuide={false}
+                    letterNumber={selectedRequest.letterNumber}
+                    validationToken={selectedRequest.validationToken}
+                    validationUrl={selectedValidationUrl}
+                    letterDate={selectedRequest.letterGeneratedAt || selectedRequest.createdAt}
+                  />
+                ) : activeRequestType === 'counseling' ? (
+                  <LetterPreview
+                    type="counseling"
+                    data={{
+                      ...selectedRequest,
+                      subject: selectedRequest.subject || 'Pengantar Konseling',
+                      recipientName: selectedRequest.recipientName || '',
+                      referralUnit: selectedRequest.referralUnit || '',
+                      studyProgramName: selectedRequest.studyProgramName,
+                      studyProgramLevel: selectedRequest.studyProgramLevel,
+                      faculty: selectedRequest.faculty || 'FTI',
+                      status: selectedRequest.status
+                    }}
+                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
+                    layout={letterLayouts.counseling}
                     showLayoutGuide={false}
                     letterNumber={selectedRequest.letterNumber}
                     validationToken={selectedRequest.validationToken}
@@ -1218,7 +1357,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                   Pengaturan & Pratinjau Margin Surat
                 </CardTitle>
                 <CardDescription className="dark:text-gray-400">
-                  Atur batas area tulisan, konten rekomendasi, dan tembusan sambil melihat preview surat.
+                  Atur batas area tulisan, konten default surat, dan tembusan sambil melihat preview surat.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
@@ -1323,6 +1462,56 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                                 className="bg-white dark:bg-gray-800"
                               />
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedLayoutConfigKey === 'counseling' && (
+                        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Konten Surat Konseling</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                              Nilai default ini dipakai saat surat konseling dibuat dari tab Surat.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="counselingSubject" className="text-xs text-slate-500 dark:text-slate-400">
+                              Hal
+                            </Label>
+                            <Input
+                              id="counselingSubject"
+                              value={tempCounselingSubject}
+                              onChange={(e) => setTempCounselingSubject(e.target.value)}
+                              placeholder={DEFAULT_COUNSELING_SUBJECT}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="counselingRecipientName" className="text-xs text-slate-500 dark:text-slate-400">
+                              Yang Terhormat
+                            </Label>
+                            <Textarea
+                              id="counselingRecipientName"
+                              value={tempCounselingRecipientName}
+                              onChange={(e) => setTempCounselingRecipientName(e.target.value)}
+                              placeholder={DEFAULT_COUNSELING_RECIPIENT_NAME}
+                              className="min-h-24 bg-white text-sm dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="counselingReferralUnit" className="text-xs text-slate-500 dark:text-slate-400">
+                              Unit Rujukan Konseling
+                            </Label>
+                            <Input
+                              id="counselingReferralUnit"
+                              value={tempCounselingReferralUnit}
+                              onChange={(e) => setTempCounselingReferralUnit(e.target.value)}
+                              placeholder={DEFAULT_COUNSELING_REFERRAL_UNIT}
+                              className="bg-white dark:bg-gray-800"
+                            />
                           </div>
                         </div>
                       )}
@@ -1470,7 +1659,13 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                           key={`${selectedLayoutConfigKey}-${selectedLayoutConfig.marginTopMm}-${selectedLayoutConfig.marginRightMm}-${selectedLayoutConfig.marginBottomMm}-${selectedLayoutConfig.marginLeftMm}-${tempLetterBackgrounds.document.imageBase64 ? 'has-bg' : 'no-bg'}`}
                         >
                           <LetterPreview
-                            type={selectedLayoutConfigKey === 'activeStudent' ? 'active-student' : selectedLayoutConfigKey === 'observation' ? 'observation' : 'su-rek'}
+                            type={selectedLayoutConfigKey === 'activeStudent'
+                              ? 'active-student'
+                              : selectedLayoutConfigKey === 'observation'
+                                ? 'observation'
+                                : selectedLayoutConfigKey === 'counseling'
+                                  ? 'counseling'
+                                  : 'su-rek'}
                             data={selectedPreviewData}
                             backgroundImageBase64={tempLetterBackgrounds.document.imageBase64}
                             layout={selectedLayoutConfig}
@@ -1521,6 +1716,17 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
             </button>
             <button
               type="button"
+              onClick={() => { setActiveRequestType('counseling'); setSelectedIds(new Set()); }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                activeRequestType === 'counseling'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Surat Konseling
+            </button>
+            <button
+              type="button"
               onClick={() => { setActiveRequestType('suRek'); setSelectedIds(new Set()); }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 activeRequestType === 'suRek'
@@ -1537,7 +1743,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-xl text-slate-800 dark:text-white">
-                    Daftar Permohonan {activeRequestType === 'activeStudent' ? 'Surat Aktif Kuliah' : activeRequestType === 'observation' ? 'Surat Observasi' : 'Surat Rekomendasi'}
+                    Daftar Permohonan {getRequestTypeTitle()}
                   </CardTitle>
                   <CardDescription className="dark:text-gray-400">Verifikasi dan proses permohonan dari mahasiswa.</CardDescription>
                 </div>

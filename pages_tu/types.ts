@@ -13,6 +13,7 @@ export interface TULetterBackgrounds {
   document: LetterAsset;
   activeStudent: LetterAsset;
   observation: LetterAsset;
+  counseling?: LetterAsset;
   suRek?: LetterAsset;
 }
 
@@ -26,6 +27,7 @@ export interface LetterLayout {
 export interface TULetterLayouts {
   activeStudent: LetterLayout;
   observation: LetterLayout;
+  counseling?: LetterLayout;
   suRek?: LetterLayout;
 }
 
@@ -114,6 +116,27 @@ export interface SuRekRequest {
   letterNumber?: string;
   validationToken?: string;
   accessCode?: string;
+  letterGeneratedAt?: string;
+  carbonCopies?: { role: string; name?: string }[];
+}
+
+export interface CounselingRequest {
+  id: string;
+  name: string;
+  nim: string;
+  email: string;
+  subject?: string;
+  recipientName?: string;
+  referralUnit?: string;
+  studyProgramLevel?: string;
+  studyProgramName?: string;
+  faculty?: string;
+  status: 'pending' | 'verified' | 'sent';
+  createdAt: string;
+  signatureBase64?: string;
+  stampBase64?: string;
+  letterNumber?: string;
+  validationToken?: string;
   letterGeneratedAt?: string;
   carbonCopies?: { role: string; name?: string }[];
 }

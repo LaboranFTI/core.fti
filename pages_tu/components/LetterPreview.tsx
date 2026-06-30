@@ -4,7 +4,7 @@ import { scopeHtml } from './activeStudentUtils';
 import { api } from '../../services/api';
 
 interface LetterPreviewProps {
-  type?: 'observation' | 'active-student' | 'su-rek';
+  type?: 'observation' | 'active-student' | 'counseling' | 'su-rek';
   data: any & { html?: string };
   backgroundImageBase64?: string;
   layout?: LetterLayout;
@@ -82,6 +82,8 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     data.nim,
     data.recipientName,
     data.berdasarkanNo,
+    data.subject,
+    data.referralUnit,
     data.perihal,
     data.lampiran,
     data.companyName,
@@ -91,6 +93,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     data.headOfProgramName,
     data.studyProgramName,
     data.studyProgramLevel,
+    data.faculty,
     data.students,
     data.html,
     letterNumber,

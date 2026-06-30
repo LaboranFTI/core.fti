@@ -34,7 +34,7 @@ import { LetterPreview } from './components/LetterPreview';
 import { LetterLayout } from './types';
 
 type ValidationLetter = {
-  type: 'active-student' | 'observation' | 'su-rek';
+  type: 'active-student' | 'observation' | 'counseling' | 'su-rek';
   typeLabel: string;
   status: 'pending' | 'verified' | 'sent';
   isValid: boolean;
@@ -66,6 +66,14 @@ type ValidationLetter = {
     studyProgramLevel?: string;
     studyProgramName?: string;
     students: Array<{ name: string; nim: string }>;
+  } | null;
+  counseling?: {
+    subject?: string;
+    recipientName?: string;
+    referralUnit?: string;
+    studyProgramLevel?: string;
+    studyProgramName?: string;
+    faculty?: string;
   } | null;
   suRek?: {
     recipientName?: string;
@@ -224,6 +232,7 @@ export default function PublicLetterValidation() {
   }
 
   const isObservation = letter.type === 'observation';
+  const isCounseling = letter.type === 'counseling';
   const isSuRek = letter.type === 'su-rek';
 
   return (
@@ -406,6 +415,28 @@ export default function PublicLetterValidation() {
                         studyProgramName: letter.observation?.studyProgramName,
                         studyProgramLevel: letter.observation?.studyProgramLevel,
                         students: letter.observation?.students || [],
+                        html: letter.html
+                      }}
+                      backgroundImageBase64={letter.backgroundImageBase64}
+                      layout={letter.layout}
+                      showLayoutGuide={false}
+                      letterNumber={letter.letterNumber || undefined}
+                      validationToken={letter.validationToken}
+                      validationUrl={letter.validationUrl}
+                      letterDate={letter.issuedAt || letter.createdAt || undefined}
+                    />
+                  ) : isCounseling ? (
+                    <LetterPreview
+                      type="counseling"
+                      data={{
+                        name: letter.recipient.name,
+                        nim: letter.recipient.nim,
+                        subject: letter.counseling?.subject || 'Pengantar Konseling',
+                        recipientName: letter.counseling?.recipientName || '',
+                        referralUnit: letter.counseling?.referralUnit || '',
+                        studyProgramName: letter.counseling?.studyProgramName,
+                        studyProgramLevel: letter.counseling?.studyProgramLevel,
+                        faculty: letter.counseling?.faculty || 'FTI',
                         html: letter.html
                       }}
                       backgroundImageBase64={letter.backgroundImageBase64}
