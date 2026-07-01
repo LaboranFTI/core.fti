@@ -5,13 +5,13 @@ import { AdminPanel } from './components/AdminPanel';
 import { CounselingForm } from './components/CounselingForm';
 import { LetterArchivePanel } from './components/LetterArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
+import { ResearchLetterForm } from './components/ResearchLetterForm';
 import { SuRekForm } from './components/SuRekForm';
 import { LetterPreview } from './components/LetterPreview';
 import { PageTabs, PageTabItem } from '../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../components/ui/tabs';
 import PageHeader from '../components/PageHeader';
-import { TUSegmentedControl } from './components/TUPageComponents';
-import { Archive, ArrowLeft, Award, FileText, Layout, PencilLine, ShieldCheck, Settings } from 'lucide-react';
+import { Archive, ArrowLeft, Award, FileText, GraduationCap, Layout, PencilLine, ShieldCheck, Settings } from 'lucide-react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
 import { cn } from '../lib/utils';
@@ -24,13 +24,15 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' }
+  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' },
+  research: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
 
 const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
@@ -44,13 +46,16 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
       ? backgrounds.observation
       : backgrounds?.counseling?.imageBase64
         ? backgrounds.counseling
-      : empty.document;
+        : backgrounds?.research?.imageBase64
+          ? backgrounds.research
+          : empty.document;
 
   return {
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
     observation: { ...empty.observation, ...sharedBackground },
-    counseling: { ...empty.counseling, ...sharedBackground }
+    counseling: { ...empty.counseling, ...sharedBackground },
+    research: { ...empty.research, ...sharedBackground }
   };
 };
 
@@ -59,7 +64,17 @@ type ObservationFeedback = {
   message: string;
 } | null;
 
-type LetterServiceId = 'aktif' | 'observasi' | 'konseling' | 'rekomendasi' | 'arsip-surat' | 'panel-admin';
+type LetterCategoryId = 'tata-usaha' | 'tugas-akhir';
+type LetterServiceId =
+  | 'aktif'
+  | 'observasi'
+  | 'penelitian'
+  | 'konseling'
+  | 'rekomendasi'
+  | 'wawancara-ta'
+  | 'perizinan-ta'
+  | 'arsip-surat'
+  | 'panel-admin';
 
 interface LetterServiceCard {
   value: LetterServiceId;
@@ -67,7 +82,9 @@ interface LetterServiceCard {
   description: string;
   icon: React.ElementType;
   group: 'letter' | 'admin';
+  category?: LetterCategoryId;
   adminOnly?: boolean;
+  status?: 'available' | 'soon';
 }
 
 const waitForNextPaint = () =>
@@ -134,10 +151,12 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     }
   };
   const [activeServiceId, setActiveServiceId] = useState<LetterServiceId | null>(null);
-  const [observationView, setObservationView] = useState<"form" | "preview">("form");
+  const [activeLetterCategory, setActiveLetterCategory] = useState<LetterCategoryId>('tata-usaha');
+  const [showObservationPreview, setShowObservationPreview] = useState(false);
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const capturePreviewRef = useRef<HTMLDivElement>(null);
+  const observationPreviewWasVisibleRef = useRef(false);
   const [isPreparingObservationOutput, setIsPreparingObservationOutput] = useState(false);
   const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
   const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
@@ -148,30 +167,60 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       title: 'Surat Aktif Kuliah',
       description: 'Form pengajuan surat keterangan status mahasiswa aktif untuk kebutuhan administrasi.',
       icon: FileText,
-      group: 'letter'
+      group: 'letter',
+      category: 'tata-usaha'
     },
     {
       value: 'konseling',
       title: 'Pengantar Konseling',
       description: 'Buat surat pengantar konseling untuk mahasiswa ke Pusat Layanan Konseling Fakultas Psikologi.',
       icon: FileText,
-      group: 'letter'
+      group: 'letter',
+      category: 'tata-usaha'
     },
     {
       value: 'observasi',
       title: 'Surat Ijin Observasi',
       description: isMahasiswa
-        ? 'Preview surat observasi untuk kegiatan mata kuliah ke instansi tujuan.'
+        ? 'Ajukan surat observasi untuk kegiatan mata kuliah ke instansi tujuan.'
         : 'Form surat ijin observasi untuk kegiatan mata kuliah ke instansi tujuan.',
       icon: PencilLine,
-      group: 'letter'
+      group: 'letter',
+      category: 'tata-usaha'
     },
     {
       value: 'rekomendasi',
       title: 'Rekomendasi Afirmasi',
       description: 'Form permohonan surat rekomendasi untuk pendaftaran Beasiswa Afirmasi Cemerlang.',
       icon: Award,
-      group: 'letter'
+      group: 'letter',
+      category: 'tata-usaha'
+    },
+    {
+      value: 'penelitian',
+      title: 'Surat Penelitian',
+      description: 'Buat surat rekomendasi penelitian dengan QR validasi dan pembimbing opsional.',
+      icon: GraduationCap,
+      group: 'letter',
+      category: 'tugas-akhir'
+    },
+    {
+      value: 'wawancara-ta',
+      title: 'Permohonan Wawancara',
+      description: 'Akan memakai pola surat tugas akhir dengan QR validasi dan pembimbing opsional.',
+      icon: FileText,
+      group: 'letter',
+      category: 'tugas-akhir',
+      status: 'soon'
+    },
+    {
+      value: 'perizinan-ta',
+      title: 'Surat Perizinan',
+      description: 'Disiapkan untuk format perizinan tugas akhir yang mirip template surat penelitian.',
+      icon: FileText,
+      group: 'letter',
+      category: 'tugas-akhir',
+      status: 'soon'
     }
   ];
   const adminToolCards: LetterServiceCard[] = [
@@ -194,8 +243,15 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     if (item.adminOnly && !isTUAdmin) return false;
     return !isMahasiswa || item.value === 'observasi';
   });
+  const letterCategoryTabs: PageTabItem[] = [
+    { value: 'tata-usaha', label: 'Surat Tata Usaha', icon: FileText },
+    { value: 'tugas-akhir', label: 'Surat Tugas Akhir', icon: GraduationCap }
+  ];
+  const availableLetterCategoryTabs = letterCategoryTabs.filter((item) =>
+    availableServiceCards.some((card) => card.category === item.value)
+  );
   const selectedService = activeServiceId
-    ? availableServiceCards.find((item) => item.value === activeServiceId) || null
+    ? availableServiceCards.find((item) => item.value === activeServiceId && item.status !== 'soon') || null
     : null;
 
   // State untuk Preview Surat Observasi
@@ -218,7 +274,6 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
 
     if (validationMessage) {
       setObservationFeedback({ type: 'error', message: validationMessage });
-      setObservationView('form');
       return;
     }
 
@@ -230,7 +285,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         validationToken: responseData?.validationToken || obsData.validationToken,
         accessCode: responseData?.accessCode || obsData.accessCode
       });
-      setObservationView('preview');
+      observationPreviewWasVisibleRef.current = showObservationPreview;
+      setShowObservationPreview(true);
       setIsPreparingObservationOutput(true);
       setObservationFeedback({ type: 'info', message: 'Preview siap dicetak. Pastikan pengaturan printer memakai ukuran A4.' });
       await waitForNextPaint();
@@ -290,6 +346,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
           activeStudent: { ...defaultLayouts.activeStudent, ...json.letterLayouts?.activeStudent },
           observation: { ...defaultLayouts.observation, ...json.letterLayouts?.observation },
           counseling: { ...defaultLayouts.counseling, ...json.letterLayouts?.counseling },
+          research: { ...defaultLayouts.research, ...json.letterLayouts?.research },
           suRek: { ...defaultLayouts.suRek, ...json.letterLayouts?.suRek }
         };
         setLetterLayouts(mergedLayouts);
@@ -320,8 +377,28 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   }, [activeServiceId, isMahasiswa, isTUAdmin]);
 
   useEffect(() => {
+    if (activeServiceId !== 'observasi') {
+      setShowObservationPreview(false);
+    }
+  }, [activeServiceId]);
+
+  useEffect(() => {
+    if (activeServiceId || availableLetterCategoryTabs.some((item) => item.value === activeLetterCategory)) {
+      return;
+    }
+
+    const nextCategory = availableLetterCategoryTabs[0]?.value as LetterCategoryId | undefined;
+    if (nextCategory) {
+      setActiveLetterCategory(nextCategory);
+    }
+  }, [activeLetterCategory, activeServiceId, availableLetterCategoryTabs]);
+
+  useEffect(() => {
     const handleAfterPrint = () => {
       setIsPreparingObservationOutput(false);
+      if (!observationPreviewWasVisibleRef.current) {
+        setShowObservationPreview(false);
+      }
     };
 
     window.addEventListener('afterprint', handleAfterPrint);
@@ -338,16 +415,25 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const renderServiceCard = (item: LetterServiceCard) => {
     const Icon = item.icon;
     const isActive = activeServiceId === item.value;
+    const isComingSoon = item.status === 'soon';
 
     return (
       <button
         key={item.value}
         type="button"
         aria-pressed={isActive}
-        onClick={() => setActiveServiceId(item.value)}
+        aria-disabled={isComingSoon}
+        disabled={isComingSoon}
+        onClick={() => {
+          if (!isComingSoon) {
+            setActiveServiceId(item.value);
+          }
+        }}
         className={cn(
-          'group flex aspect-square min-h-40 w-full flex-col justify-between rounded-lg border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-fti-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500 focus-visible:ring-offset-2 dark:bg-gray-900 dark:focus-visible:ring-offset-gray-900',
-          isActive
+          'group flex aspect-square min-h-40 w-full flex-col justify-between rounded-lg border bg-white p-4 text-left shadow-sm transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-fti-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500 focus-visible:ring-offset-2 dark:bg-gray-900 dark:focus-visible:ring-offset-gray-900',
+          isComingSoon
+            ? 'cursor-not-allowed border-slate-200 bg-slate-50/80 opacity-75 hover:translate-y-0 hover:border-slate-200 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900/70'
+            : isActive
             ? 'border-fti-blue-500 ring-1 ring-fti-blue-200 dark:border-fti-blue-300 dark:ring-fti-blue-300/30'
             : 'border-slate-200 dark:border-gray-700'
         )}
@@ -356,7 +442,9 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
           <span
             className={cn(
               'flex h-10 w-10 flex-none items-center justify-center rounded-md border transition-colors',
-              isActive
+              isComingSoon
+                ? 'border-slate-200 bg-white text-slate-400 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-500'
+                : isActive
                 ? 'border-fti-blue-200 bg-fti-blue-50 text-fti-blue-700 dark:border-fti-blue-300/30 dark:bg-fti-blue-300/10 dark:text-fti-blue-200'
                 : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:text-fti-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300 dark:group-hover:text-fti-blue-200'
             )}
@@ -374,57 +462,88 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
             isActive && 'text-fti-blue-700 dark:text-fti-blue-200'
           )}
         >
-          {isActive ? 'Sedang dibuka' : 'Buka'}
+          {isActive ? 'Sedang dibuka' : isComingSoon ? 'Segera tersedia' : 'Buka'}
         </span>
       </button>
     );
   };
 
-  const renderObservationService = () => (
-    <>
-      <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:hidden print:hidden">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-          {observationView === "form" ? <PencilLine className="h-4 w-4 text-slate-600 dark:text-slate-300" /> : <Layout className="h-4 w-4 text-slate-600 dark:text-slate-300" />}
-          {observationView === "form" ? 'Mode Formulir' : 'Mode Preview'}
+  const renderLetterCategoryGrid = (category: LetterCategoryId) => {
+    const cards = availableServiceCards.filter((item) => item.category === category);
+
+    if (cards.length === 0) {
+      return (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+          Belum ada layanan surat pada kategori ini.
         </div>
-        <TUSegmentedControl
-          value={observationView}
-          options={[
-            { value: 'form', label: 'Form' },
-            { value: 'preview', label: 'Preview' }
-          ]}
-          onChange={(value) => setObservationView(value)}
-        />
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+        {cards.map(renderServiceCard)}
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <div className={`${observationView === "preview" ? 'hidden xl:block' : 'block'} xl:col-span-5 print:hidden`}>
-          <ObservationForm
-            onDataChange={handleObservationDataChange}
-            onPrint={handlePrint}
-            feedback={observationFeedback}
-            readOnly={isMahasiswa}
-          />
+    );
+  };
+
+  const renderObservationService = () => {
+    const shouldRenderPreview = showObservationPreview || isPreparingObservationOutput;
+
+    return (
+      <>
+        <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between print:hidden">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+            <Layout className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            Preview surat observasi opsional
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowObservationPreview((current) => !current)}
+            className={cn(
+              'inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500',
+              showObservationPreview
+                ? 'border-fti-blue-200 bg-fti-blue-50 text-fti-blue-700 hover:bg-fti-blue-100 dark:border-fti-blue-300/30 dark:bg-fti-blue-300/10 dark:text-fti-blue-200'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-fti-blue-200 hover:text-fti-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-200 dark:hover:border-fti-blue-300/30 dark:hover:text-fti-blue-200'
+            )}
+          >
+            {showObservationPreview ? 'Sembunyikan Preview' : 'Tampilkan Preview'}
+          </button>
         </div>
-        <div className={`${observationView === "form" ? 'hidden xl:block' : 'block'} xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0`}>
+
+        <div className={cn('grid grid-cols-1 gap-6', shouldRenderPreview && 'xl:grid-cols-12')}>
+          <div className={cn('print:hidden', shouldRenderPreview && 'xl:col-span-5')}>
+            <ObservationForm
+              onDataChange={handleObservationDataChange}
+              onPrint={handlePrint}
+              feedback={observationFeedback}
+              readOnly={isMahasiswa}
+            />
+          </div>
+          {shouldRenderPreview && (
+            <div className="xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0">
+              <div className="flex justify-center overflow-auto rounded-lg border border-slate-200 bg-slate-200/50 p-4 dark:border-slate-800 dark:bg-slate-900/50 print:block print:overflow-visible print:border-0 print:bg-white print:p-0">
+                <LetterPreview
+                  data={obsData}
+                  backgroundImageBase64={letterBackgrounds.document.imageBase64}
+                  layout={letterLayouts.observation}
+                  showLayoutGuide={!isPreparingObservationOutput}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="pointer-events-none fixed -left-2500 top-0 opacity-100" aria-hidden="true">
           <LetterPreview
-            data={obsData}
+            ref={capturePreviewRef}
+            data={sanitizeObservationData(obsData)}
             backgroundImageBase64={letterBackgrounds.document.imageBase64}
             layout={letterLayouts.observation}
-            showLayoutGuide={!isPreparingObservationOutput}
+            showLayoutGuide={false}
           />
         </div>
-      </div>
-      <div className="pointer-events-none fixed -left-2500 top-0 opacity-100" aria-hidden="true">
-        <LetterPreview
-          ref={capturePreviewRef}
-          data={sanitizeObservationData(obsData)}
-          backgroundImageBase64={letterBackgrounds.document.imageBase64}
-          layout={letterLayouts.observation}
-          showLayoutGuide={false}
-        />
-      </div>
-    </>
-  );
+      </>
+    );
+  };
 
   const renderActiveService = () => {
     switch (activeServiceId) {
@@ -432,6 +551,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         return <ActiveStudentForm />;
       case 'observasi':
         return renderObservationService();
+      case 'penelitian':
+        return <ResearchLetterForm onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
       case 'konseling':
         return <CounselingForm />;
       case 'rekomendasi':
@@ -446,12 +567,16 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   };
   const SelectedServiceIcon = selectedService?.icon || FileText;
   const isServiceMenuOpen = !selectedService;
+  const handleLetterCategoryChange = (value: string) => {
+    setActiveLetterCategory(value as LetterCategoryId);
+    setActiveServiceId(null);
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6">
       <PageHeader
         title="Layanan Tata Usaha"
-        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Pengantar Konseling, Surat Observasi, dan Surat Rekomendasi."
+        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Pengantar Konseling, Surat Observasi, Surat Penelitian, dan Surat Rekomendasi."
         className="print:hidden"
       />
 
@@ -470,9 +595,19 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">Pilih Surat</h2>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-                  {availableServiceCards.map(renderServiceCard)}
-                </div>
+                <Tabs value={activeLetterCategory} onValueChange={handleLetterCategoryChange} className="gap-4">
+                  {availableLetterCategoryTabs.length > 1 && (
+                    <PageTabs items={availableLetterCategoryTabs} />
+                  )}
+
+                  <TabsContent value="tata-usaha" className="focus:outline-none">
+                    {renderLetterCategoryGrid('tata-usaha')}
+                  </TabsContent>
+
+                  <TabsContent value="tugas-akhir" className="focus:outline-none">
+                    {renderLetterCategoryGrid('tugas-akhir')}
+                  </TabsContent>
+                </Tabs>
               </div>
             ) : (
               <>

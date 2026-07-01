@@ -14,6 +14,7 @@ export interface TULetterBackgrounds {
   activeStudent: LetterAsset;
   observation: LetterAsset;
   counseling?: LetterAsset;
+  research?: LetterAsset;
   suRek?: LetterAsset;
 }
 
@@ -28,6 +29,7 @@ export interface TULetterLayouts {
   activeStudent: LetterLayout;
   observation: LetterLayout;
   counseling?: LetterLayout;
+  research?: LetterLayout;
   suRek?: LetterLayout;
 }
 
@@ -46,6 +48,43 @@ export interface ObservationData {
   letterNumber?: string;
   validationToken?: string;
   accessCode?: string;
+}
+
+export interface ResearchAdvisor {
+  name: string;
+  title?: string;
+}
+
+export interface ResearchLetterData {
+  name: string;
+  nim: string;
+  email?: string;
+  recipientName: string;
+  recipientTitle?: string;
+  destinationPlace: string;
+  destinationAddress: string;
+  researchPlace: string;
+  assignmentType: string;
+  researchTitle: string;
+  contactPerson: string;
+  studyProgramId?: string;
+  studyProgramName?: string;
+  studyProgramLevel?: string;
+  advisors: ResearchAdvisor[];
+  includeResearchPlace?: boolean;
+  carbonCopies?: { role: string; name?: string }[];
+  letterNumber?: string;
+  validationToken?: string;
+  accessCode?: string;
+}
+
+export interface ResearchRequest extends ResearchLetterData {
+  id: string;
+  status: 'pending' | 'verified' | 'sent';
+  createdAt: string;
+  signatureBase64?: string;
+  stampBase64?: string;
+  letterGeneratedAt?: string;
 }
 
 export interface ObservationRequest {

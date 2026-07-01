@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { ObservationData } from '../types';
 import { Button } from '../../components/ui/button';
@@ -6,8 +6,8 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { api } from '../../services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Plus, Trash2, Printer, Download, Building2, GraduationCap, Users, Loader2, QrCode, X, ChevronDown, FileText, Mail } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '../../components/ui/card';
+import { Plus, Trash2, Printer, Building2, GraduationCap, Users, Loader2, FileText, Mail } from 'lucide-react';
 import SearchableSelect, { SelectOption } from '../../components/SearchableSelect';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import { useLecturers } from '../../hooks/useLecturers';
@@ -21,8 +21,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '../../components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../../components/ui/dialog';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
+import { LetterActionMenu, LetterFormHeader, LetterModeTabs } from './LetterFormControls';
 import { ValidationQrCode } from './ValidationQrCode';
 
 const MAX_OBSERVATION_STUDENTS = 7;
@@ -71,7 +80,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
   const [isFinalizingPrint, setIsFinalizingPrint] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | 'print' | null>(null);
-  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
   const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; accessCode?: string | null } | null>(null);
@@ -80,23 +88,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [accessLetterState, setAccessLetterState] = useState<{ accessCode: string; letterNumber?: string | null; status?: string | null } | null>(null);
   const [isOpeningAccessCode, setIsOpeningAccessCode] = useState(false);
   const [isSavingAccessCode, setIsSavingAccessCode] = useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Program Studi & Dosen data
   const { studyPrograms } = useStudyPrograms();
   const { lecturers } = useLecturers();
   const [selectedProdiId, setSelectedProdiId] = useState('');
   const [isProdiSelected, setIsProdiSelected] = useState(false);
-
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDownloadMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const { register, control, watch, getValues, setValue, reset } = useForm<ObservationData>({
     defaultValues: createDefaultObservationData()
@@ -494,42 +491,26 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     <>
       <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-visible">
       <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
-        <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">
-          {formMode === 'new' ? 'Buat Surat Observasi Baru' : 'Buka Surat Observasi Lama'}
-        </CardTitle>
-        <CardDescription className="text-slate-500 dark:text-gray-400">
-          {formMode === 'new'
-            ? 'Lengkapi data surat baru. Preview di sebelah kanan akan diperbarui otomatis.'
-            : 'Masukkan kode akses untuk membuka, mengubah, atau mengirim kembali surat yang sudah dibuat.'}
-        </CardDescription>
-        {!readOnly && (
-          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-900/50">
-            <button
-              type="button"
-              onClick={() => handleFormModeChange('new')}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
-                formMode === 'new'
-                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <Plus className="h-4 w-4" />
-              Buat Surat Baru
-            </button>
-            <button
-              type="button"
-              onClick={() => handleFormModeChange('existing')}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
-                formMode === 'existing'
-                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Buka Surat Lama
-            </button>
-          </div>
-        )}
+        <LetterFormHeader
+          title={formMode === 'new' ? 'Buat Surat Observasi Baru' : 'Buka Surat Observasi Lama'}
+          description={
+            formMode === 'new'
+              ? 'Lengkapi data surat baru. Preview dapat ditampilkan bila diperlukan.'
+              : 'Masukkan kode akses untuk membuka, mengubah, atau mengirim kembali surat yang sudah dibuat.'
+          }
+          action={
+            !readOnly && (
+              <LetterModeTabs<'new' | 'existing'>
+                value={formMode}
+                onChange={handleFormModeChange}
+                items={[
+                  { value: 'new', label: 'Buat Surat Baru', icon: Plus },
+                  { value: 'existing', label: 'Buka Surat Lama', icon: FileText }
+                ]}
+              />
+            )
+          }
+        />
       </CardHeader>
 
       <CardContent className="p-0">
@@ -538,12 +519,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
             {readOnly
               ? 'Role Mahasiswa hanya memiliki akses baca pada tab surat ijin observasi. Form, download PDF, dan cetak dinonaktifkan.'
               : formMode === 'new'
-                ? 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap lalu unduh PDF atau cetak saat preview sudah sesuai. Data surat akan otomatis masuk arsip.'
+                ? 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap, lalu unduh PDF atau cetak. Aktifkan preview bila ingin memeriksa tata letak surat. Data surat akan otomatis masuk arsip.'
                 : 'Gunakan kode akses yang diperoleh dari email atau tampilan QR. Form surat baru tidak perlu diisi untuk membuka surat lama.'}
           </div>
 
           {formFeedback && (
-            <div className={`mx-6 my-5 rounded-2xl border px-4 py-3 text-sm ${formFeedback.type === 'success'
+            <div className={`mx-6 my-5 rounded-lg border px-4 py-3 text-sm ${formFeedback.type === 'success'
                 ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
                 : formFeedback.type === 'error'
                   ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
@@ -570,7 +551,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                     onChange={(event) => setAccessCodeInput(normalizeAccessCodeInput(event.target.value))}
                     onKeyDown={(event) => event.key === 'Enter' && handleOpenAccessCodeLetter()}
                     placeholder="OBS-ABCD-1234"
-                    className="bg-white dark:bg-gray-800 font-mono tracking-[0.08em]"
+                    className="bg-white font-mono dark:bg-gray-800"
                   />
                 </div>
                 <Button
@@ -588,12 +569,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">Nomor surat</p>
+                      <p className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-300">Nomor surat</p>
                       <p className="mt-1 font-semibold text-slate-900 dark:text-white">{accessLetterState.letterNumber || 'Belum tersedia'}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">Kode akses</p>
-                      <p className="mt-1 font-mono font-semibold tracking-[0.12em] text-slate-900 dark:text-white">{accessLetterState.accessCode}</p>
+                      <p className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-300">Kode akses</p>
+                      <p className="mt-1 font-mono font-semibold text-slate-900 dark:text-white">{accessLetterState.accessCode}</p>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -622,7 +603,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
           {/* Step 1: Program Studi Selection (WAJIB untuk surat baru) */}
           {(readOnly || formMode === 'new') && (
-          <div className="p-6 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/20 dark:to-indigo-950/20 space-y-5">
+          <div className="space-y-5 border-b border-slate-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
             <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-2">
               <GraduationCap className="w-5 h-5" />
               <h3 className="font-semibold text-lg">Langkah 1: Pilih Program Studi</h3>
@@ -650,7 +631,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           {isProdiSelected && (
             <>
               {/* Company Details */}
-              <div className="p-6 bg-slate-50/50 dark:bg-slate-800/30 space-y-5 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="space-y-5 border-b border-slate-200 bg-slate-50/60 p-6 dark:border-gray-700 dark:bg-gray-800/30">
                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-2">
                   <Building2 className="w-5 h-5" />
                   <h3 className="font-semibold text-lg">Data Perusahaan Tujuan</h3>
@@ -682,7 +663,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
               </div>
 
               {/* Academic Details */}
-              <div className="p-6 bg-slate-50/50 dark:bg-slate-800/30 space-y-5 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="space-y-5 border-b border-slate-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 mb-2">
                   <GraduationCap className="w-5 h-5" />
                   <h3 className="font-semibold text-lg">Data Akademik</h3>
@@ -709,7 +690,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
               </div>
 
               {/* Student Details */}
-              <div className="p-6 bg-slate-50/50 dark:bg-slate-800/30 space-y-5 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="space-y-5 border-b border-slate-200 bg-slate-50/60 p-6 dark:border-gray-700 dark:bg-gray-800/30">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                     <Users className="w-5 h-5" />
@@ -722,17 +703,17 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
                 <div className="space-y-3">
                   {fields.map((field: { id: string }, index: number) => (
-                    <div key={field.id} className="flex items-start gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg border border-slate-200 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                    <div key={field.id} className="flex items-start gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg border border-slate-200 dark:border-gray-700 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold mt-2.5">
                         {index + 1}
                       </div>
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nama Lengkap</Label>
+                          <Label className="text-xs text-slate-500 dark:text-slate-400 uppercase">Nama Lengkap</Label>
                           <Input placeholder="Nama Mahasiswa" disabled={readOnly} {...register(`students.${index}.name` as const)} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">NIM</Label>
+                          <Label className="text-xs text-slate-500 dark:text-slate-400 uppercase">NIM</Label>
                           <Input placeholder="672019000" disabled={readOnly} {...register(`students.${index}.nim` as const)} />
                         </div>
                       </div>
@@ -743,6 +724,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                           size="icon"
                           className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 mt-6"
                           onClick={() => remove(index)}
+                          aria-label={`Hapus anggota kelompok ${index + 1}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -754,7 +736,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full border-dashed border-2 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 text-slate-500 dark:text-slate-400 dark:border-slate-700"
+                  className="w-full border-2 border-dashed text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:w-auto"
                   onClick={() => {
                     if (fields.length < MAX_OBSERVATION_STUDENTS) append({ name: '', nim: '' });
                   }}
@@ -765,61 +747,19 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
               </div>
 
               {/* Actions */}
-              <div className="p-6 bg-white dark:bg-gray-800 flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1" ref={dropdownRef}>
-                  <Button
-                    type="button"
-                    onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
-                    disabled={readOnly || isDownloadingPdf || isGeneratingQr || isSendingEmail}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-11 text-base"
-                  >
-                    {(isDownloadingPdf || isGeneratingQr || isSendingEmail) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                    {isDownloadingPdf ? 'Mengunduh PDF...' : isGeneratingQr ? 'Membuat QR...' : isSendingEmail ? 'Mengirim Email...' : 'Download'}
-                    {!isDownloadingPdf && !isGeneratingQr && !isSendingEmail && <ChevronDown className="w-4 h-4 ml-2" />}
-                  </Button>
-
-                  {isDownloadMenuOpen && (
-                    <div className="absolute bottom-full left-0 mb-2 w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-slate-200 dark:border-gray-700 overflow-hidden z-50">
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-700 flex items-center text-slate-700 dark:text-slate-200 transition-colors"
-                        onClick={() => {
-                          setConfirmAction('pdf');
-                          setIsDownloadMenuOpen(false);
-                        }}
-                      >
-                        <FileText className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
-                        <span className="font-medium">Simpan sebagai PDF</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-700 flex items-center text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-gray-700"
-                        onClick={() => {
-                          setConfirmAction('qr');
-                          setIsDownloadMenuOpen(false);
-                        }}
-                      >
-                        <QrCode className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
-                        <span className="font-medium">Buat QR Validasi</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-700 flex items-center text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-gray-700"
-                        onClick={() => {
-                          setEmailModalOpen(true);
-                          setIsDownloadMenuOpen(false);
-                        }}
-                      >
-                        <Mail className="w-4 h-4 mr-3 text-green-600 dark:text-green-400" />
-                        <div>
-                          <span className="font-medium">Kirim via Email</span>
-                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">PDF surat langsung ke kotak masuk</p>
-                        </div>
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <Button type="button" onClick={() => setConfirmAction('print')} disabled={readOnly || isFinalizingPrint} variant="outline" className="flex-1 h-11 text-base border-slate-300 dark:border-slate-600">
+              <div className="flex flex-col gap-3 bg-white p-6 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-end">
+                <LetterActionMenu
+                  className="sm:min-w-52"
+                  disabled={readOnly}
+                  isDownloadingPdf={isDownloadingPdf}
+                  isGeneratingQr={isGeneratingQr}
+                  isSendingEmail={isSendingEmail}
+                  onDownloadPdf={() => setConfirmAction('pdf')}
+                  onGenerateQr={() => setConfirmAction('qr')}
+                  onSendEmail={() => setEmailModalOpen(true)}
+                  emailDescription="PDF surat langsung ke kotak masuk"
+                />
+                <Button type="button" onClick={() => setConfirmAction('print')} disabled={readOnly || isFinalizingPrint} variant="outline" className="h-11 w-full border-slate-300 text-base dark:border-slate-600 sm:w-auto sm:min-w-44">
                   {isFinalizingPrint ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
                   {isFinalizingPrint ? 'Menyiapkan...' : 'Cetak Langsung'}
                 </Button>
@@ -846,113 +786,107 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Modal: Input Email Tujuan */}
-      {emailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 relative animate-in fade-in zoom-in-95 duration-200">
-            <button
-              onClick={() => { setEmailModalOpen(false); setTargetEmail(''); }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30">
-                <Mail className="w-5 h-5 text-green-600 dark:text-green-400" />
+      <Dialog
+        open={emailModalOpen}
+        onOpenChange={(open) => {
+          setEmailModalOpen(open);
+          if (!open) setTargetEmail('');
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mb-1 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30">
+                <Mail className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Kirim Surat via Email</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">PDF surat observasi akan dilampirkan secara otomatis</p>
+                <DialogTitle>Kirim Surat via Email</DialogTitle>
+                <DialogDescription>PDF surat observasi akan dilampirkan secara otomatis.</DialogDescription>
               </div>
             </div>
+          </DialogHeader>
 
-            <div className="space-y-3 mb-6">
-              <Label htmlFor="obs-target-email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Alamat Email Tujuan <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="obs-target-email"
-                type="email"
-                placeholder="contoh@gmail.com"
-                value={targetEmail}
-                onChange={(e) => setTargetEmail(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendEmail()}
-                className="bg-white dark:bg-gray-700"
-                autoFocus
-              />
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                Isi dengan email penerima surat (mahasiswa, perusahaan, dsb.). Surat akan diarsipkan otomatis.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1 border-slate-300 dark:border-slate-600"
-                onClick={() => { setEmailModalOpen(false); setTargetEmail(''); }}
-              >
-                Batal
-              </Button>
-              <Button
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleSendEmail}
-                disabled={!targetEmail}
-              >
-                <Mail className="w-4 h-4 mr-2" />
-                Kirim Sekarang
-              </Button>
-            </div>
+          <div className="space-y-3">
+            <Label htmlFor="obs-target-email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Alamat Email Tujuan <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="obs-target-email"
+              type="email"
+              placeholder="contoh@gmail.com"
+              value={targetEmail}
+              onChange={(e) => setTargetEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendEmail()}
+              className="bg-white dark:bg-gray-700"
+              autoFocus
+            />
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Isi dengan email penerima surat. Surat akan diarsipkan otomatis.
+            </p>
           </div>
-        </div>
-      )}
 
-      {qrUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl max-w-sm w-full text-center relative">
-            <button
-              onClick={() => setQrUrl(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">QR Validasi Surat</h3>
-            <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Scan QR untuk membuka halaman validasi publik surat ini.</p>
-            <div className="bg-white p-4 rounded-xl inline-block border border-slate-200 shadow-sm mb-4">
-              <ValidationQrCode
-                value={qrUrl}
-                size={192}
-                className="h-48 w-48"
-                ariaLabel="QR Code Validasi Surat"
-              />
-            </div>
-            {qrAccessCode && (
-              <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left dark:border-blue-900/50 dark:bg-blue-950/20">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-300">Kode akses surat</p>
-                <p className="mt-2 text-center text-xl font-bold tracking-[0.2em] text-slate-900 dark:text-white">{qrAccessCode}</p>
-                <p className="mt-2 text-xs leading-5 text-blue-700 dark:text-blue-200">
-                  Simpan kode ini jika perlu membuka atau mengunduh ulang surat setelah QR ditutup.
-                </p>
-              </div>
-            )}
-            <div className="bg-slate-100 dark:bg-gray-700/50 p-3 rounded-lg break-all text-xs text-slate-500 dark:text-gray-400 text-left">
-              {qrUrl}
-            </div>
-            {qrExpiresAt && (
-              <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">
-                Link QR validasi berlaku permanen selama arsip surat tersedia.
-              </p>
-            )}
+          <DialogFooter className="mt-2">
             <Button
-              type="button"
-              className="mt-5 w-full bg-blue-600 text-white hover:bg-blue-700"
-              onClick={resetSelfServiceFlow}
+              variant="outline"
+              onClick={() => {
+                setEmailModalOpen(false);
+                setTargetEmail('');
+              }}
             >
-              Selesai & Buat Surat Baru
+              Batal
             </Button>
-          </div>
-        </div>
-      )}
+            <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleSendEmail} disabled={!targetEmail}>
+              <Mail className="mr-2 h-4 w-4" />
+              Kirim Sekarang
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(qrUrl)} onOpenChange={(open) => !open && setQrUrl(null)}>
+        <DialogContent className="text-center sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl">QR Validasi Surat</DialogTitle>
+            <DialogDescription>Scan QR untuk membuka halaman validasi publik surat ini.</DialogDescription>
+          </DialogHeader>
+          {qrUrl && (
+            <>
+              <div className="inline-block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <ValidationQrCode
+                  value={qrUrl}
+                  size={192}
+                  className="h-48 w-48"
+                  ariaLabel="QR Code Validasi Surat"
+                />
+              </div>
+              {qrAccessCode && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-left dark:border-blue-900/50 dark:bg-blue-950/20">
+                  <p className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-300">Kode akses surat</p>
+                  <p className="mt-2 text-center text-xl font-bold text-slate-900 dark:text-white">{qrAccessCode}</p>
+                  <p className="mt-2 text-xs leading-5 text-blue-700 dark:text-blue-200">
+                    Simpan kode ini jika perlu membuka atau mengunduh ulang surat setelah QR ditutup.
+                  </p>
+                </div>
+              )}
+              <div className="break-all rounded-lg bg-slate-100 p-3 text-left text-xs text-slate-500 dark:bg-gray-700/50 dark:text-gray-400">
+                {qrUrl}
+              </div>
+              {qrExpiresAt && (
+                <p className="text-xs text-amber-600 dark:text-amber-300">
+                  Link QR validasi berlaku permanen selama arsip surat tersedia.
+                </p>
+              )}
+            </>
+          )}
+          <Button
+            type="button"
+            className="w-full bg-blue-600 text-white hover:bg-blue-700"
+            onClick={resetSelfServiceFlow}
+          >
+            Selesai & Buat Surat Baru
+          </Button>
+        </DialogContent>
+      </Dialog>
       </Card>
 
       <EmailActionOverlay

@@ -578,6 +578,42 @@ CREATE TABLE counseling_requests (
 
 CREATE TRIGGER update_counseling_requests_updated_at BEFORE UPDATE ON counseling_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Tabel Research Requests (Surat Rekomendasi Penelitian)
+CREATE TABLE research_requests (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    nim VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    recipient_name VARCHAR(255),
+    recipient_title VARCHAR(255),
+    destination_place VARCHAR(255),
+    destination_address TEXT,
+    research_place VARCHAR(255),
+    research_address TEXT,
+    assignment_type VARCHAR(255),
+    research_title TEXT,
+    contact_person VARCHAR(255),
+    study_program_level VARCHAR(100),
+    study_program_name VARCHAR(255),
+    advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    include_research_place BOOLEAN DEFAULT TRUE,
+    signature_base64 TEXT,
+    stamp_base64 TEXT,
+    letter_number VARCHAR(100),
+    letter_sequence INTEGER,
+    letter_generated_at TIMESTAMP,
+    validation_token VARCHAR(64),
+    access_code VARCHAR(20),
+    qr_download_token_hash VARCHAR(64),
+    qr_download_token_expires_at TIMESTAMPTZ,
+    status VARCHAR(20) DEFAULT 'pending',
+    carbon_copies JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_research_requests_updated_at BEFORE UPDATE ON research_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Tabel Surat Rekomendasi Afirmasi Cemerlang (su-rek)
 CREATE TABLE su_rek_requests (
     id VARCHAR(50) PRIMARY KEY,
@@ -617,6 +653,10 @@ CREATE UNIQUE INDEX idx_counseling_requests_validation_token_unique
 ON counseling_requests(validation_token)
 WHERE validation_token IS NOT NULL;
 
+CREATE UNIQUE INDEX idx_research_requests_validation_token_unique
+ON research_requests(validation_token)
+WHERE validation_token IS NOT NULL;
+
 CREATE UNIQUE INDEX idx_su_rek_requests_validation_token_unique
 ON su_rek_requests(validation_token)
 WHERE validation_token IS NOT NULL;
@@ -624,7 +664,7 @@ WHERE validation_token IS NOT NULL;
 -- Tabel Background Surat TU (1 PNG A4 bersama untuk semua format surat)
 CREATE TABLE tu_letter_backgrounds (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'su-rek')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'su-rek')),
     file_name VARCHAR(255),
     mime_type VARCHAR(100) DEFAULT 'image/png',
     image_base64 TEXT NOT NULL,
@@ -638,7 +678,7 @@ CREATE TRIGGER update_tu_letter_backgrounds_updated_at BEFORE UPDATE ON tu_lette
 -- Counter nomor surat TU per jenis surat per bulan
 CREATE TABLE tu_letter_number_counters (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'su-rek')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
     year INTEGER NOT NULL,
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
     last_sequence INTEGER NOT NULL DEFAULT 0,
@@ -653,7 +693,7 @@ CREATE TRIGGER update_tu_letter_number_counters_updated_at BEFORE UPDATE ON tu_l
 
 CREATE TABLE tu_letter_layouts (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'su-rek')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
     margin_top_mm NUMERIC(6,2) NOT NULL DEFAULT 40,
     margin_right_mm NUMERIC(6,2) NOT NULL DEFAULT 22,
     margin_bottom_mm NUMERIC(6,2) NOT NULL DEFAULT 26,
@@ -677,6 +717,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_counseling_requests_letter_number_unique
 ON counseling_requests(letter_number)
 WHERE letter_number IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_letter_number_unique
+ON research_requests(letter_number)
+WHERE letter_number IS NOT NULL;
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_letter_number_unique
 ON su_rek_requests(letter_number)
 WHERE letter_number IS NOT NULL;
@@ -689,12 +733,20 @@ CREATE INDEX IF NOT EXISTS idx_counseling_requests_qr_download_token_hash
 ON counseling_requests(qr_download_token_hash)
 WHERE qr_download_token_hash IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_research_requests_qr_download_token_hash
+ON research_requests(qr_download_token_hash)
+WHERE qr_download_token_hash IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_su_rek_requests_qr_download_token_hash
 ON su_rek_requests(qr_download_token_hash)
 WHERE qr_download_token_hash IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_access_code_unique
 ON observation_requests(access_code)
+WHERE access_code IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_access_code_unique
+ON research_requests(access_code)
 WHERE access_code IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_access_code_unique

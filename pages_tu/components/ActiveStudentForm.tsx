@@ -242,7 +242,7 @@ export function ActiveStudentForm() {
 
   if (submitSuccess) {
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden text-center py-12">
+      <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden text-center py-12">
         <CardContent className="space-y-4 flex flex-col items-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950/50 dark:text-green-400">
             <CheckCircle2 className="w-8 h-8" />
@@ -272,7 +272,7 @@ export function ActiveStudentForm() {
 
   return (
     <>
-      <Card className="w-full max-w-2xl mx-auto shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
+      <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
         <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg">
@@ -288,7 +288,7 @@ export function ActiveStudentForm() {
         <CardContent className="p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {formFeedback && (
-              <div className={`rounded-2xl border px-4 py-3 text-sm ${formFeedback.type === 'success'
+              <div className={`rounded-lg border px-4 py-3 text-sm ${formFeedback.type === 'success'
                   ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
                   : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
                 }`}>
@@ -297,18 +297,18 @@ export function ActiveStudentForm() {
             )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className={`rounded-2xl border px-4 py-3 ${isVerified ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Langkah 1</p>
+              <div className={`rounded-lg border px-4 py-3 ${isVerified ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'}`}>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Langkah 1</p>
                 <p className="mt-1 font-semibold text-slate-800 dark:text-white">Verifikasi KST</p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Masukkan NIM lalu cek status aktif pada semester berjalan.</p>
               </div>
-              <div className={`rounded-2xl border px-4 py-3 ${isVerified ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Langkah 2</p>
+              <div className={`rounded-lg border px-4 py-3 ${isVerified ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'}`}>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Langkah 2</p>
                 <p className="mt-1 font-semibold text-slate-800 dark:text-white">Cek Biodata Surat</p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Nama, TTL, jenjang, dan prodi akan terisi otomatis sesuai NIM.</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Langkah 3</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Langkah 3</p>
                 <p className="mt-1 font-semibold text-slate-800 dark:text-white">Ajukan Permohonan</p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Lengkapi email lalu kirim permohonan ke TU.</p>
               </div>
@@ -372,10 +372,10 @@ export function ActiveStudentForm() {
               </div>
 
               {isVerified && (
-                <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6 pt-6 mt-6 border-t border-slate-100 dark:border-slate-700/50">
+                <div className="mt-6 space-y-6 border-t border-slate-100 pt-6 dark:border-slate-700/50">
                   <input type="hidden" {...register("birthPlace")} />
                   <input type="hidden" {...register("birthDate")} />
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
                     Data surat di bawah ini diambil dari SIASAT, jika menemukan ketidaksesuaian data mohon mengurus ke GAP Universitas terlebih dahulu.
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -437,13 +437,15 @@ export function ActiveStudentForm() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11 text-base" disabled={isSubmitting}>
-                    {isSubmitting ? 'Mengirim Permohonan...' : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" /> Ajukan Permohonan
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex justify-end">
+                    <Button type="submit" className="h-11 w-full bg-blue-600 text-base text-white hover:bg-blue-700 sm:w-auto sm:min-w-52" disabled={isSubmitting}>
+                      {isSubmitting ? 'Mengirim Permohonan...' : (
+                        <>
+                          <Send className="w-4 h-4 mr-2" /> Ajukan Permohonan
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

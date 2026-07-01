@@ -3,10 +3,11 @@ import { useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent, CardHeader } from '../../components/ui/card';
 import { FileText, Send, CheckCircle2, Loader2, Search, XCircle, Download, Printer, Mail, Key, Plus } from 'lucide-react';
 import { api } from '../../services/api';
 import { API_BASE_URL } from '../../config';
+import { LetterFormHeader, LetterModeTabs } from './LetterFormControls';
 
 interface SuRekFormValues {
   name: string;
@@ -203,7 +204,7 @@ export function SuRekForm() {
 
   if (submitSuccess && createdRequest) {
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden text-center py-12">
+      <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden text-center py-12">
         <CardContent className="space-y-4 flex flex-col items-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950/50 dark:text-green-400">
             <CheckCircle2 className="w-8 h-8" />
@@ -224,12 +225,12 @@ export function SuRekForm() {
             </div>
           ) : null}
 
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-100 dark:border-slate-700 max-w-sm mx-auto text-left space-y-2">
+          <div className="mx-auto max-w-sm space-y-2 rounded-lg border border-slate-100 bg-slate-50 p-4 text-left dark:border-slate-700 dark:bg-slate-800/80">
             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-semibold text-sm">
               <Key className="w-4 h-4 text-blue-500" />
               Kode Akses Pencarian:
             </div>
-            <div className="text-xl font-mono font-bold tracking-wider text-center text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900 py-2 rounded-xl border border-slate-200 dark:border-slate-700 select-all">
+            <div className="select-all rounded-lg border border-slate-200 bg-white py-2 text-center font-mono text-xl font-bold text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-400">
               {createdRequest.accessCode}
             </div>
             <p className="text-xs text-slate-400 text-center">
@@ -273,44 +274,27 @@ export function SuRekForm() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl print:hidden">
+    <div className="w-full print:hidden">
       <Card className="w-full shadow-xl border-0 ring-1 ring-slate-900/5 dark:ring-gray-700 overflow-hidden">
         <CardHeader className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
-          <CardTitle className="text-xl text-slate-800 dark:text-white font-bold">
-            {activeFormTab === 'request' ? 'Buat Surat Rekomendasi Baru' : 'Buka Surat Rekomendasi Lama'}
-          </CardTitle>
-          <CardDescription className="text-slate-500 dark:text-gray-400">
-            {activeFormTab === 'request'
-              ? 'Lengkapi data permohonan baru. Kode akses akan dikirim ke email aktif.'
-              : 'Masukkan kode akses untuk mengecek status, mengunduh PDF, atau mencetak surat.'}
-          </CardDescription>
-
-          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-900/50">
-            <button
-              type="button"
-              onClick={() => setActiveFormTab('request')}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
-                activeFormTab === 'request'
-                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <Plus className="h-4 w-4" />
-              Buat Surat Baru
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFormTab('track')}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
-                activeFormTab === 'track'
-                  ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-200'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Buka Surat Lama
-            </button>
-          </div>
+          <LetterFormHeader
+            title={activeFormTab === 'request' ? 'Buat Surat Rekomendasi Baru' : 'Buka Surat Rekomendasi Lama'}
+            description={
+              activeFormTab === 'request'
+                ? 'Lengkapi data permohonan baru. Kode akses akan dikirim ke email aktif.'
+                : 'Masukkan kode akses untuk mengecek status, mengunduh PDF, atau mencetak surat.'
+            }
+            action={
+              <LetterModeTabs<'request' | 'track'>
+                value={activeFormTab}
+                onChange={setActiveFormTab}
+                items={[
+                  { value: 'request', label: 'Buat Surat Baru', icon: Plus },
+                  { value: 'track', label: 'Buka Surat Lama', icon: FileText }
+                ]}
+              />
+            }
+          />
         </CardHeader>
 
         <CardContent className="p-0">
@@ -387,19 +371,21 @@ export function SuRekForm() {
                   </p>
                 </div>
 
-                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11 text-base animate-none" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Mengajukan permohonan...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Ajukan Surat Rekomendasi
-                    </>
-                  )}
-                </Button>
+                <div className="flex justify-end">
+                  <Button type="submit" className="h-11 w-full bg-blue-600 text-base text-white hover:bg-blue-700 sm:w-auto sm:min-w-56" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Mengajukan permohonan...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Ajukan Surat Rekomendasi
+                      </>
+                    )}
+                  </Button>
+                </div>
               </form>
               </div>
             ) : (
@@ -414,10 +400,16 @@ export function SuRekForm() {
                     placeholder="Masukkan Kode Akses (REK-XXXX-XXXX)"
                     value={accessCodeInput}
                     onChange={(e) => setAccessCodeInput(e.target.value)}
-                    className="uppercase font-mono tracking-wider"
+                    className="font-mono uppercase"
                   />
                 </div>
-                <Button id="btn-lookup-access" type="submit" disabled={isSearchingAccess} className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600">
+                <Button
+                  id="btn-lookup-access"
+                  type="submit"
+                  disabled={isSearchingAccess}
+                  className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
+                  aria-label="Cari surat berdasarkan kode akses"
+                >
                   {isSearchingAccess ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 </Button>
               </form>
@@ -430,7 +422,7 @@ export function SuRekForm() {
               )}
 
               {accessSearchResult && (
-                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 bg-white dark:bg-slate-800 animate-in fade-in duration-300">
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
                   <div className="flex justify-between items-start">
                     <div>
                       <h4 className="font-bold text-slate-800 dark:text-white">{accessSearchResult.data.name}</h4>
@@ -448,16 +440,16 @@ export function SuRekForm() {
                   {(accessSearchResult.status === 'verified' || accessSearchResult.status === 'sent') ? (
                     <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                       <p className="text-xs text-slate-500 mb-2">Surat Anda sudah ditandatangani secara digital. Silakan pilih aksi:</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button onClick={handleDownloadPdf} disabled={isDownloadingPdf} size="sm" variant="outline" className="flex items-center justify-center gap-1.5 border-slate-200 dark:border-slate-700 text-xs">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                        <Button onClick={handleDownloadPdf} disabled={isDownloadingPdf} size="sm" variant="outline" className="w-full justify-center gap-1.5 border-slate-200 text-xs dark:border-slate-700 sm:w-auto">
                           {isDownloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                           Unduh PDF
                         </Button>
-                        <Button onClick={handlePrintLetter} size="sm" variant="outline" className="flex items-center justify-center gap-1.5 border-slate-200 dark:border-slate-700 text-xs">
+                        <Button onClick={handlePrintLetter} size="sm" variant="outline" className="w-full justify-center gap-1.5 border-slate-200 text-xs dark:border-slate-700 sm:w-auto">
                           <Printer className="w-3.5 h-3.5" />
                           Cetak Surat
                         </Button>
-                        <Button onClick={handleSendEmail} disabled={isSendingEmail} size="sm" variant="outline" className="col-span-2 flex items-center justify-center gap-1.5 border-slate-200 dark:border-slate-700 text-xs">
+                        <Button onClick={handleSendEmail} disabled={isSendingEmail} size="sm" variant="outline" className="w-full justify-center gap-1.5 border-slate-200 text-xs dark:border-slate-700 sm:w-auto">
                           {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
                           Kirim Salinan Ke Email
                         </Button>

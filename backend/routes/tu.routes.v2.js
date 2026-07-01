@@ -62,6 +62,7 @@ const LETTER_TYPE_TO_CLIENT_KEY = {
   'active-student': 'activeStudent',
   observation: 'observation',
   counseling: 'counseling',
+  research: 'research',
   'su-rek': 'suRek'
 };
 const SHARED_LETTER_BACKGROUND_TYPE = 'document';
@@ -69,6 +70,7 @@ const LETTER_TYPE_TO_CODE = {
   'active-student': 'S.Ket',
   observation: 'FTI-OBS',
   counseling: 'FTI',
+  research: 'FTI/Penelitian',
   'su-rek': 'Su.Rek'
 };
 const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
@@ -80,6 +82,7 @@ const DEFAULT_COUNSELING_RECIPIENT_NAME = [
 ].join('\n');
 const DEFAULT_COUNSELING_REFERRAL_UNIT = 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.';
 const OBSERVATION_ACCESS_CODE_PREFIX = 'OBS';
+const RESEARCH_ACCESS_CODE_PREFIX = 'PEN';
 const SUREK_ACCESS_CODE_PREFIX = 'REK';
 const OBSERVATION_ACCESS_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const VALIDATION_TOKEN_BYTES = 24;
@@ -100,6 +103,16 @@ const normalizeObservationAccessCode = (value) => {
   const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
   return /^OBS-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
 };
+const createResearchAccessCode = () => `${RESEARCH_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
+const normalizeResearchAccessCode = (value) => {
+  const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (compactCode.length !== 11 || !compactCode.startsWith(RESEARCH_ACCESS_CODE_PREFIX)) {
+    return '';
+  }
+
+  const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
+  return /^PEN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
+};
 const createSuRekAccessCode = () => `${SUREK_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
 const normalizeSuRekAccessCode = (value) => {
   const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -117,6 +130,7 @@ const createEmptyLetterBackgrounds = () => ({
   activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' },
+  research: { imageBase64: '', fileName: '', mimeType: 'image/png' },
   suRek: { imageBase64: '', fileName: '', mimeType: 'image/png' }
 });
 
@@ -124,6 +138,7 @@ const DEFAULT_LETTER_LAYOUT_MM = Object.freeze({
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
 
@@ -131,6 +146,7 @@ const createEmptyLetterLayouts = () => ({
   activeStudent: { ...DEFAULT_LETTER_LAYOUT_MM.activeStudent },
   observation: { ...DEFAULT_LETTER_LAYOUT_MM.observation },
   counseling: { ...DEFAULT_LETTER_LAYOUT_MM.counseling },
+  research: { ...DEFAULT_LETTER_LAYOUT_MM.research },
   suRek: { ...DEFAULT_LETTER_LAYOUT_MM.suRek }
 });
 
@@ -318,9 +334,74 @@ const ensureTuInfrastructure = async () => {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS research_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        nim VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        recipient_name VARCHAR(255),
+        recipient_title VARCHAR(255),
+        destination_place VARCHAR(255),
+        destination_address TEXT,
+        research_place VARCHAR(255),
+        research_address TEXT,
+        assignment_type VARCHAR(255),
+        research_title TEXT,
+        contact_person VARCHAR(255),
+        study_program_level VARCHAR(100),
+        study_program_name VARCHAR(255),
+        advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
+        include_research_place BOOLEAN DEFAULT TRUE,
+        signature_base64 TEXT,
+        stamp_base64 TEXT,
+        letter_number VARCHAR(100),
+        letter_sequence INTEGER,
+        letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
+        access_code VARCHAR(20),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
+        status VARCHAR(20) DEFAULT 'pending',
+        carbon_copies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      ALTER TABLE research_requests
+      ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS recipient_title VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS destination_place VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS destination_address TEXT,
+      ADD COLUMN IF NOT EXISTS research_place VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS research_address TEXT,
+      ADD COLUMN IF NOT EXISTS assignment_type VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS research_title TEXT,
+      ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS study_program_level VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS study_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS include_research_place BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS stamp_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
+      ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS access_code VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS tu_letter_backgrounds (
         id SERIAL PRIMARY KEY,
-        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'su-rek')),
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'su-rek')),
         file_name VARCHAR(255),
         mime_type VARCHAR(100) DEFAULT 'image/png',
         image_base64 TEXT NOT NULL,
@@ -347,7 +428,7 @@ const ensureTuInfrastructure = async () => {
           WHERE conrelid = 'tu_letter_backgrounds'::regclass
             AND contype = 'c'
             AND pg_get_constraintdef(oid) LIKE '%letter_type%'
-            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%')
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%')
         ) THEN
           FOR constraint_record IN
             SELECT conname
@@ -361,7 +442,7 @@ const ensureTuInfrastructure = async () => {
 
           ALTER TABLE tu_letter_backgrounds
             ADD CONSTRAINT tu_letter_backgrounds_letter_type_check
-            CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'su-rek'));
+            CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'su-rek'));
         END IF;
       END $$;
     `);
@@ -369,7 +450,7 @@ const ensureTuInfrastructure = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tu_letter_number_counters (
         id SERIAL PRIMARY KEY,
-        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'su-rek')),
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
         year INTEGER NOT NULL,
         month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
         last_sequence INTEGER NOT NULL DEFAULT 0,
@@ -398,7 +479,7 @@ const ensureTuInfrastructure = async () => {
           WHERE conrelid = 'tu_letter_number_counters'::regclass
             AND contype = 'c'
             AND pg_get_constraintdef(oid) LIKE '%letter_type%'
-            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%')
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%')
         ) THEN
           FOR constraint_record IN
             SELECT conname
@@ -412,7 +493,7 @@ const ensureTuInfrastructure = async () => {
 
           ALTER TABLE tu_letter_number_counters
             ADD CONSTRAINT tu_letter_number_counters_letter_type_check
-            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'su-rek'));
+            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek'));
         END IF;
       END $$;
     `);
@@ -420,7 +501,7 @@ const ensureTuInfrastructure = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tu_letter_layouts (
         id SERIAL PRIMARY KEY,
-        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'su-rek')),
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
         margin_top_mm NUMERIC(6,2) NOT NULL DEFAULT 40,
         margin_right_mm NUMERIC(6,2) NOT NULL DEFAULT 22,
         margin_bottom_mm NUMERIC(6,2) NOT NULL DEFAULT 26,
@@ -448,7 +529,7 @@ const ensureTuInfrastructure = async () => {
           WHERE conrelid = 'tu_letter_layouts'::regclass
             AND contype = 'c'
             AND pg_get_constraintdef(oid) LIKE '%letter_type%'
-            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%')
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%')
         ) THEN
           FOR constraint_record IN
             SELECT conname
@@ -462,7 +543,7 @@ const ensureTuInfrastructure = async () => {
 
           ALTER TABLE tu_letter_layouts
             ADD CONSTRAINT tu_letter_layouts_letter_type_check
-            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'su-rek'));
+            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek'));
         END IF;
       END $$;
     `);
@@ -533,6 +614,24 @@ const ensureTuInfrastructure = async () => {
     `);
 
     await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_letter_number_unique
+      ON research_requests(letter_number)
+      WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_validation_token_unique
+      ON research_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_access_code_unique
+      ON research_requests(access_code)
+      WHERE access_code IS NOT NULL
+    `);
+
+    await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_active_student_requests_letter_number_unique
       ON active_student_requests(letter_number)
       WHERE letter_number IS NOT NULL
@@ -577,6 +676,12 @@ const ensureTuInfrastructure = async () => {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_observation_requests_qr_download_token_hash
       ON observation_requests(qr_download_token_hash)
+      WHERE qr_download_token_hash IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_research_requests_qr_download_token_hash
+      ON research_requests(qr_download_token_hash)
       WHERE qr_download_token_hash IS NOT NULL
     `);
 
@@ -626,6 +731,14 @@ const ensureTuInfrastructure = async () => {
         ) THEN
           CREATE TRIGGER update_counseling_requests_updated_at
           BEFORE UPDATE ON counseling_requests
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_research_requests_updated_at'
+        ) THEN
+          CREATE TRIGGER update_research_requests_updated_at
+          BEFORE UPDATE ON research_requests
           FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
         END IF;
 
@@ -740,6 +853,34 @@ const mapCounselingRow = (row) => ({
   createdAt: row.created_at
 });
 
+const mapResearchRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  nim: row.nim,
+  email: row.email,
+  recipientName: row.recipient_name,
+  recipientTitle: row.recipient_title,
+  destinationPlace: row.destination_place || row.research_place || '',
+  destinationAddress: row.destination_address || row.research_address || '',
+  researchPlace: row.research_place || '',
+  assignmentType: row.assignment_type,
+  researchTitle: row.research_title,
+  contactPerson: row.contact_person,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
+  advisors: normalizeResearchAdvisors(row.advisors),
+  includeResearchPlace: row.include_research_place !== false,
+  status: row.status,
+  signatureBase64: row.signature_base64,
+  stampBase64: row.stamp_base64,
+  letterNumber: row.letter_number,
+  validationToken: row.validation_token,
+  accessCode: row.access_code,
+  letterGeneratedAt: row.letter_generated_at,
+  carbonCopies: row.carbon_copies || [],
+  createdAt: row.created_at
+});
+
 const buildObservationAccessPayload = (row) => ({
   accessCode: row.access_code,
   letterNumber: row.letter_number,
@@ -755,6 +896,31 @@ const buildObservationAccessPayload = (row) => ({
     studyProgramName: row.study_program_name || '',
     studyProgramLevel: row.study_program_level || '',
     students: normalizeObservationStudents(row.student_members),
+    carbonCopies: row.carbon_copies || []
+  }
+});
+
+const buildResearchAccessPayload = (row) => ({
+  accessCode: row.access_code,
+  letterNumber: row.letter_number,
+  status: row.status,
+  letterGeneratedAt: row.letter_generated_at,
+  data: {
+    name: row.name || '',
+    nim: row.nim || '',
+    email: row.email || '',
+    recipientName: row.recipient_name || '',
+    recipientTitle: row.recipient_title || '',
+    destinationPlace: row.destination_place || row.research_place || '',
+    destinationAddress: row.destination_address || row.research_address || '',
+    researchPlace: row.research_place || '',
+    assignmentType: row.assignment_type || '',
+    researchTitle: row.research_title || '',
+    contactPerson: row.contact_person || '',
+    studyProgramName: row.study_program_name || '',
+    studyProgramLevel: row.study_program_level || '',
+    advisors: normalizeResearchAdvisors(row.advisors),
+    includeResearchPlace: row.include_research_place !== false,
     carbonCopies: row.carbon_copies || []
   }
 });
@@ -877,6 +1043,7 @@ const formatFacultyProgram = ({ faculty, studyProgramLevel, studyProgramName }) 
 const buildLetterValidationPayload = (type, row, req) => {
   const isObservation = type === 'observation';
   const isCounseling = type === 'counseling';
+  const isResearch = type === 'research';
   const isSuRek = type === 'su-rek';
   const students = isObservation ? normalizeObservationStudents(row.student_members).map(s => ({ ...s, nim: maskNim(s.nim) })) : [];
   const primaryStudent = students[0] || { name: row.name, nim: maskNim(row.nim) };
@@ -886,6 +1053,8 @@ const buildLetterValidationPayload = (type, row, req) => {
     typeLabel = 'Surat Pengantar Observasi';
   } else if (isCounseling) {
     typeLabel = 'Surat Pengantar Konseling';
+  } else if (isResearch) {
+    typeLabel = 'Rekomendasi Penelitian';
   } else if (isSuRek) {
     typeLabel = 'Surat Rekomendasi Afirmasi Cemerlang';
   }
@@ -905,7 +1074,7 @@ const buildLetterValidationPayload = (type, row, req) => {
       nim: maskNim(row.nim || primaryStudent.nim || ''),
       email: maskEmail(row.email || '')
     },
-    activeStudent: (isObservation || isCounseling || isSuRek)
+    activeStudent: (isObservation || isCounseling || isResearch || isSuRek)
       ? null
       : {
           birthPlace: row.birth_place || '',
@@ -936,6 +1105,22 @@ const buildLetterValidationPayload = (type, row, req) => {
           studyProgramLevel: row.study_program_level || '',
           studyProgramName: row.study_program_name || '',
           faculty: row.faculty || DEFAULT_FACULTY
+      }
+      : null,
+    research: isResearch
+      ? {
+          recipientName: row.recipient_name || '',
+          recipientTitle: row.recipient_title || '',
+          destinationPlace: row.destination_place || row.research_place || '',
+          destinationAddress: row.destination_address || row.research_address || '',
+          researchPlace: row.research_place || '',
+          assignmentType: row.assignment_type || '',
+          researchTitle: row.research_title || '',
+          contactPerson: row.contact_person || '',
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          advisors: normalizeResearchAdvisors(row.advisors),
+          includeResearchPlace: row.include_research_place !== false
         }
       : null,
     suRek: isSuRek
@@ -977,6 +1162,7 @@ const buildLetterBackgroundsPayload = (rows) => {
     (backgrounds.activeStudent.imageBase64 ? backgrounds.activeStudent : null) ||
     (backgrounds.observation.imageBase64 ? backgrounds.observation : null) ||
     (backgrounds.counseling.imageBase64 ? backgrounds.counseling : null) ||
+    (backgrounds.research.imageBase64 ? backgrounds.research : null) ||
     (backgrounds.suRek.imageBase64 ? backgrounds.suRek : null) ||
     backgrounds.document;
 
@@ -984,6 +1170,7 @@ const buildLetterBackgroundsPayload = (rows) => {
   backgrounds.activeStudent = sharedBackground;
   backgrounds.observation = sharedBackground;
   backgrounds.counseling = sharedBackground;
+  backgrounds.research = sharedBackground;
   backgrounds.suRek = sharedBackground;
 
   return backgrounds;
@@ -1002,9 +1189,11 @@ const getSharedLetterBackground = (letterBackgrounds) => {
         ? letterBackgrounds.observation
         : letterBackgrounds.counseling?.imageBase64
           ? letterBackgrounds.counseling
-          : letterBackgrounds.suRek?.imageBase64
-            ? letterBackgrounds.suRek
-            : createEmptyLetterBackgrounds().document;
+          : letterBackgrounds.research?.imageBase64
+            ? letterBackgrounds.research
+            : letterBackgrounds.suRek?.imageBase64
+              ? letterBackgrounds.suRek
+              : createEmptyLetterBackgrounds().document;
 };
 
 const buildLetterLayoutsPayload = (rows) => {
@@ -1034,6 +1223,74 @@ const normalizeObservationStudents = (students) => {
       nim: String(student?.nim || '').trim()
     }))
     .filter((student) => student.name || student.nim);
+};
+
+const normalizeResearchAdvisors = (advisors) => {
+  if (!Array.isArray(advisors)) return [];
+
+  const normalizedAdvisors = advisors
+    .slice(0, 2)
+    .map((advisor, index) => ({
+      name: String(advisor?.name || advisor?.nama || '').trim(),
+      title: String(advisor?.title || advisor?.jabatan || '').trim() || (index === 0 ? 'Dosen Pembimbing I' : 'Dosen Pembimbing II')
+    }))
+    .filter((advisor) => advisor.name);
+
+  return normalizedAdvisors.map((advisor, index) => {
+    const defaultTitle = normalizedAdvisors.length === 1 ? 'Dosen Pembimbing' : `Dosen Pembimbing ${index === 0 ? 'I' : 'II'}`;
+    if (advisor.title === 'Dosen Pembimbing' && normalizedAdvisors.length > 1) {
+      return { ...advisor, title: defaultTitle };
+    }
+    if (normalizedAdvisors.length === 1 && /^Dosen Pembimbing (I|II)$/.test(advisor.title)) {
+      return { ...advisor, title: defaultTitle };
+    }
+    return { ...advisor, title: advisor.title || defaultTitle };
+  });
+};
+
+const buildResearchAdvisorText = (advisors) => {
+  const normalizedAdvisors = normalizeResearchAdvisors(advisors);
+  if (normalizedAdvisors.length === 0) return '';
+
+  return normalizedAdvisors
+    .map((advisor) => `${advisor.name} (${advisor.title})`)
+    .join(', ');
+};
+
+const buildResearchAdvisorSignatureHtml = (advisors) => {
+  const normalizedAdvisors = normalizeResearchAdvisors(advisors);
+  if (normalizedAdvisors.length === 0) return '';
+
+  const advisorItems = normalizedAdvisors
+    .map((advisor, index) => {
+      const title = normalizedAdvisors.length === 1
+        ? (advisor.title || 'Dosen Pembimbing')
+        : (advisor.title || `Dosen Pembimbing ${index + 1}`);
+      return `
+        <div class="advisor-item">
+          <p class="signature-name">${escapeXml(advisor.name)}</p>
+          <p>${escapeXml(title)}</p>
+        </div>
+      `;
+    })
+    .join('');
+
+  return `
+    <div class="signature-content advisor-column">
+      <p>Mengetahui,</p>
+      <div class="advisor-list">${advisorItems}</div>
+    </div>
+  `;
+};
+
+const buildResearchSignerList = async (row) => {
+  const deanSigner = await getRecommendationSigner();
+  const advisors = normalizeResearchAdvisors(row.advisors);
+
+  return [
+    deanSigner,
+    ...advisors.map((advisor) => ({ name: advisor.name, title: advisor.title }))
+  ];
 };
 
 const buildObservationStudentRowsHtml = (students) => {
@@ -1498,8 +1755,8 @@ const letterConfig = {
         '{{letterPurpose}}': escapeXml(data.subject || data.subjectName || DEFAULT_COUNSELING_SUBJECT),
         '{{lampiran}}': '-',
         '{{recipientName}}': recipientName || DEFAULT_COUNSELING_RECIPIENT_NAME.split('\n').map((line) => escapeXml(line)).join('<br>'),
-        '{{name}}': escapeXml(data.name || ''),
-        '{{nim}}': escapeXml(data.nim || ''),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
         '{{fakProgdi}}': escapeXml(formatFacultyProgram({
           faculty: data.faculty || 'FTI',
           studyProgramLevel: data.study_program_level || data.studyProgramLevel || studyProgram?.studyProgramLevel || '',
@@ -1508,6 +1765,61 @@ const letterConfig = {
         '{{referralUnit}}': escapeXml(data.referral_unit || data.referralUnit || DEFAULT_COUNSELING_REFERRAL_UNIT),
         '{{deanName}}': escapeXml(deanSigner.name),
         '{{deanTitle}}': escapeXml(deanSigner.title)
+      };
+    }
+  },
+  research: {
+    table: 'research_requests',
+    template: 'suratPenelitianV2.html',
+    subject: 'Rekomendasi Penelitian',
+    pdfFilename: 'Surat_Rekomendasi_Penelitian',
+    emailBody: `
+      <p>Surat Rekomendasi Penelitian telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber }) => {
+      const deanSigner = await getRecommendationSigner();
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        Sarjana: 'S1',
+        Magister: 'S2',
+        Doktor: 'S3'
+      };
+      const studyProgramLabel = `${map[level] || level} ${data.study_program_name || data.studyProgramName || ''}`.trim();
+      const rawResearchPlace = data.research_place || data.researchPlace || '';
+      const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
+      const researchPlace = rawResearchPlace || rawDestinationPlace;
+      const researchPlacePhrase = researchPlace ? ` di ${escapeXml(researchPlace)}` : '';
+      const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+      const advisors = normalizeResearchAdvisors(data.advisors);
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Rekomendasi Penelitian',
+        '{{lampiran}}': '-',
+        '{{recipientName}}': escapeXml(data.recipient_name || data.recipientName || ''),
+        '{{recipientTitle}}': escapeXml(data.recipient_title || data.recipientTitle || ''),
+        '{{destinationPlace}}': escapeXml(rawDestinationPlace),
+        '{{destinationAddress}}': destinationAddress,
+        '{{researchPlace}}': escapeXml(researchPlace),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || 'Tugas Talenta Unggul'),
+        '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{contactPerson}}': escapeXml(data.contact_person || data.contactPerson || data.nim || ''),
+        '{{researchPlacePhrase}}': researchPlacePhrase,
+        '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
+        '{{advisorParagraph}}': advisors.length > 0
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors))}.</p>`
+          : '',
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors),
+        '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
       };
     }
   },
@@ -1783,6 +2095,202 @@ const upsertObservationRequest = async (client, data, targetStatus) => {
   }
 };
 
+const normalizeResearchPayload = async (payload = {}) => {
+  const nim = String(payload.nim || '').trim();
+  const studyProgram = nim ? await getStudyProgramByNim(nim) : null;
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+  const hasDestinationPlace = hasOwn('destinationPlace') || hasOwn('destination_place');
+  const hasDestinationAddress = hasOwn('destinationAddress') || hasOwn('destination_address');
+  const researchPlace = String(payload.researchPlace || payload.research_place || '').trim();
+  const researchAddress = String(payload.researchAddress || payload.research_address || '').trim();
+  const destinationPlace = hasDestinationPlace
+    ? String(payload.destinationPlace || payload.destination_place || '').trim()
+    : researchPlace;
+  const destinationAddress = hasDestinationAddress
+    ? String(payload.destinationAddress || payload.destination_address || '').trim()
+    : researchAddress;
+
+  return {
+    name: formatStudentName(payload.name || ''),
+    nim,
+    email: String(payload.email || '').trim(),
+    recipient_name: String(payload.recipientName || payload.recipient_name || '').trim(),
+    recipient_title: String(payload.recipientTitle || payload.recipient_title || '').trim(),
+    destination_place: destinationPlace,
+    destination_address: destinationAddress,
+    research_place: researchPlace,
+    research_address: researchAddress,
+    assignment_type: String(payload.assignmentType || payload.assignment_type || '').trim() || 'Tugas Talenta Unggul',
+    research_title: String(payload.researchTitle || payload.research_title || '').trim(),
+    contact_person: String(payload.contactPerson || payload.contact_person || '').trim(),
+    study_program_level: payload.studyProgramLevel || payload.study_program_level || studyProgram?.studyProgramLevel || null,
+    study_program_name: payload.studyProgramName || payload.study_program_name || studyProgram?.studyProgramName || null,
+    advisors: normalizeResearchAdvisors(payload.advisors),
+    include_research_place: true,
+    carbon_copies: Array.isArray(payload.carbonCopies || payload.carbon_copies) ? (payload.carbonCopies || payload.carbon_copies) : []
+  };
+};
+
+const validateResearchPayload = (data) => {
+  if (!data.name) return 'Nama mahasiswa wajib diisi.';
+  if (!data.nim) return 'NIM mahasiswa wajib diisi.';
+  if (!data.recipient_title) return 'Jabatan penerima surat wajib diisi.';
+  if (!data.destination_place) return 'Instansi atau tempat tujuan surat wajib diisi.';
+  if (!data.destination_address) return 'Alamat tujuan surat wajib diisi.';
+  if (!data.research_place) return 'Tempat penelitian wajib diisi.';
+  if (!data.study_program_name) return 'Program studi wajib diisi.';
+  if (!data.research_title) return 'Judul penelitian wajib diisi.';
+  return null;
+};
+
+const ensureResearchAccessCode = async (client, requestData) => {
+  if (requestData.access_code) {
+    return requestData;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const accessCode = createResearchAccessCode();
+      const updateResult = await client.query(
+        `UPDATE research_requests
+         SET access_code = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [accessCode, requestData.id]
+      );
+      return updateResult.rows[0];
+    } catch (err) {
+      if (err?.code === '23505') continue;
+      throw err;
+    }
+  }
+
+  throw new Error('Gagal membuat kode akses surat penelitian.');
+};
+
+const upsertResearchRequest = async (client, data, targetStatus) => {
+  const recentDuplicate = await client.query(
+    `SELECT * FROM research_requests
+     WHERE nim = $1
+       AND research_place IS NOT DISTINCT FROM $2
+       AND research_title IS NOT DISTINCT FROM $3
+       AND destination_place IS NOT DISTINCT FROM $4
+       AND created_at > NOW() - INTERVAL '1 day'
+     ORDER BY created_at DESC LIMIT 1`,
+    [data.nim, data.research_place, data.research_title, data.destination_place]
+  );
+
+  if (recentDuplicate.rows.length > 0) {
+    const existing = recentDuplicate.rows[0];
+    const statusPriority = { pending: 1, verified: 2, sent: 3 };
+    const currentStatusLevel = statusPriority[existing.status] || 0;
+    const targetStatusLevel = statusPriority[targetStatus] || 0;
+    const newStatus = targetStatusLevel > currentStatusLevel ? targetStatus : existing.status;
+
+    const updateResult = await client.query(
+      `UPDATE research_requests SET
+         name = $1,
+         email = $2,
+         recipient_name = $3,
+         recipient_title = $4,
+         destination_place = $5,
+         destination_address = $6,
+         research_place = $7,
+         research_address = $8,
+         assignment_type = $9,
+         research_title = $10,
+         contact_person = $11,
+         study_program_level = $12,
+         study_program_name = $13,
+         advisors = $14::jsonb,
+         include_research_place = $15,
+         status = $16,
+         carbon_copies = $17::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $18
+       RETURNING *`,
+      [
+        data.name,
+        data.email,
+        data.recipient_name,
+        data.recipient_title,
+        data.destination_place,
+        data.destination_address,
+        data.research_place,
+        data.research_address,
+        data.assignment_type,
+        data.research_title,
+        data.contact_person,
+        data.study_program_level,
+        data.study_program_name,
+        JSON.stringify(data.advisors || []),
+        data.include_research_place !== false,
+        newStatus,
+        JSON.stringify(data.carbon_copies || []),
+        existing.id
+      ]
+    );
+    return updateResult.rows[0];
+  }
+
+  const id = `PEN-${Date.now()}`;
+  const insertResult = await client.query(
+    `INSERT INTO research_requests (
+       id, name, nim, email, recipient_name, recipient_title, destination_place,
+       destination_address, research_place, research_address, assignment_type,
+       research_title, contact_person, study_program_level, study_program_name,
+       advisors, include_research_place, status, carbon_copies
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19::jsonb)
+     RETURNING *`,
+    [
+      id,
+      data.name,
+      data.nim,
+      data.email,
+      data.recipient_name,
+      data.recipient_title,
+      data.destination_place,
+      data.destination_address,
+      data.research_place,
+      data.research_address,
+      data.assignment_type,
+      data.research_title,
+      data.contact_person,
+      data.study_program_level,
+      data.study_program_name,
+      JSON.stringify(data.advisors || []),
+      data.include_research_place !== false,
+      targetStatus,
+      JSON.stringify(data.carbon_copies || [])
+    ]
+  );
+
+  return insertResult.rows[0];
+};
+
+const createFinalResearchRequest = async (client, payload, targetStatus, req) => {
+  const normalized = await normalizeResearchPayload({
+    ...payload,
+    email: payload.email || req.user?.email || ''
+  });
+  const resolvedEmail = normalized.email || `arsip-${normalized.nim || Date.now()}@core.fti`;
+  const data = { ...normalized, email: resolvedEmail };
+  const validationMessage = validateResearchPayload(data);
+  if (validationMessage) {
+    const error = new Error(validationMessage);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let requestData = await upsertResearchRequest(client, data, targetStatus);
+  requestData = await ensureLetterNumber(client, 'research', requestData);
+  requestData = await ensureLetterValidationToken(client, 'research', requestData);
+  requestData = await ensureResearchAccessCode(client, requestData);
+  return requestData;
+};
+
 router.post('/tu/preview-html', verifyRole([...TU_ACCESS_ROLES, 'Mahasiswa']), async (req, res) => {
   const { type, data } = req.body;
   if (!type || !data) {
@@ -1826,10 +2334,11 @@ router.get('/tu/public/letter-validation/:token/preview-html', publicValidationL
   }
   try {
     await ensureTuInfrastructure();
-    const [activeResult, observationResult, counselingResult, suRekResult] = await Promise.all([
+    const [activeResult, observationResult, counselingResult, researchResult, suRekResult] = await Promise.all([
       pool.query(`SELECT * FROM active_student_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM observation_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM counseling_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM research_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM su_rek_requests WHERE validation_token = $1 LIMIT 1`, [token])
     ]);
     const type = activeResult.rows.length > 0
@@ -1838,10 +2347,12 @@ router.get('/tu/public/letter-validation/:token/preview-html', publicValidationL
         ? 'observation'
         : counselingResult.rows.length > 0
           ? 'counseling'
-          : suRekResult.rows.length > 0
-            ? 'su-rek'
-            : null;
-    const requestData = activeResult.rows[0] || observationResult.rows[0] || counselingResult.rows[0] || suRekResult.rows[0];
+          : researchResult.rows.length > 0
+            ? 'research'
+            : suRekResult.rows.length > 0
+              ? 'su-rek'
+              : null;
+    const requestData = activeResult.rows[0] || observationResult.rows[0] || counselingResult.rows[0] || researchResult.rows[0] || suRekResult.rows[0];
     if (!type || !requestData) {
       return res.status(404).send('Surat tidak ditemukan atau token validasi tidak terdaftar.');
     }
@@ -3525,6 +4036,212 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
   }
 });
 
+router.get('/research-requests', verifyRole(['Admin', 'Admin TU', 'User TU']), async (req, res) => {
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(`SELECT * FROM research_requests ORDER BY created_at DESC`);
+    res.json({ success: true, data: result.rows.map(mapResearchRow) });
+  } catch (err) {
+    console.error('Get research requests error:', err);
+    res.status(500).json({ error: 'Gagal mengambil data surat penelitian.' });
+  }
+});
+
+router.post('/tu/research-letter/generate-and-download', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'verified', req);
+    const pdfBuffer = await buildLetterPdfBuffer('research', requestData, req);
+    await client.query('COMMIT');
+
+    const safeName = (requestData.research_place || requestData.name || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `SuratPenelitian_${safeName}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Research-Access-Code', requestData.access_code || '');
+    res.send(pdfBuffer);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Research letter download & archive error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal membuat dan mengunduh PDF surat penelitian.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/research-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'verified', req);
+    await client.query('COMMIT');
+
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+    res.json({
+      success: true,
+      qrUrl: validationUrl,
+      validationUrl,
+      validationToken: requestData.validation_token,
+      accessCode: requestData.access_code,
+      letterNumber: requestData.letter_number,
+      expiresAt: null
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Research letter QR generate error:', err);
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode ? err.message : 'Gagal membuat QR Code surat penelitian.',
+      details: err.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/research-letter/send-email', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const targetEmail = String(req.body?.targetEmail || '').trim();
+  if (!isValidEmailAddress(targetEmail)) {
+    return res.status(400).json({ error: 'Alamat email tujuan tidak valid.' });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'sent', req);
+    const config = letterConfig.research;
+    const pdfBuffer = await buildLetterPdfBuffer('research', requestData, req);
+    await client.query('COMMIT');
+
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+    const safeLetterNumber = (requestData.letter_number || config.pdfFilename).replace(/\//g, '_');
+    const pdfFilename = `${safeLetterNumber}_${requestData.nim}.pdf`;
+    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
+    const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
+
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: targetEmail,
+      subject: `${config.subject} - ${requestData.name}`,
+      text: [
+        `Halo, ${requestData.name} (${requestData.nim})`,
+        'Surat Rekomendasi Penelitian telah diproses oleh Tata Usaha FTI UKSW. Surat terlampir dalam format PDF dan sudah memiliki QR validasi publik.',
+        `Validasi surat: ${validationUrl}`,
+        `Kode akses surat: ${requestData.access_code}`,
+        'Salam, Bagian Tata Usaha Fakultas Teknologi Informasi UKSW'
+      ].join('\n\n'),
+      html: `
+        <div style="font-family: sans-serif; color: #333;">
+          <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
+          ${config.emailBody}
+          <p><strong>Validasi surat:</strong> <a href="${validationUrl}">${validationUrl}</a></p>
+          <p><strong>Kode akses surat:</strong> ${escapeXml(requestData.access_code)}</p>
+          <p>Simpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.</p>
+          <br/>
+          <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
+        </div>
+      `,
+      attachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
+      list: {
+        unsubscribe: {
+          url: `mailto:${fromEmail}?subject=unsubscribe`,
+          comment: 'Unsubscribe'
+        }
+      }
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log('[Mailer] Mock Email Preview (Research):', previewUrl);
+    else console.log(`[Mailer] Surat penelitian terkirim ke ${targetEmail}`);
+
+    res.json({
+      success: true,
+      message: `Surat berhasil dikirim ke ${targetEmail}`,
+      letterNumber: requestData.letter_number,
+      accessCode: requestData.access_code,
+      validationToken: requestData.validation_token,
+      validationUrl
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('[Mailer] Research send-email error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal mengirim email surat penelitian. Pastikan konfigurasi EMAIL di .env sudah benar.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/public/research-letter/access', publicObservationAccessLimiter, async (req, res) => {
+  const accessCode = normalizeResearchAccessCode(req.body?.accessCode);
+  if (!accessCode) {
+    return res.status(400).json({ error: 'Kode akses tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `SELECT * FROM research_requests
+       WHERE access_code = $1
+       LIMIT 1`,
+      [accessCode]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Surat penelitian tidak ditemukan untuk kode akses tersebut.' });
+    }
+
+    res.json({ success: true, letter: buildResearchAccessPayload(result.rows[0]) });
+  } catch (err) {
+    console.error('Public research access lookup error:', err);
+    res.status(500).json({ error: 'Gagal membuka surat penelitian.' });
+  }
+});
+
+router.post('/tu/public/research-letter/download', publicObservationAccessLimiter, async (req, res) => {
+  const accessCode = normalizeResearchAccessCode(req.body?.accessCode);
+  if (!accessCode) {
+    return res.status(400).json({ error: 'Kode akses tidak valid.' });
+  }
+
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `SELECT * FROM research_requests
+       WHERE access_code = $1
+       LIMIT 1`,
+      [accessCode]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Surat penelitian tidak ditemukan untuk kode akses tersebut.' });
+    }
+
+    const requestData = result.rows[0];
+    if (!['verified', 'sent'].includes(requestData.status)) {
+      return res.status(403).json({ error: 'Surat penelitian belum berstatus resmi.' });
+    }
+
+    const pdfBuffer = await buildLetterPdfBuffer('research', requestData, req);
+    const safeName = (requestData.research_place || requestData.name || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `SuratPenelitian_${safeName}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Public research access download error:', err);
+    res.status(500).json({ error: 'Gagal mengunduh ulang surat penelitian.' });
+  }
+});
+
 router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async (req, res) => {
   const token = String(req.params.token || '').trim();
   if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {
@@ -3533,10 +4250,11 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
 
   try {
     await ensureTuInfrastructure();
-    const [activeResult, observationResult, counselingResult, suRekResult] = await Promise.all([
+    const [activeResult, observationResult, counselingResult, researchResult, suRekResult] = await Promise.all([
       pool.query(`SELECT * FROM active_student_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM observation_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM counseling_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM research_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM su_rek_requests WHERE validation_token = $1 LIMIT 1`, [token])
     ]);
 
@@ -3612,6 +4330,25 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
       });
     }
 
+    if (researchResult.rows.length > 0) {
+      const assetKey = LETTER_TYPE_TO_CLIENT_KEY.research;
+      const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
+      const letterPayload = buildLetterValidationPayload('research', researchResult.rows[0], req);
+      const signers = await buildResearchSignerList(researchResult.rows[0]);
+      letterPayload.signer = signers[0] || null;
+      letterPayload.signers = signers;
+      const html = await buildLetterHtml('research', researchResult.rows[0], req);
+      return res.json({
+        success: true,
+        letter: {
+          ...letterPayload,
+          backgroundImageBase64,
+          layout,
+          html
+        }
+      });
+    }
+
     if (suRekResult.rows.length > 0) {
       const assetKey = LETTER_TYPE_TO_CLIENT_KEY['su-rek'];
       const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
@@ -3645,10 +4382,11 @@ router.get('/tu/public/letter-validation/:token/download', publicValidationLimit
 
   try {
     await ensureTuInfrastructure();
-    const [activeResult, observationResult, counselingResult, suRekResult] = await Promise.all([
+    const [activeResult, observationResult, counselingResult, researchResult, suRekResult] = await Promise.all([
       pool.query(`SELECT * FROM active_student_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM observation_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM counseling_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM research_requests WHERE validation_token = $1 LIMIT 1`, [token]),
       pool.query(`SELECT * FROM su_rek_requests WHERE validation_token = $1 LIMIT 1`, [token])
     ]);
 
@@ -3658,10 +4396,12 @@ router.get('/tu/public/letter-validation/:token/download', publicValidationLimit
         ? 'observation'
         : counselingResult.rows.length > 0
           ? 'counseling'
-          : suRekResult.rows.length > 0
-            ? 'su-rek'
-            : null;
-    const requestData = activeResult.rows[0] || observationResult.rows[0] || counselingResult.rows[0] || suRekResult.rows[0];
+          : researchResult.rows.length > 0
+            ? 'research'
+            : suRekResult.rows.length > 0
+              ? 'su-rek'
+              : null;
+    const requestData = activeResult.rows[0] || observationResult.rows[0] || counselingResult.rows[0] || researchResult.rows[0] || suRekResult.rows[0];
 
     if (!type || !requestData) {
       return res.status(404).json({ error: 'Surat tidak ditemukan atau token validasi tidak terdaftar.' });

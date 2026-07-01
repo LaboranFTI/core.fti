@@ -34,7 +34,7 @@ import { LetterPreview } from './components/LetterPreview';
 import { LetterLayout } from './types';
 
 type ValidationLetter = {
-  type: 'active-student' | 'observation' | 'counseling' | 'su-rek';
+  type: 'active-student' | 'observation' | 'counseling' | 'research' | 'su-rek';
   typeLabel: string;
   status: 'pending' | 'verified' | 'sent';
   isValid: boolean;
@@ -75,6 +75,20 @@ type ValidationLetter = {
     studyProgramName?: string;
     faculty?: string;
   } | null;
+  research?: {
+    recipientName?: string;
+    recipientTitle?: string;
+    destinationPlace?: string;
+    destinationAddress?: string;
+    researchPlace?: string;
+    assignmentType?: string;
+    researchTitle?: string;
+    contactPerson?: string;
+    studyProgramLevel?: string;
+    studyProgramName?: string;
+    advisors?: Array<{ name: string; title?: string }>;
+    includeResearchPlace?: boolean;
+  } | null;
   suRek?: {
     recipientName?: string;
     berdasarkanNo?: string;
@@ -87,6 +101,10 @@ type ValidationLetter = {
     name: string;
     title: string;
   };
+  signers?: Array<{
+    name: string;
+    title: string;
+  }>;
   html?: string;
   carbonCopies?: Array<{ role: string; name?: string }>;
 };
@@ -233,7 +251,9 @@ export default function PublicLetterValidation() {
 
   const isObservation = letter.type === 'observation';
   const isCounseling = letter.type === 'counseling';
+  const isResearch = letter.type === 'research';
   const isSuRek = letter.type === 'su-rek';
+  const digitalSigners = letter.signers?.length ? letter.signers : letter.signer ? [letter.signer] : [];
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-12 text-slate-900 dark:bg-slate-950 dark:text-white font-sans antialiased">
@@ -347,16 +367,25 @@ export default function PublicLetterValidation() {
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       Dokumen ini telah ditandatangani oleh:
                     </p>
-                    <div className="rounded-lg bg-slate-50 p-4 border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
-                      <div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
-                        <span className="text-slate-500 dark:text-slate-400">Nama</span>
-                        <span className="font-bold text-slate-900 dark:text-white">: {letter.signer?.name || '-'}</span>
-                        <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
-                        <span className="font-medium text-slate-900 dark:text-white">: {letter.signer?.title || '-'}</span>
-                      </div>
+                    <div className="space-y-3 rounded-lg bg-slate-50 p-4 border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+                      {digitalSigners.length > 0 ? digitalSigners.map((signer, index) => (
+                        <div key={`${signer.name}-${index}`} className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+                          <span className="text-slate-500 dark:text-slate-400">Nama</span>
+                          <span className="font-bold text-slate-900 dark:text-white">: {signer.name || '-'}</span>
+                          <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
+                          <span className="font-medium text-slate-900 dark:text-white">: {signer.title || '-'}</span>
+                        </div>
+                      )) : (
+                        <div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+                          <span className="text-slate-500 dark:text-slate-400">Nama</span>
+                          <span className="font-bold text-slate-900 dark:text-white">: -</span>
+                          <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
+                          <span className="font-medium text-slate-900 dark:text-white">: -</span>
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                      Jadi QR ini menggantikan tanda tangan yang bersangkutan.
+                      Jadi QR ini menggantikan tanda tangan digital pihak yang tercantum.
                     </p>
                   </CardContent>
                 </Card>
@@ -437,6 +466,34 @@ export default function PublicLetterValidation() {
                         studyProgramName: letter.counseling?.studyProgramName,
                         studyProgramLevel: letter.counseling?.studyProgramLevel,
                         faculty: letter.counseling?.faculty || 'FTI',
+                        html: letter.html
+                      }}
+                      backgroundImageBase64={letter.backgroundImageBase64}
+                      layout={letter.layout}
+                      showLayoutGuide={false}
+                      letterNumber={letter.letterNumber || undefined}
+                      validationToken={letter.validationToken}
+                      validationUrl={letter.validationUrl}
+                      letterDate={letter.issuedAt || letter.createdAt || undefined}
+                    />
+                  ) : isResearch ? (
+                    <LetterPreview
+                      type="research"
+                      data={{
+                        name: letter.recipient.name,
+                        nim: letter.recipient.nim,
+                        recipientName: letter.research?.recipientName || '',
+                        recipientTitle: letter.research?.recipientTitle || '',
+                        destinationPlace: letter.research?.destinationPlace || '',
+                        destinationAddress: letter.research?.destinationAddress || '',
+                        researchPlace: letter.research?.researchPlace || '',
+                        assignmentType: letter.research?.assignmentType || 'Tugas Talenta Unggul',
+                        researchTitle: letter.research?.researchTitle || '',
+                        contactPerson: letter.research?.contactPerson || '',
+                        studyProgramName: letter.research?.studyProgramName,
+                        studyProgramLevel: letter.research?.studyProgramLevel,
+                        advisors: letter.research?.advisors || [],
+                        includeResearchPlace: letter.research?.includeResearchPlace,
                         html: letter.html
                       }}
                       backgroundImageBase64={letter.backgroundImageBase64}

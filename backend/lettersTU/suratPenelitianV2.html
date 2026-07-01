@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekomendasi Penelitian</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Times New Roman', Times, serif;
+            color: black;
+            background: white;
+        }
+
+        img[src=""] {
+            display: none !important;
+        }
+
+        .page {
+            position: relative;
+            width: 210mm;
+            height: 297mm;
+            overflow: hidden;
+            background: white;
+        }
+
+        .background-image {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+        }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            font-size: 11pt;
+            line-height: 1.35;
+        }
+
+        .letter-meta {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8mm;
+        }
+
+        .letter-meta td {
+            vertical-align: top;
+            padding: 0.4mm 0;
+        }
+
+        .letter-meta .label {
+            width: 15mm;
+        }
+
+        .letter-meta .colon {
+            width: 4mm;
+        }
+
+        .date-cell {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .recipient-block {
+            margin-bottom: 7mm;
+        }
+
+        .recipient-block p,
+        .body-text p,
+        .student-data p,
+        .signature-block p {
+            margin: 0;
+        }
+
+        .recipient-block p {
+            line-height: 1.28;
+        }
+
+        .body-text p {
+            margin-bottom: 4mm;
+            text-align: justify;
+        }
+
+        .student-data {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 0 4mm 0;
+        }
+
+        .student-data td {
+            padding: 0.6mm 0;
+            vertical-align: top;
+        }
+
+        .student-data .label {
+            width: 32mm;
+        }
+
+        .student-data .colon {
+            width: 4mm;
+        }
+
+        .research-title {
+            margin: 0 0 4mm;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .signature-block {
+            margin-top: 8mm;
+            display: grid;
+            grid-template-columns: 28mm auto;
+            justify-content: start;
+            align-items: flex-start;
+            column-gap: 4mm;
+        }
+
+        .validation-qr {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            margin: 0;
+            width: 28mm;
+        }
+
+        .validation-qr img {
+            display: block;
+            width: 28mm;
+            height: 28mm;
+        }
+
+        .signature-lines {
+            display: grid;
+            align-items: start;
+            column-gap: 14mm;
+            line-height: 1.18;
+        }
+
+        .signature-lines.single-signer {
+            grid-template-columns: max-content;
+        }
+
+        .signature-lines.with-advisors {
+            grid-template-columns: minmax(52mm, max-content) minmax(58mm, 1fr);
+        }
+
+        .signature-content {
+            min-width: 52mm;
+            text-align: left;
+        }
+
+        .signature-name {
+            margin-top: 2.5mm !important;
+            position: relative;
+            width: max-content;
+            max-width: 72mm;
+            white-space: normal;
+            font-size: 11pt;
+            font-weight: bold;
+        }
+
+        .advisor-list {
+            margin-top: 2.5mm;
+            display: grid;
+            gap: 2.2mm;
+        }
+
+        .advisor-item .signature-name {
+            margin-top: 0 !important;
+        }
+
+        .carbon-copy-block {
+            margin-top: 7mm !important;
+        }
+
+        .draft-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            opacity: 0.08;
+            pointer-events: none;
+            font-size: 60px;
+            font-weight: bold;
+            color: red;
+            border: 8px solid red;
+            padding: 8px 16px;
+            border-radius: 12px;
+            z-index: 10;
+        }
+
+        @media print {
+            .draft-watermark {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <img src="{{backgroundImage}}" alt="Background Surat" class="background-image">
+        {{draftWatermark}}
+
+        <div class="content"
+            style="padding: {{marginTopMm}}mm {{marginRightMm}}mm {{marginBottomMm}}mm {{marginLeftMm}}mm;">
+            <table class="letter-meta">
+                <tr>
+                    <td class="label">No.</td>
+                    <td class="colon">:</td>
+                    <td>{{nomorSurat}}</td>
+                    <td class="date-cell">Salatiga, {{tanggalSurat}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Lamp.</td>
+                    <td class="colon">:</td>
+                    <td colspan="2">{{lampiran}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Hal</td>
+                    <td class="colon">:</td>
+                    <td colspan="2">{{letterPurpose}}</td>
+                </tr>
+            </table>
+
+            <div class="recipient-block">
+                <p>Kepada Yth.</p>
+                <p>{{recipientName}}</p>
+                <p>{{recipientTitle}}</p>
+                <p>{{destinationPlace}}</p>
+                <p>{{destinationAddress}}</p>
+            </div>
+
+            <div class="body-text">
+                <p>Dengan hormat,</p>
+                <p>Sehubungan dengan penyelesaian {{assignmentType}} bagi mahasiswa program studi {{programStudi}}
+                    Fakultas Teknologi Informasi Universitas Kristen Satya Wacana yaitu:</p>
+
+                <table class="student-data">
+                    <tr>
+                        <td class="label">Nama</td>
+                        <td class="colon">:</td>
+                        <td>{{studentName}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">NIM</td>
+                        <td class="colon">:</td>
+                        <td>{{studentNim}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Narahubung</td>
+                        <td class="colon">:</td>
+                        <td>{{contactPerson}}</td>
+                    </tr>
+                </table>
+
+                <p>Dengan ini, kami mohon izin bagi mahasiswa tersebut untuk melakukan penelitian{{researchPlacePhrase}}
+                    guna menyelesaikan {{assignmentType}} yang berjudul:</p>
+                <p class="research-title">&ldquo;{{researchTitle}}&rdquo;</p>
+                {{advisorParagraph}}
+                <p>Demikian surat ini dibuat, atas perhatian dan kerjasamanya kami mengucapkan terima kasih.</p>
+            </div>
+
+            <div class="signature-block">
+                <div class="validation-qr">
+                    <img src="{{validationQrImage}}" alt="QR Validasi Surat">
+                </div>
+                <div class="signature-lines {{signatureLineClass}}">
+                    <div class="signature-content">
+                        <p>Salam hormat,</p>
+                        <p class="signature-name">{{deanName}}</p>
+                        <p>{{deanTitle}}</p>
+                    </div>
+                    {{advisorSignatureBlock}}
+                </div>
+            </div>
+
+            {{tembusanBlock}}
+        </div>
+    </div>
+</body>
+
+</html>
