@@ -504,7 +504,7 @@ router.post('/tu/settings', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
 
 // --- SISTEM PENGIRIMAN EMAIL GENERIC ---
 
-const SENDER_NAME = process.env.SENDER_NAME || "Layanan TU FTI";
+const SENDER_NAME = process.env.SENDER_NAME || "Layanan Surat FTI";
 const SENDER_EMAIL = process.env.SMTP_USER;
 
 // Konfigurasi Transporter Nodemailer (Dengan Mock Support untuk Development)

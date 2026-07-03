@@ -4,7 +4,7 @@ import { scopeHtml } from './activeStudentUtils';
 import { api } from '../../services/api';
 
 interface LetterPreviewProps {
-  type?: 'observation' | 'active-student' | 'counseling' | 'research' | 'su-rek';
+  type?: 'observation' | 'active-student' | 'counseling' | 'research' | 'interview' | 'permission' | 'su-rek';
   data: any & { html?: string };
   backgroundImageBase64?: string;
   layout?: LetterLayout;
@@ -94,6 +94,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     data.researchPlace,
     data.assignmentType,
     data.researchTitle,
+    data.permissionPurpose,
     data.contactPerson,
     data.courseName,
     data.lecturerName,

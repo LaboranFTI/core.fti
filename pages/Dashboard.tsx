@@ -13,7 +13,6 @@ import {
   FileText,
   Folders,
   Package,
-  Pulse,
   ShieldCheck,
   UserCircle,
   UsersThree,
@@ -318,17 +317,13 @@ const Dashboard: React.FC<DashboardProps> = ({ role, onNavigate }) => {
           <h1 className="mt-4 text-3xl font-bold text-slate-950 dark:text-white sm:text-4xl">Halo, {userName}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400 sm:text-base">
             {isSelfServiceRole
-              ? 'Pantau status pengajuan, jadwal, dan akses layanan dari satu tampilan kerja yang ringkas.'
-              : `Ringkasan antrian dan kondisi layanan untuk peran ${role}. Fokus pada pengajuan ruangan, peminjaman, inventaris, dan pengguna aktif.`}
+              ? 'Status pengajuan, jadwal, dan akses layanan Anda.'
+              : `Pengajuan ruangan, peminjaman, inventaris, dan pengguna aktif untuk peran ${role}.`}
           </p>
         </div>
         <div className="border-t border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/70 lg:border-l lg:border-t-0">
           <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Tanggal Kerja</p>
           <p className="mt-2 text-lg font-bold text-slate-950 dark:text-white">{today}</p>
-          <div className="mt-5 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-            <Pulse className="h-4 w-4 text-emerald-600 dark:text-emerald-300" weight="duotone" />
-            Data dashboard siap dipantau
-          </div>
         </div>
       </div>
     </section>
@@ -350,7 +345,7 @@ const Dashboard: React.FC<DashboardProps> = ({ role, onNavigate }) => {
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <SectionHeader
               title={isDosen ? 'Jadwal Terbaru' : 'Riwayat Pengajuan Terakhir'}
-              description="Aktivitas yang perlu dipantau dalam waktu dekat."
+              description="Pengajuan dan jadwal terbaru."
               icon={CalendarCheck}
               action={
                 <button onClick={() => onNavigate?.(isDosen ? 'jadwal-kuliah' : 'pemesanan-saya')} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -390,7 +385,7 @@ const Dashboard: React.FC<DashboardProps> = ({ role, onNavigate }) => {
             <h2 className="px-1 text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Akses Cepat</h2>
             <WorkAction title="Cari Ruangan" icon={Buildings} tone="blue" onClick={() => onNavigate?.('ruangan')} description="Telusuri daftar ruangan, kapasitas, dan fasilitas." />
             <WorkAction title="Cek Jadwal Lab" icon={CalendarCheck} tone="slate" onClick={() => onNavigate?.('jadwal-ruang')} description="Periksa ketersediaan ruangan sebelum pengajuan." />
-            <WorkAction title={isDosen ? 'Jadwal Kuliah' : 'Status Pemesanan'} icon={isDosen ? CalendarCheck : ClipboardText} tone="emerald" onClick={() => onNavigate?.(isDosen ? 'jadwal-kuliah' : 'pemesanan-saya')} description={isDosen ? 'Lihat jadwal perkuliahan Anda.' : 'Pantau status pengajuan ruangan.'} />
+            <WorkAction title={isDosen ? 'Jadwal Kuliah' : 'Status Pemesanan'} icon={isDosen ? CalendarCheck : ClipboardText} tone="emerald" onClick={() => onNavigate?.(isDosen ? 'jadwal-kuliah' : 'pemesanan-saya')} description={isDosen ? 'Lihat jadwal perkuliahan Anda.' : 'Lihat status pengajuan ruangan.'} />
           </div>
         </div>
       </div>

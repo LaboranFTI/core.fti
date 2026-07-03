@@ -169,7 +169,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
     setFormTanggalSelesai(pkl.tanggalSelesai);
     setFormPembimbingId(pkl.pembimbingId || '');
     setFormStatus(pkl.status);
-    setFormSurat(pkl.suratPengajuan);
+    setFormSurat(undefined);
     setBatchStudents([{ nama: pkl.nama, Jurusan: pkl.Jurusan }]);
     setIsBatchMode(false);
     setIsModalOpen(true);
@@ -299,18 +299,22 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
   };
 
   // View Surat
-  const handleViewSurat = async (suratUrl: string) => {
+  const handleViewSurat = async (id: string) => {
     try {
-      const res = await fetch(suratUrl);
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      showToast("Sedang memuat file...", "info");
+      const res = await api(`/api/pkl/${id}/document`);
+      if (res.ok) {
+        const data = await res.json();
+        const fetchRes = await fetch(data.file);
+        const blob = await fetchRes.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      } else {
+        showToast("File tidak ditemukan.", 'error');
+      }
     } catch (e) {
       console.error("Gagal membuka file", e);
-      const win = window.open();
-      if (win) {
-        win.document.write(`<iframe src="${suratUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-      }
+      showToast("Gagal membuka file.", 'error');
     }
   };
 
@@ -465,18 +469,18 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
                               {pkl.status}
                            </span>
                         </td>
-                        <td className="px-6 py-4">
-                           {pkl.suratPengajuan ? (
-                             <button 
-                               onClick={() => handleViewSurat(pkl.suratPengajuan!)}
-                               className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
-                             >
-                               <Eye className="w-4 h-4 mr-1" /> Lihat
-                             </button>
-                           ) : (
-                             <span className="text-gray-400 text-xs">-</span>
-                           )}
-                        </td>
+                         <td className="px-6 py-4">
+                            {pkl.hasSurat ? (
+                              <button 
+                                onClick={() => handleViewSurat(pkl.id)}
+                                className="text-blue-600 hover:text-blue-800 flex items-center text-xs"
+                              >
+                                <Eye className="w-4 h-4 mr-1" /> Lihat
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
+                         </td>
                         <td className="px-6 py-4 print:hidden">
                            <div className="flex space-x-2">
                               <button onClick={() => handleOpenEditModal(pkl)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')} title="Edit">
@@ -587,7 +591,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
                  <div>
                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                      Surat Pengajuan (PDF)
-                     {editingPKL && formSurat && <span className="text-green-500 ml-2">✓ File sudah ada</span>}
+                     {editingPKL && (formSurat || editingPKL.hasSurat) && <span className="text-green-500 ml-2">✓ File sudah ada</span>}
                    </label>
                    <div className="flex items-center gap-2">
                      <label className="flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">

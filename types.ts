@@ -177,6 +177,7 @@ export interface PKLStudent {
   tanggalSelesai: string;
   status: 'Aktif' | 'Selesai' | 'Dibatalkan';
   suratPengajuan?: string; // Base64 encoded PDF
+  hasSurat?: boolean;
   pembimbingId?: string;
   pembimbingNama?: string;
   createdAt?: string;
@@ -235,6 +236,7 @@ export interface PKLStudent {
   tanggalSelesai: string;
   status: 'Aktif' | 'Selesai' | 'Dibatalkan';
   suratPengajuan?: string; // Base64 encoded PDF
+  hasSurat?: boolean;
   pembimbingId?: string;
   pembimbingNama?: string;
   createdAt?: string;

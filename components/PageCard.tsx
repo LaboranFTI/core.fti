@@ -10,7 +10,7 @@ interface PageCardProps extends React.ComponentProps<typeof Card> {
 }
 
 const paddingClasses: Record<PageCardPadding, string> = {
-  none: '',
+  none: 'p-0',
   sm: 'p-4',
   md: 'p-4 sm:p-6',
   lg: 'p-4 sm:p-6',

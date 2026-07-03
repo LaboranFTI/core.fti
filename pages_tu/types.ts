@@ -66,12 +66,14 @@ export interface ResearchLetterData {
   researchPlace: string;
   assignmentType: string;
   researchTitle: string;
+  permissionPurpose?: string;
   contactPerson: string;
   studyProgramId?: string;
   studyProgramName?: string;
   studyProgramLevel?: string;
   advisors: ResearchAdvisor[];
   includeResearchPlace?: boolean;
+  letterKind?: 'research' | 'interview' | 'permission';
   carbonCopies?: { role: string; name?: string }[];
   letterNumber?: string;
   validationToken?: string;

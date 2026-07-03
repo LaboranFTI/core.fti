@@ -10,6 +10,7 @@ import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface FormData {
   equipmentIds: string[];
@@ -550,18 +551,17 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
-              <tr>
-                <th className="px-6 py-4">Peminjam</th>
-                <th className="px-6 py-4">Waktu Pinjam</th>
-                <th className="px-6 py-4">Jumlah Barang</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <Table className="text-left text-sm">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-6">Peminjam</TableHead>
+                <TableHead className="px-6">Waktu Pinjam</TableHead>
+                <TableHead className="px-6">Jumlah Barang</TableHead>
+                <TableHead className="px-6">Status</TableHead>
+                <TableHead className="px-6 text-center">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-slate-100 dark:divide-slate-800">
               {currentKeys.length > 0 ? currentKeys.map((key) => {
                 const groupLoans = groupedLoans[key];
                 const firstLoan = groupLoans[0];
@@ -571,20 +571,20 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
                 const displayStatus = allReturned ? 'Dikembalikan' : (anyLate ? 'Terlambat' : 'Dipinjam');
 
                 return (
-                  <tr 
+                  <TableRow
                     key={key} 
                     onClick={() => setSelectedGroup({ key, loans: groupLoans })}
                     className="cursor-pointer transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50 group"
                   >
-                    <td className="px-6 py-4">
+                    <TableCell className="px-6 py-4">
                       <div className="text-gray-900 dark:text-white font-medium">
                         {firstLoan.borrowerName} {((firstLoan as any).nim) ? `(${(firstLoan as any).nim})` : ''}
                       </div>
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 mt-1">
                         Oleh: {firstLoan.borrowOfficer} | Jaminan: {firstLoan.guarantee}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <div className="text-gray-900 dark:text-white text-sm">{formatDateID(firstLoan.borrowDate)}</div>
                       <div className="text-xs text-gray-500">{firstLoan.borrowTime}</div>
                       {allReturned && firstLoan.actualReturnDate && (
@@ -593,37 +593,36 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
                           <div className="text-xs text-gray-500">{formatDateID(firstLoan.actualReturnDate)} {firstLoan.actualReturnTime} (Oleh: {firstLoan.returnOfficer})</div>
                         </div>
                       )}
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                         <Box className="w-3 h-3 mr-1" /> {groupLoans.length} Barang
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(displayStatus)}`}>
                         {displayStatus}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center justify-center mx-auto">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-center">
+                      <button type="button" className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center justify-center mx-auto">
                         <Eye className="w-4 h-4 mr-1" /> Detail
                       </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               }) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                <TableRow>
+                  <TableCell colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center">
                       <Box className="w-12 h-12 text-gray-300 mb-3" />
                       <p>Tidak ada data peminjaman.</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
         <div className="print:hidden">
           <Pagination 
             currentPage={currentPage}

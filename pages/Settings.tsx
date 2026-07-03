@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Database, Server, Globe, Save, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ShieldAlert, Power, Megaphone, Download, Upload, FileText, FileWarning, ChevronDown, ChevronUp, X, Check, Filter, Trash2, AlertTriangle, Info, CheckSquare, Square, Activity, Users, Package, Calendar, HardDrive, Clock, ExternalLink, Settings as SettingsIcon, LogIn } from 'lucide-react';
 import { api } from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 import { APP_VERSION, APP_NAME, APP_FULL_NAME, INSTITUTION_NAME } from '../config';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
+import { Tabs } from '../components/ui/tabs';
+import { PageTabs } from '../components/ui/page-tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface SettingsProps {
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
@@ -74,6 +77,18 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
   // Error Log State
   const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([]);
   const [errorStats, setErrorStats] = useState<ErrorLogStats | null>(null);
+  const settingsTabs = useMemo(() => [
+    { value: 'admin', label: 'Admin', icon: SettingsIcon },
+    { value: 'sso', label: 'Google SSO', icon: Globe },
+    { value: 'sso-users', label: 'Log SSO', icon: LogIn },
+    { value: 'system', label: 'Sistem', icon: ShieldAlert },
+    { 
+      value: 'error-log', 
+      label: errorStats && errorStats.unresolved > 0 ? `Log Error (${errorStats.unresolved})` : 'Log Error', 
+      icon: FileWarning 
+    },
+  ], [errorStats]);
+
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ErrorLog | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -433,66 +448,12 @@ const Settings: React.FC<SettingsProps> = ({ showToast, onNavigate }) => {
       />
 
       {/* Tabs */}
-      <PageCard className="flex w-full flex-wrap gap-1 bg-slate-50 p-1.5 dark:bg-slate-900 md:w-fit">
-        <button
-          onClick={() => setActiveTab('admin')}
-          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
-            activeTab === 'admin'
-              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <SettingsIcon className="w-4 h-4 mr-2" />
-          Admin
-        </button>
-        <button
-          onClick={() => setActiveTab('sso')}
-          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
-            activeTab === 'sso'
-              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <Globe className="w-4 h-4 mr-2" />
-          Google SSO
-        </button>
-        <button
-          onClick={() => setActiveTab('sso-users')}
-          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
-            activeTab === 'sso-users'
-              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <LogIn className="w-4 h-4 mr-2" />
-          Log SSO
-        </button>
-        <button
-          onClick={() => setActiveTab('system')}
-          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
-            activeTab === 'system'
-              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4 mr-2" />
-          Sistem
-        </button>
-        <button
-          onClick={() => setActiveTab('error-log')}
-          className={`flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-all ${
-            activeTab === 'error-log'
-              ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-          }`}
-        >
-          <FileWarning className="w-4 h-4 mr-2" />
-          Log Error
-          {errorStats && errorStats.unresolved > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">{errorStats.unresolved}</span>
-          )}
-        </button>
-      </PageCard>
+      <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="flex w-full flex-col">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 print:hidden">
+          <PageTabs items={settingsTabs} />
+        </div>
+      </Tabs>
+
 
       {/* Admin Tab */}
       {activeTab === 'admin' && (

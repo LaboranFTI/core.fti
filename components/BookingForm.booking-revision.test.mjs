@@ -37,6 +37,6 @@ test('booking form only requires a proposal PDF from non-manager roles', () => {
 });
 
 test('booking detail table displays technical needs for each schedule', () => {
-  assert.match(detailSource, /<th[^>]*>Kebutuhan<\/th>/);
+  assert.match(detailSource, /<TableHead[^>]*>Kebutuhan<\/TableHead>/);
   assert.match(detailSource, /s\.kebutuhan \|\| "—"/);
 });

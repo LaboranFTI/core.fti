@@ -4,6 +4,7 @@ import { ActiveStudentForm } from './components/ActiveStudentForm';
 import { AdminPanel } from './components/AdminPanel';
 import { CounselingForm } from './components/CounselingForm';
 import { LetterArchivePanel } from './components/LetterArchivePanel';
+import { FinalTaskArchivePanel } from './components/FinalTaskArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
 import { ResearchLetterForm } from './components/ResearchLetterForm';
 import { SuRekForm } from './components/SuRekForm';
@@ -207,20 +208,18 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     {
       value: 'wawancara-ta',
       title: 'Permohonan Wawancara',
-      description: 'Akan memakai pola surat tugas akhir dengan QR validasi dan pembimbing opsional.',
+      description: 'Buat surat pengantar atau izin wawancara dengan QR validasi dan pembimbing opsional.',
       icon: FileText,
       group: 'letter',
-      category: 'tugas-akhir',
-      status: 'soon'
+      category: 'tugas-akhir'
     },
     {
       value: 'perizinan-ta',
       title: 'Surat Perizinan',
-      description: 'Disiapkan untuk format perizinan tugas akhir yang mirip template surat penelitian.',
+      description: 'Buat surat permohonan izin tugas akhir dengan keperluan khusus pada bagian Hal.',
       icon: FileText,
       group: 'letter',
-      category: 'tugas-akhir',
-      status: 'soon'
+      category: 'tugas-akhir'
     }
   ];
   const adminToolCards: LetterServiceCard[] = [
@@ -408,7 +407,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   const adminMainTabs: PageTabItem[] = [
     { value: 'surat', label: 'Surat', icon: FileText },
     { value: 'permohonan', label: 'Kelola Permohonan', icon: ShieldCheck },
-    { value: 'arsip', label: 'Arsip Surat', icon: Archive },
+    { value: 'arsip', label: 'Arsip Surat TU', icon: Archive },
+    { value: 'arsip-ta', label: 'Arsip Tugas Akhir', icon: GraduationCap },
     { value: 'konfigurasi', label: 'Konfigurasi Surat', icon: Settings }
   ];
 
@@ -553,6 +553,10 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         return renderObservationService();
       case 'penelitian':
         return <ResearchLetterForm onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
+      case 'wawancara-ta':
+        return <ResearchLetterForm variant="interview" onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
+      case 'perizinan-ta':
+        return <ResearchLetterForm variant="permission" onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
       case 'konseling':
         return <CounselingForm />;
       case 'rekomendasi':
@@ -575,8 +579,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Layanan Tata Usaha"
-        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Pengantar Konseling, Surat Observasi, Surat Penelitian, dan Surat Rekomendasi."
+        title="Layanan Surat"
+        description="Layanan pengajuan Surat Keterangan Aktif Kuliah, Surat Pengantar Konseling, Surat Observasi, Surat Penelitian, Surat Wawancara, dan Surat Rekomendasi."
         className="print:hidden"
       />
 
@@ -647,6 +651,9 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
               </TabsContent>
               <TabsContent value="arsip" className="print:m-0 focus:outline-none">
                 <LetterArchivePanel refreshKey={letterArchiveRefreshKey} />
+              </TabsContent>
+              <TabsContent value="arsip-ta" className="print:m-0 focus:outline-none">
+                <FinalTaskArchivePanel refreshKey={letterArchiveRefreshKey} />
               </TabsContent>
               <TabsContent value="konfigurasi" className="print:m-0 focus:outline-none">
                 <AdminPanel mode="settings" onSettingsSaved={fetchLetterBackgrounds} />

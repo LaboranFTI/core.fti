@@ -20,8 +20,18 @@ describe('suratPenelitianV2 template', () => {
   });
 
   it('separates the letter destination from the actual research place', () => {
-    assert.match(template, /\{\{destinationPlace\}\}/);
+    assert.match(template, /<strong>\{\{destinationPlace\}\}<\/strong>/);
     assert.match(template, /\{\{destinationAddress\}\}/);
     assert.match(template, /melakukan penelitian\{\{researchPlacePhrase\}\}/);
+  });
+
+  it('emphasizes recipient identity and keeps the title centered', () => {
+    assert.match(template, /<strong>\{\{recipientName\}\}<\/strong>/);
+    assert.match(template, /<strong>\{\{recipientTitle\}\}<\/strong>/);
+    assert.match(template, /\.research-title\s*\{[\s\S]*text-align:\s*center;/);
+    assert.match(template, /<p class="research-title"><strong>&ldquo;\{\{researchTitle\}\}&rdquo;<\/strong><\/p>/);
+    assert.match(template, /<strong>\{\{studentName\}\}<\/strong>/);
+    assert.match(template, /<strong>\{\{studentNim\}\}<\/strong>/);
+    assert.match(template, /<strong>\{\{contactPerson\}\}<\/strong>/);
   });
 });

@@ -10,6 +10,7 @@ import PageCard from '../components/PageCard';
 import Pagination from '../components/Pagination';
 import PrintableReportHeader from '../components/PrintableReportHeader';
 import { Button, buttonVariants } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { usePagination } from '../hooks/usePagination';
 import { cn } from '../lib/utils';
 
@@ -334,17 +335,19 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
         }
       />
 
-      {/* Filter Bar */}
-      <PageCard className="flex flex-col items-center justify-between gap-4 print:border-none print:p-0 print:shadow-none sm:flex-row">
-         <div className="w-full sm:w-64 print:hidden">
+      {/* Table */}
+      <PageCard padding="none" className="overflow-hidden print:border-2 print:border-black print:shadow-none">
+        {/* Filter Bar */}
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 print:hidden">
+          <div className="w-full sm:w-64">
             <SearchBar 
               value={searchTerm}
               onChange={setSearchTerm}
               placeholder="Cari nama atau NIM..."
               className="w-full"
             />
-         </div>
-         <div className="flex gap-2 w-full sm:w-auto print:hidden">
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
              {['All', 'Aktif', 'Non-Aktif'].map((status) => (
                 <button
                   key={status}
@@ -358,49 +361,46 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                    {status}
                 </button>
              ))}
-         </div>
-      </PageCard>
+          </div>
+        </div>
 
-      {/* Table */}
-      <PageCard padding="none" className="overflow-hidden print:border-2 print:border-black print:shadow-none">
-         <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-               <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-200 dark:border-gray-700 print:bg-gray-200 print:text-black">
-                  <tr>
-                     <th className="px-6 py-4">Nama & NIM</th>
-                     <th className="px-6 py-4">Kontak</th>
-                     <th className="px-6 py-4">Jabatan</th>
-                     <th className="px-6 py-4">Periode Jabatan</th>
-                     <th className="px-6 py-4">PIC Lab</th>
-                     <th className="px-6 py-4">Status</th>
-                     <th className="px-6 py-4 print:hidden">Aksi</th>
-                  </tr>
-               </thead>
-               <tbody className="divide-y divide-gray-200 dark:divide-gray-700 print:divide-gray-400">
+        <Table className="text-left text-sm">
+               <TableHeader className="print:bg-gray-200 print:text-black">
+                  <TableRow className="hover:bg-transparent">
+                     <TableHead className="px-6">Nama & NIM</TableHead>
+                     <TableHead className="px-6">Kontak</TableHead>
+                     <TableHead className="px-6">Jabatan</TableHead>
+                     <TableHead className="px-6">Periode Jabatan</TableHead>
+                     <TableHead className="px-6">PIC Lab</TableHead>
+                     <TableHead className="px-6">Status</TableHead>
+                     <TableHead className="px-6 print:hidden">Aksi</TableHead>
+                  </TableRow>
+               </TableHeader>
+               <TableBody className="divide-y divide-gray-200 dark:divide-gray-700 print:divide-gray-400">
                   {filteredStaff.length > 0 ? currentStaff.map((staff) => {
                     const currentPeriod = getCurrentPositionPeriod(staff);
                     return (
-                     <tr key={staff.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td className="px-6 py-4">
+                     <TableRow key={staff.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <TableCell className="px-6 py-4">
                            <div className="font-bold text-gray-900 dark:text-white">{staff.name}</div>
                            <div className="text-xs text-gray-500 font-mono">{staff.nim}</div>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
                            <div className="text-gray-900 dark:text-gray-300">{staff.email}</div>
                            <div className="text-xs text-gray-500">{staff.phone}</div>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
                            <span className={`inline-flex whitespace-nowrap px-2 py-1 rounded-md text-xs font-medium print:border print:border-gray-300 ${staff.jabatan === 'Teknisi' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'}`}>
                               {staff.jabatan}
                            </span>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
                            <div className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(currentPeriod?.startDate)}</div>
                            <div className="text-xs text-gray-500 dark:text-gray-400">
                               {currentPeriod?.endDate ? `s.d. ${formatDate(currentPeriod.endDate)}` : 's.d. sekarang'}
                            </div>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
                            {staff.jabatan === 'Teknisi' ? (
                              <div className="max-w-[220px] text-xs text-gray-600 dark:text-gray-300">
                                 {getAssignedLabRooms(staff).length > 0
@@ -410,41 +410,40 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
                            ) : (
                              <span className="text-xs text-gray-400">-</span>
                            )}
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium print:border print:border-gray-300 ${staff.status === 'Aktif' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
                               <span className={`w-1.5 h-1.5 rounded-full mr-1.5 print:hidden ${staff.status === 'Aktif' ? 'bg-green-500' : 'bg-red-500'}`}></span>
                               {staff.status}
                            </span>
-                        </td>
-                        <td className="px-6 py-4 print:hidden">
+                        </TableCell>
+                        <TableCell className="px-6 py-4 print:hidden">
                            <div className="flex space-x-2">
-                              <button onClick={() => setViewingStaff(staff)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')} title="Detail">
+                              <button onClick={() => setViewingStaff(staff)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')} aria-label={`Detail laboran ${staff.name}`} title="Detail">
                                  <Eye className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleOpenModal(staff)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')} title="Edit">
+                              <button onClick={() => handleOpenModal(staff)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')} aria-label={`Edit laboran ${staff.name}`} title="Edit">
                                  <Edit className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleDeleteClick(staff.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')} title="Hapus">
+                              <button onClick={() => handleDeleteClick(staff.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')} aria-label={`Hapus laboran ${staff.name}`} title="Hapus">
                                  <Trash2 className="w-4 h-4" />
                               </button>
                            </div>
-                        </td>
-                     </tr>
+                        </TableCell>
+                     </TableRow>
                     );
                   }) : (
-                     <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                     <TableRow>
+                        <TableCell colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                            <div className="flex flex-col items-center justify-center">
                               <Users className="w-12 h-12 text-gray-300 mb-3" />
                               <p>Tidak ada data laboran yang ditemukan.</p>
                            </div>
-                        </td>
-                     </tr>
+                        </TableCell>
+                     </TableRow>
                   )}
-               </tbody>
-            </table>
-         </div>
+               </TableBody>
+            </Table>
          <div className="print:hidden">
             <Pagination
               currentPage={currentPage}

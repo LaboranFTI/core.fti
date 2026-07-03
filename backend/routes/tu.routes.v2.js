@@ -37,6 +37,10 @@ const TU_SETTINGS_KEYS = [
   'tu_counseling_subject',
   'tu_counseling_recipient_name',
   'tu_counseling_referral_unit',
+  'tu_research_assignment_type',
+  'tu_research_advisor_title',
+  'tu_research_advisor_title_first',
+  'tu_research_advisor_title_second',
   'tu_su_rek_yang_terhormat',
   'tu_su_rek_berdasarkan_no',
   'tu_su_rek_perihal',
@@ -71,6 +75,8 @@ const LETTER_TYPE_TO_CODE = {
   observation: 'FTI-OBS',
   counseling: 'FTI',
   research: 'FTI/Penelitian',
+  interview: 'FTI/Wawancara',
+  permission: 'FTI/Perizinan',
   'su-rek': 'Su.Rek'
 };
 const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
@@ -81,8 +87,16 @@ const DEFAULT_COUNSELING_RECIPIENT_NAME = [
   'Salatiga'
 ].join('\n');
 const DEFAULT_COUNSELING_REFERRAL_UNIT = 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.';
+const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
+const RESEARCH_LETTER_KIND = 'research';
+const INTERVIEW_LETTER_KIND = 'interview';
+const PERMISSION_LETTER_KIND = 'permission';
 const OBSERVATION_ACCESS_CODE_PREFIX = 'OBS';
 const RESEARCH_ACCESS_CODE_PREFIX = 'PEN';
+const PERMISSION_ACCESS_CODE_PREFIX = 'IZN';
 const SUREK_ACCESS_CODE_PREFIX = 'REK';
 const OBSERVATION_ACCESS_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const VALIDATION_TOKEN_BYTES = 24;
@@ -103,15 +117,17 @@ const normalizeObservationAccessCode = (value) => {
   const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
   return /^OBS-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
 };
-const createResearchAccessCode = () => `${RESEARCH_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
+const createResearchAccessCode = (letterKind = RESEARCH_LETTER_KIND) =>
+  `${letterKind === PERMISSION_LETTER_KIND ? PERMISSION_ACCESS_CODE_PREFIX : RESEARCH_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
 const normalizeResearchAccessCode = (value) => {
   const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (compactCode.length !== 11 || !compactCode.startsWith(RESEARCH_ACCESS_CODE_PREFIX)) {
+  const isKnownPrefix = compactCode.startsWith(RESEARCH_ACCESS_CODE_PREFIX) || compactCode.startsWith(PERMISSION_ACCESS_CODE_PREFIX);
+  if (compactCode.length !== 11 || !isKnownPrefix) {
     return '';
   }
 
   const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
-  return /^PEN-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
+  return /^(PEN|IZN)-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
 };
 const createSuRekAccessCode = () => `${SUREK_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
 const normalizeSuRekAccessCode = (value) => {
@@ -141,6 +157,45 @@ const DEFAULT_LETTER_LAYOUT_MM = Object.freeze({
   research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 });
+const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
+        body {
+            font-family: Calibri, Arial, sans-serif;
+        }
+
+        .content,
+        .letter-meta,
+        .subject-meta,
+        .reference-meta,
+        .recipient-block,
+        .body-text,
+        .student-data,
+        .student-list,
+        .signature-content,
+        .signature-lines,
+        .carbon-copy-block {
+            font-family: Calibri, Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+
+        .content p,
+        .content td,
+        .content th,
+        .content li {
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+
+        .title {
+            font-size: 12pt;
+            line-height: 1.5;
+        }
+
+        .validation-qr span {
+            font-size: 7.5pt;
+            line-height: 1.1;
+        }
+`;
 
 const createEmptyLetterLayouts = () => ({
   activeStudent: { ...DEFAULT_LETTER_LAYOUT_MM.activeStudent },
@@ -162,6 +217,17 @@ const normalizeLetterLayout = (layout, fallback) => ({
   marginBottomMm: clampMarginMm(layout?.marginBottomMm, fallback.marginBottomMm),
   marginLeftMm: clampMarginMm(layout?.marginLeftMm, fallback.marginLeftMm)
 });
+
+const applyOfficialLetterTypography = (htmlContent) => {
+  if (!htmlContent || htmlContent.includes('OFFICIAL_LETTER_TYPOGRAPHY_CSS')) {
+    return htmlContent;
+  }
+
+  return htmlContent.replace(
+    /<\/style>/i,
+    `\n        /* OFFICIAL_LETTER_TYPOGRAPHY_CSS */\n${OFFICIAL_LETTER_TYPOGRAPHY_CSS}\n    </style>`
+  );
+};
 
 let tuInfrastructurePromise = null;
 let qrCenterLogoDataUrlPromise = null;
@@ -347,9 +413,11 @@ const ensureTuInfrastructure = async () => {
         research_address TEXT,
         assignment_type VARCHAR(255),
         research_title TEXT,
+        permission_purpose VARCHAR(255),
         contact_person VARCHAR(255),
         study_program_level VARCHAR(100),
         study_program_name VARCHAR(255),
+        letter_kind VARCHAR(30) DEFAULT 'research',
         advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
         include_research_place BOOLEAN DEFAULT TRUE,
         signature_base64 TEXT,
@@ -378,9 +446,11 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS research_address TEXT,
       ADD COLUMN IF NOT EXISTS assignment_type VARCHAR(255),
       ADD COLUMN IF NOT EXISTS research_title TEXT,
+      ADD COLUMN IF NOT EXISTS permission_purpose VARCHAR(255),
       ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255),
       ADD COLUMN IF NOT EXISTS study_program_level VARCHAR(100),
       ADD COLUMN IF NOT EXISTS study_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS letter_kind VARCHAR(30) DEFAULT 'research',
       ADD COLUMN IF NOT EXISTS advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS include_research_place BOOLEAN DEFAULT TRUE,
       ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
@@ -450,7 +520,7 @@ const ensureTuInfrastructure = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tu_letter_number_counters (
         id SERIAL PRIMARY KEY,
-        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek')),
         year INTEGER NOT NULL,
         month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
         last_sequence INTEGER NOT NULL DEFAULT 0,
@@ -479,7 +549,7 @@ const ensureTuInfrastructure = async () => {
           WHERE conrelid = 'tu_letter_number_counters'::regclass
             AND contype = 'c'
             AND pg_get_constraintdef(oid) LIKE '%letter_type%'
-            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%')
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%' OR pg_get_constraintdef(oid) NOT LIKE '%interview%' OR pg_get_constraintdef(oid) NOT LIKE '%permission%')
         ) THEN
           FOR constraint_record IN
             SELECT conname
@@ -493,7 +563,7 @@ const ensureTuInfrastructure = async () => {
 
           ALTER TABLE tu_letter_number_counters
             ADD CONSTRAINT tu_letter_number_counters_letter_type_check
-            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek'));
+            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek'));
         END IF;
       END $$;
     `);
@@ -855,6 +925,7 @@ const mapCounselingRow = (row) => ({
 
 const mapResearchRow = (row) => ({
   id: row.id,
+  letterKind: row.letter_kind || RESEARCH_LETTER_KIND,
   name: row.name,
   nim: row.nim,
   email: row.email,
@@ -865,6 +936,7 @@ const mapResearchRow = (row) => ({
   researchPlace: row.research_place || '',
   assignmentType: row.assignment_type,
   researchTitle: row.research_title,
+  permissionPurpose: row.permission_purpose,
   contactPerson: row.contact_person,
   studyProgramLevel: row.study_program_level,
   studyProgramName: row.study_program_name,
@@ -902,6 +974,7 @@ const buildObservationAccessPayload = (row) => ({
 
 const buildResearchAccessPayload = (row) => ({
   accessCode: row.access_code,
+  letterKind: row.letter_kind || RESEARCH_LETTER_KIND,
   letterNumber: row.letter_number,
   status: row.status,
   letterGeneratedAt: row.letter_generated_at,
@@ -916,14 +989,23 @@ const buildResearchAccessPayload = (row) => ({
     researchPlace: row.research_place || '',
     assignmentType: row.assignment_type || '',
     researchTitle: row.research_title || '',
+    permissionPurpose: row.permission_purpose || '',
     contactPerson: row.contact_person || '',
     studyProgramName: row.study_program_name || '',
     studyProgramLevel: row.study_program_level || '',
     advisors: normalizeResearchAdvisors(row.advisors),
     includeResearchPlace: row.include_research_place !== false,
+    letterKind: row.letter_kind || RESEARCH_LETTER_KIND,
     carbonCopies: row.carbon_copies || []
   }
 });
+
+const getResearchLetterType = (row = {}) =>
+  row.letter_kind === INTERVIEW_LETTER_KIND
+    ? INTERVIEW_LETTER_KIND
+    : row.letter_kind === PERMISSION_LETTER_KIND
+      ? PERMISSION_LETTER_KIND
+      : RESEARCH_LETTER_KIND;
 
 const formatPublicDate = (value) => {
   if (!value) return null;
@@ -1044,6 +1126,9 @@ const buildLetterValidationPayload = (type, row, req) => {
   const isObservation = type === 'observation';
   const isCounseling = type === 'counseling';
   const isResearch = type === 'research';
+  const isInterview = type === 'interview';
+  const isPermission = type === 'permission';
+  const isResearchLike = isResearch || isInterview || isPermission;
   const isSuRek = type === 'su-rek';
   const students = isObservation ? normalizeObservationStudents(row.student_members).map(s => ({ ...s, nim: maskNim(s.nim) })) : [];
   const primaryStudent = students[0] || { name: row.name, nim: maskNim(row.nim) };
@@ -1053,6 +1138,10 @@ const buildLetterValidationPayload = (type, row, req) => {
     typeLabel = 'Surat Pengantar Observasi';
   } else if (isCounseling) {
     typeLabel = 'Surat Pengantar Konseling';
+  } else if (isInterview) {
+    typeLabel = 'Surat Izin Wawancara';
+  } else if (isPermission) {
+    typeLabel = 'Surat Perizinan';
   } else if (isResearch) {
     typeLabel = 'Rekomendasi Penelitian';
   } else if (isSuRek) {
@@ -1074,7 +1163,7 @@ const buildLetterValidationPayload = (type, row, req) => {
       nim: maskNim(row.nim || primaryStudent.nim || ''),
       email: maskEmail(row.email || '')
     },
-    activeStudent: (isObservation || isCounseling || isResearch || isSuRek)
+    activeStudent: (isObservation || isCounseling || isResearchLike || isSuRek)
       ? null
       : {
           birthPlace: row.birth_place || '',
@@ -1107,7 +1196,7 @@ const buildLetterValidationPayload = (type, row, req) => {
           faculty: row.faculty || DEFAULT_FACULTY
       }
       : null,
-    research: isResearch
+    research: isResearchLike
       ? {
           recipientName: row.recipient_name || '',
           recipientTitle: row.recipient_title || '',
@@ -1116,11 +1205,13 @@ const buildLetterValidationPayload = (type, row, req) => {
           researchPlace: row.research_place || '',
           assignmentType: row.assignment_type || '',
           researchTitle: row.research_title || '',
+          permissionPurpose: row.permission_purpose || '',
           contactPerson: row.contact_person || '',
           studyProgramLevel: row.study_program_level || '',
           studyProgramName: row.study_program_name || '',
           advisors: normalizeResearchAdvisors(row.advisors),
-          includeResearchPlace: row.include_research_place !== false
+          includeResearchPlace: row.include_research_place !== false,
+          letterKind: row.letter_kind || type
         }
       : null,
     suRek: isSuRek
@@ -1225,31 +1316,54 @@ const normalizeObservationStudents = (students) => {
     .filter((student) => student.name || student.nim);
 };
 
-const normalizeResearchAdvisors = (advisors) => {
+const normalizeResearchDefaults = (source = {}) => ({
+  assignmentType: String(source.researchAssignmentType || source.tu_research_assignment_type || '').trim() || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  advisorTitle: String(source.researchAdvisorTitle || source.tu_research_advisor_title || '').trim() || DEFAULT_RESEARCH_ADVISOR_TITLE,
+  advisorTitleFirst: String(source.researchAdvisorTitleFirst || source.tu_research_advisor_title_first || '').trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  advisorTitleSecond: String(source.researchAdvisorTitleSecond || source.tu_research_advisor_title_second || '').trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
+});
+
+const getResearchAdvisorTitle = (index, total, defaults = normalizeResearchDefaults()) => {
+  if (total <= 1) return defaults.advisorTitle;
+  return index === 0 ? defaults.advisorTitleFirst : defaults.advisorTitleSecond;
+};
+
+const isSystemResearchAdvisorTitle = (title, defaults = normalizeResearchDefaults()) => {
+  const normalized = String(title || '').trim();
+  if (!normalized) return true;
+  return new Set([
+    DEFAULT_RESEARCH_ADVISOR_TITLE,
+    DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+    DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+    defaults.advisorTitle,
+    defaults.advisorTitleFirst,
+    defaults.advisorTitleSecond
+  ]).has(normalized);
+};
+
+const normalizeResearchAdvisors = (advisors, defaults = normalizeResearchDefaults(), options = {}) => {
   if (!Array.isArray(advisors)) return [];
 
+  const { preserveCustomTitle = true } = options;
   const normalizedAdvisors = advisors
     .slice(0, 2)
-    .map((advisor, index) => ({
+    .map((advisor) => ({
       name: String(advisor?.name || advisor?.nama || '').trim(),
-      title: String(advisor?.title || advisor?.jabatan || '').trim() || (index === 0 ? 'Dosen Pembimbing I' : 'Dosen Pembimbing II')
+      title: String(advisor?.title || advisor?.jabatan || '').trim()
     }))
     .filter((advisor) => advisor.name);
 
   return normalizedAdvisors.map((advisor, index) => {
-    const defaultTitle = normalizedAdvisors.length === 1 ? 'Dosen Pembimbing' : `Dosen Pembimbing ${index === 0 ? 'I' : 'II'}`;
-    if (advisor.title === 'Dosen Pembimbing' && normalizedAdvisors.length > 1) {
-      return { ...advisor, title: defaultTitle };
-    }
-    if (normalizedAdvisors.length === 1 && /^Dosen Pembimbing (I|II)$/.test(advisor.title)) {
+    const defaultTitle = getResearchAdvisorTitle(index, normalizedAdvisors.length, defaults);
+    if (!preserveCustomTitle || isSystemResearchAdvisorTitle(advisor.title, defaults)) {
       return { ...advisor, title: defaultTitle };
     }
     return { ...advisor, title: advisor.title || defaultTitle };
   });
 };
 
-const buildResearchAdvisorText = (advisors) => {
-  const normalizedAdvisors = normalizeResearchAdvisors(advisors);
+const buildResearchAdvisorText = (advisors, defaults = normalizeResearchDefaults()) => {
+  const normalizedAdvisors = normalizeResearchAdvisors(advisors, defaults);
   if (normalizedAdvisors.length === 0) return '';
 
   return normalizedAdvisors
@@ -1257,15 +1371,15 @@ const buildResearchAdvisorText = (advisors) => {
     .join(', ');
 };
 
-const buildResearchAdvisorSignatureHtml = (advisors) => {
-  const normalizedAdvisors = normalizeResearchAdvisors(advisors);
+const buildResearchAdvisorSignatureHtml = (advisors, defaults = normalizeResearchDefaults()) => {
+  const normalizedAdvisors = normalizeResearchAdvisors(advisors, defaults);
   if (normalizedAdvisors.length === 0) return '';
 
   const advisorItems = normalizedAdvisors
     .map((advisor, index) => {
       const title = normalizedAdvisors.length === 1
-        ? (advisor.title || 'Dosen Pembimbing')
-        : (advisor.title || `Dosen Pembimbing ${index + 1}`);
+        ? (advisor.title || defaults.advisorTitle)
+        : (advisor.title || getResearchAdvisorTitle(index, normalizedAdvisors.length, defaults));
       return `
         <div class="advisor-item">
           <p class="signature-name">${escapeXml(advisor.name)}</p>
@@ -1285,7 +1399,8 @@ const buildResearchAdvisorSignatureHtml = (advisors) => {
 
 const buildResearchSignerList = async (row) => {
   const deanSigner = await getRecommendationSigner();
-  const advisors = normalizeResearchAdvisors(row.advisors);
+  const settingsPayload = await getTuSettingsPayload();
+  const advisors = normalizeResearchAdvisors(row.advisors, normalizeResearchDefaults(settingsPayload));
 
   return [
     deanSigner,
@@ -1469,6 +1584,10 @@ const getTuSettingsPayload = async () => {
     counselingSubject: settings.tu_counseling_subject || DEFAULT_COUNSELING_SUBJECT,
     counselingRecipientName: settings.tu_counseling_recipient_name || DEFAULT_COUNSELING_RECIPIENT_NAME,
     counselingReferralUnit: settings.tu_counseling_referral_unit || DEFAULT_COUNSELING_REFERRAL_UNIT,
+    researchAssignmentType: settings.tu_research_assignment_type || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+    researchAdvisorTitle: settings.tu_research_advisor_title || DEFAULT_RESEARCH_ADVISOR_TITLE,
+    researchAdvisorTitleFirst: settings.tu_research_advisor_title_first || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+    researchAdvisorTitleSecond: settings.tu_research_advisor_title_second || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
     suRekYangTerhormat: settings.tu_su_rek_yang_terhormat || 'Wakil Rektor Bidang Kerjasama dan Kealumnian\nUniversitas Kristen Satya Wacana\ndi tempat',
     suRekBerdasarkanNo: settings.tu_su_rek_berdasarkan_no || '008/WR-KK/02/2025',
     suRekPerihal: settings.tu_su_rek_perihal || 'Beasiswa Afirmasi Cemerlang, ACPOS dan ACPA',
@@ -1777,8 +1896,9 @@ const letterConfig = {
       <p>Surat Rekomendasi Penelitian telah diproses oleh Tata Usaha FTI UKSW.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
     `,
-    getPlaceholders: async ({ data, letterNumber }) => {
+    getPlaceholders: async ({ data, letterNumber, tuSettings }) => {
       const deanSigner = await getRecommendationSigner();
+      const researchDefaults = normalizeResearchDefaults(tuSettings);
       const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
       const map = {
         'Diploma Tiga': 'D3',
@@ -1790,12 +1910,12 @@ const letterConfig = {
       const rawResearchPlace = data.research_place || data.researchPlace || '';
       const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
       const researchPlace = rawResearchPlace || rawDestinationPlace;
-      const researchPlacePhrase = researchPlace ? ` di ${escapeXml(researchPlace)}` : '';
+      const researchPlacePhrase = researchPlace ? ` di <strong>${escapeXml(researchPlace)}</strong>` : '';
       const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
         .split(/\r?\n/)
         .map((line) => escapeXml(line))
         .join('<br>');
-      const advisors = normalizeResearchAdvisors(data.advisors);
+      const advisors = normalizeResearchAdvisors(data.advisors, researchDefaults);
 
       return {
         '{{nomorSurat}}': letterNumber,
@@ -1806,7 +1926,7 @@ const letterConfig = {
         '{{destinationPlace}}': escapeXml(rawDestinationPlace),
         '{{destinationAddress}}': destinationAddress,
         '{{researchPlace}}': escapeXml(researchPlace),
-        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || 'Tugas Talenta Unggul'),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || researchDefaults.assignmentType),
         '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
         '{{studentName}}': escapeXml(data.name || ''),
         '{{studentNim}}': escapeXml(data.nim || ''),
@@ -1814,11 +1934,129 @@ const letterConfig = {
         '{{researchPlacePhrase}}': researchPlacePhrase,
         '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
         '{{advisorParagraph}}': advisors.length > 0
-          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors))}.</p>`
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors, researchDefaults))}.</p>`
           : '',
         '{{deanName}}': escapeXml(deanSigner.name),
         '{{deanTitle}}': escapeXml(deanSigner.title),
-        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors, researchDefaults),
+        '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
+      };
+    }
+  },
+  interview: {
+    table: 'research_requests',
+    template: 'suratWawancaraV2.html',
+    subject: 'Surat Izin Wawancara',
+    pdfFilename: 'Surat_Izin_Wawancara',
+    assetKey: 'research',
+    emailBody: `
+      <p>Surat Izin Wawancara telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, tuSettings }) => {
+      const deanSigner = await getRecommendationSigner();
+      const researchDefaults = normalizeResearchDefaults(tuSettings);
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        Sarjana: 'S1',
+        Magister: 'S2',
+        Doktor: 'S3'
+      };
+      const studyProgramLabel = `${map[level] || level} ${data.study_program_name || data.studyProgramName || ''}`.trim();
+      const rawResearchPlace = data.research_place || data.researchPlace || '';
+      const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
+      const researchPlace = rawResearchPlace || rawDestinationPlace;
+      const researchPlacePhrase = researchPlace ? ` di <strong>${escapeXml(researchPlace)}</strong>` : '';
+      const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+      const advisors = normalizeResearchAdvisors(data.advisors, researchDefaults);
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Izin Wawancara',
+        '{{lampiran}}': '-',
+        '{{recipientName}}': escapeXml(data.recipient_name || data.recipientName || ''),
+        '{{recipientTitle}}': escapeXml(data.recipient_title || data.recipientTitle || ''),
+        '{{destinationPlace}}': escapeXml(rawDestinationPlace),
+        '{{destinationAddress}}': destinationAddress,
+        '{{researchPlace}}': escapeXml(researchPlace),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || researchDefaults.assignmentType),
+        '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{contactPerson}}': escapeXml(data.contact_person || data.contactPerson || data.nim || ''),
+        '{{researchPlacePhrase}}': researchPlacePhrase,
+        '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
+        '{{advisorParagraph}}': advisors.length > 0
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors, researchDefaults))}.</p>`
+          : '',
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors, researchDefaults),
+        '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
+      };
+    }
+  },
+  permission: {
+    table: 'research_requests',
+    template: 'suratPerizinanV2.html',
+    subject: 'Surat Perizinan',
+    pdfFilename: 'Surat_Perizinan',
+    assetKey: 'research',
+    emailBody: `
+      <p>Surat Perizinan telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, tuSettings }) => {
+      const deanSigner = await getRecommendationSigner();
+      const researchDefaults = normalizeResearchDefaults(tuSettings);
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        Sarjana: 'S1',
+        Magister: 'S2',
+        Doktor: 'S3'
+      };
+      const studyProgramLabel = `${map[level] || level} ${data.study_program_name || data.studyProgramName || ''}`.trim();
+      const rawResearchPlace = data.research_place || data.researchPlace || '';
+      const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
+      const researchPlace = rawResearchPlace || rawDestinationPlace;
+      const researchPlacePhrase = researchPlace ? ` di <strong>${escapeXml(researchPlace)}</strong>` : '';
+      const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+      const advisors = normalizeResearchAdvisors(data.advisors, researchDefaults);
+      const permissionPurpose = String(data.permission_purpose || data.permissionPurpose || '').trim();
+      const permissionPurposeForText = permissionPurpose || 'melakukan kegiatan yang diperlukan';
+      const permissionPurposeForSubject = permissionPurpose || 'Kegiatan Tugas Akhir';
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': `Permohonan Izin ${escapeXml(permissionPurposeForSubject)}`,
+        '{{lampiran}}': '-',
+        '{{recipientName}}': escapeXml(data.recipient_name || data.recipientName || ''),
+        '{{recipientTitle}}': escapeXml(data.recipient_title || data.recipientTitle || ''),
+        '{{destinationPlace}}': escapeXml(rawDestinationPlace),
+        '{{destinationAddress}}': destinationAddress,
+        '{{researchPlace}}': escapeXml(researchPlace),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || researchDefaults.assignmentType),
+        '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{contactPerson}}': escapeXml(data.contact_person || data.contactPerson || data.nim || ''),
+        '{{researchPlacePhrase}}': researchPlacePhrase,
+        '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
+        '{{permissionPurpose}}': escapeXml(permissionPurposeForText),
+        '{{advisorParagraph}}': advisors.length > 0
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors, researchDefaults))}.</p>`
+          : '',
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors, researchDefaults),
         '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
       };
     }
@@ -1927,7 +2165,7 @@ const buildLetterHtml = async (type, requestData, req) => {
 
   const tuSettings = await getTuSettingsPayload();
   const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
-  const assetKey = LETTER_TYPE_TO_CLIENT_KEY[type];
+  const assetKey = config.assetKey || LETTER_TYPE_TO_CLIENT_KEY[type];
   const backgroundImage = requestData.backgroundImageBase64 || getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
   const letterLayout = requestData.layout || normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
   const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
@@ -1965,7 +2203,7 @@ const buildLetterHtml = async (type, requestData, req) => {
       .map(cc => `<li style="list-style: none; margin: 0; padding: 0 0 0 2mm; text-indent: -2mm;">- ${cc.role || cc.jabatan || ''}${cc.name || cc.nama ? ` - ${cc.name || cc.nama}` : ''}</li>`)
       .join('\n');
     tembusanHtml = `
-      <div class="carbon-copy-block" style="margin-top: 8mm; font-size: 9.5pt; line-height: 1.3;">
+      <div class="carbon-copy-block" style="margin-top: 8mm; font-size: 11pt; line-height: 1.5;">
           <p style="margin: 0; font-weight: bold;">Tembusan Kepada Yth:</p>
           <ul style="margin: 1mm 0 0 0; padding: 0; list-style: none;">
               ${listItems}
@@ -1993,7 +2231,8 @@ const buildLetterHtml = async (type, requestData, req) => {
   const placeholders = config.getPlaceholders({
     data: requestData,
     letterNumber: letterNumberVal || '-',
-    semesterMeta
+    semesterMeta,
+    tuSettings
   });
 
   const resolvedPlaceholders = await placeholders;
@@ -2001,7 +2240,7 @@ const buildLetterHtml = async (type, requestData, req) => {
     htmlContent = htmlContent.replace(new RegExp(key, 'g'), resolvedPlaceholders[key]);
   }
 
-  return htmlContent;
+  return applyOfficialLetterTypography(htmlContent);
 };
 
 const buildLetterPdfBuffer = async (type, requestData, req) => {
@@ -2098,6 +2337,8 @@ const upsertObservationRequest = async (client, data, targetStatus) => {
 const normalizeResearchPayload = async (payload = {}) => {
   const nim = String(payload.nim || '').trim();
   const studyProgram = nim ? await getStudyProgramByNim(nim) : null;
+  const settingsPayload = await getTuSettingsPayload();
+  const researchDefaults = normalizeResearchDefaults(settingsPayload);
   const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
   const hasDestinationPlace = hasOwn('destinationPlace') || hasOwn('destination_place');
   const hasDestinationAddress = hasOwn('destinationAddress') || hasOwn('destination_address');
@@ -2109,8 +2350,15 @@ const normalizeResearchPayload = async (payload = {}) => {
   const destinationAddress = hasDestinationAddress
     ? String(payload.destinationAddress || payload.destination_address || '').trim()
     : researchAddress;
+  const rawLetterKind = payload.letterKind || payload.letter_kind;
+  const letterKind = rawLetterKind === INTERVIEW_LETTER_KIND
+    ? INTERVIEW_LETTER_KIND
+    : rawLetterKind === PERMISSION_LETTER_KIND
+      ? PERMISSION_LETTER_KIND
+      : RESEARCH_LETTER_KIND;
 
   return {
+    letter_kind: letterKind,
     name: formatStudentName(payload.name || ''),
     nim,
     email: String(payload.email || '').trim(),
@@ -2120,12 +2368,13 @@ const normalizeResearchPayload = async (payload = {}) => {
     destination_address: destinationAddress,
     research_place: researchPlace,
     research_address: researchAddress,
-    assignment_type: String(payload.assignmentType || payload.assignment_type || '').trim() || 'Tugas Talenta Unggul',
+    assignment_type: researchDefaults.assignmentType,
     research_title: String(payload.researchTitle || payload.research_title || '').trim(),
+    permission_purpose: String(payload.permissionPurpose || payload.permission_purpose || '').trim(),
     contact_person: String(payload.contactPerson || payload.contact_person || '').trim(),
     study_program_level: payload.studyProgramLevel || payload.study_program_level || studyProgram?.studyProgramLevel || null,
     study_program_name: payload.studyProgramName || payload.study_program_name || studyProgram?.studyProgramName || null,
-    advisors: normalizeResearchAdvisors(payload.advisors),
+    advisors: normalizeResearchAdvisors(payload.advisors, researchDefaults, { preserveCustomTitle: false }),
     include_research_place: true,
     carbon_copies: Array.isArray(payload.carbonCopies || payload.carbon_copies) ? (payload.carbonCopies || payload.carbon_copies) : []
   };
@@ -2137,9 +2386,10 @@ const validateResearchPayload = (data) => {
   if (!data.recipient_title) return 'Jabatan penerima surat wajib diisi.';
   if (!data.destination_place) return 'Instansi atau tempat tujuan surat wajib diisi.';
   if (!data.destination_address) return 'Alamat tujuan surat wajib diisi.';
-  if (!data.research_place) return 'Tempat penelitian wajib diisi.';
+  if (data.letter_kind === PERMISSION_LETTER_KIND && !data.permission_purpose) return 'Keperluan izin wajib diisi.';
+  if (!data.research_place) return data.letter_kind === INTERVIEW_LETTER_KIND ? 'Tempat wawancara wajib diisi.' : data.letter_kind === PERMISSION_LETTER_KIND ? 'Lokasi atau instansi perizinan wajib diisi.' : 'Tempat penelitian wajib diisi.';
   if (!data.study_program_name) return 'Program studi wajib diisi.';
-  if (!data.research_title) return 'Judul penelitian wajib diisi.';
+  if (!data.research_title) return data.letter_kind === INTERVIEW_LETTER_KIND ? 'Topik atau judul wawancara wajib diisi.' : data.letter_kind === PERMISSION_LETTER_KIND ? 'Judul tugas akhir wajib diisi.' : 'Judul penelitian wajib diisi.';
   return null;
 };
 
@@ -2150,7 +2400,7 @@ const ensureResearchAccessCode = async (client, requestData) => {
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
-      const accessCode = createResearchAccessCode();
+      const accessCode = createResearchAccessCode(requestData.letter_kind);
       const updateResult = await client.query(
         `UPDATE research_requests
          SET access_code = $1,
@@ -2173,12 +2423,14 @@ const upsertResearchRequest = async (client, data, targetStatus) => {
   const recentDuplicate = await client.query(
     `SELECT * FROM research_requests
      WHERE nim = $1
-       AND research_place IS NOT DISTINCT FROM $2
-       AND research_title IS NOT DISTINCT FROM $3
-       AND destination_place IS NOT DISTINCT FROM $4
+       AND letter_kind IS NOT DISTINCT FROM $2
+       AND research_place IS NOT DISTINCT FROM $3
+       AND research_title IS NOT DISTINCT FROM $4
+       AND destination_place IS NOT DISTINCT FROM $5
+       AND permission_purpose IS NOT DISTINCT FROM $6
        AND created_at > NOW() - INTERVAL '1 day'
-     ORDER BY created_at DESC LIMIT 1`,
-    [data.nim, data.research_place, data.research_title, data.destination_place]
+      ORDER BY created_at DESC LIMIT 1`,
+    [data.nim, data.letter_kind, data.research_place, data.research_title, data.destination_place, data.permission_purpose || null]
   );
 
   if (recentDuplicate.rows.length > 0) {
@@ -2200,15 +2452,17 @@ const upsertResearchRequest = async (client, data, targetStatus) => {
          research_address = $8,
          assignment_type = $9,
          research_title = $10,
-         contact_person = $11,
-         study_program_level = $12,
-         study_program_name = $13,
-         advisors = $14::jsonb,
-         include_research_place = $15,
-         status = $16,
-         carbon_copies = $17::jsonb,
+         permission_purpose = $11,
+         contact_person = $12,
+         study_program_level = $13,
+         study_program_name = $14,
+         letter_kind = $15,
+         advisors = $16::jsonb,
+         include_research_place = $17,
+         status = $18,
+         carbon_copies = $19::jsonb,
          updated_at = CURRENT_TIMESTAMP
-       WHERE id = $18
+       WHERE id = $20
        RETURNING *`,
       [
         data.name,
@@ -2221,9 +2475,11 @@ const upsertResearchRequest = async (client, data, targetStatus) => {
         data.research_address,
         data.assignment_type,
         data.research_title,
+        data.permission_purpose || null,
         data.contact_person,
         data.study_program_level,
         data.study_program_name,
+        data.letter_kind,
         JSON.stringify(data.advisors || []),
         data.include_research_place !== false,
         newStatus,
@@ -2234,16 +2490,16 @@ const upsertResearchRequest = async (client, data, targetStatus) => {
     return updateResult.rows[0];
   }
 
-  const id = `PEN-${Date.now()}`;
+  const id = `${data.letter_kind === INTERVIEW_LETTER_KIND ? 'WCR' : data.letter_kind === PERMISSION_LETTER_KIND ? 'IZN' : 'PEN'}-${Date.now()}`;
   const insertResult = await client.query(
     `INSERT INTO research_requests (
        id, name, nim, email, recipient_name, recipient_title, destination_place,
        destination_address, research_place, research_address, assignment_type,
-       research_title, contact_person, study_program_level, study_program_name,
-       advisors, include_research_place, status, carbon_copies
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19::jsonb)
-     RETURNING *`,
+       research_title, permission_purpose, contact_person, study_program_level, study_program_name,
+       letter_kind, advisors, include_research_place, status, carbon_copies
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, $20, $21::jsonb)
+      RETURNING *`,
     [
       id,
       data.name,
@@ -2257,9 +2513,11 @@ const upsertResearchRequest = async (client, data, targetStatus) => {
       data.research_address,
       data.assignment_type,
       data.research_title,
+      data.permission_purpose || null,
       data.contact_person,
       data.study_program_level,
       data.study_program_name,
+      data.letter_kind,
       JSON.stringify(data.advisors || []),
       data.include_research_place !== false,
       targetStatus,
@@ -2270,9 +2528,10 @@ const upsertResearchRequest = async (client, data, targetStatus) => {
   return insertResult.rows[0];
 };
 
-const createFinalResearchRequest = async (client, payload, targetStatus, req) => {
+const createFinalResearchRequest = async (client, payload, targetStatus, req, letterKind = RESEARCH_LETTER_KIND) => {
   const normalized = await normalizeResearchPayload({
     ...payload,
+    letterKind,
     email: payload.email || req.user?.email || ''
   });
   const resolvedEmail = normalized.email || `arsip-${normalized.nim || Date.now()}@core.fti`;
@@ -2285,8 +2544,9 @@ const createFinalResearchRequest = async (client, payload, targetStatus, req) =>
   }
 
   let requestData = await upsertResearchRequest(client, data, targetStatus);
-  requestData = await ensureLetterNumber(client, 'research', requestData);
-  requestData = await ensureLetterValidationToken(client, 'research', requestData);
+  const letterType = getResearchLetterType(requestData);
+  requestData = await ensureLetterNumber(client, letterType, requestData);
+  requestData = await ensureLetterValidationToken(client, letterType, requestData);
   requestData = await ensureResearchAccessCode(client, requestData);
   return requestData;
 };
@@ -2348,7 +2608,7 @@ router.get('/tu/public/letter-validation/:token/preview-html', publicValidationL
         : counselingResult.rows.length > 0
           ? 'counseling'
           : researchResult.rows.length > 0
-            ? 'research'
+            ? getResearchLetterType(researchResult.rows[0])
             : suRekResult.rows.length > 0
               ? 'su-rek'
               : null;
@@ -3542,6 +3802,171 @@ router.post('/tu/requests/observation/batch-delete', verifyRole(TU_ADMIN_ROLES),
   }
 });
 
+router.delete('/tu/requests/research/:id', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(`DELETE FROM research_requests WHERE id = $1 AND (letter_kind = 'research' OR letter_kind IS NULL) RETURNING id, name, nim, letter_generated_at`, [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    
+    const deletedRow = result.rows[0];
+    if (deletedRow.letter_generated_at) {
+      const date = new Date(deletedRow.letter_generated_at);
+      await pool.query(
+        `UPDATE tu_letter_number_counters
+         SET last_sequence = GREATEST(last_sequence - 1, 0)
+         WHERE letter_type = 'research' AND year = $1 AND month = $2`,
+        [date.getFullYear(), date.getMonth() + 1]
+      );
+    }
+    res.json({ success: true, deleted: deletedRow });
+  } catch (err) {
+    console.error('Delete research error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data penelitian.' });
+  }
+});
+
+router.post('/tu/requests/research/batch-delete', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Daftar ID tidak valid atau kosong.' });
+  }
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `DELETE FROM research_requests WHERE id = ANY($1::text[]) AND (letter_kind = 'research' OR letter_kind IS NULL) RETURNING id, name, nim, letter_generated_at`,
+      [ids]
+    );
+    
+    for (const row of result.rows) {
+      if (row.letter_generated_at) {
+        const date = new Date(row.letter_generated_at);
+        await pool.query(
+          `UPDATE tu_letter_number_counters
+           SET last_sequence = GREATEST(last_sequence - 1, 0)
+           WHERE letter_type = 'research' AND year = $1 AND month = $2`,
+          [date.getFullYear(), date.getMonth() + 1]
+        );
+      }
+    }
+    
+    res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
+  } catch (err) {
+    console.error('Batch delete research error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data penelitian secara batch.' });
+  }
+});
+
+router.delete('/tu/requests/interview/:id', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(`DELETE FROM research_requests WHERE id = $1 AND letter_kind = 'interview' RETURNING id, name, nim, letter_generated_at`, [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    
+    const deletedRow = result.rows[0];
+    if (deletedRow.letter_generated_at) {
+      const date = new Date(deletedRow.letter_generated_at);
+      await pool.query(
+        `UPDATE tu_letter_number_counters
+         SET last_sequence = GREATEST(last_sequence - 1, 0)
+         WHERE letter_type = 'interview' AND year = $1 AND month = $2`,
+        [date.getFullYear(), date.getMonth() + 1]
+      );
+    }
+    res.json({ success: true, deleted: deletedRow });
+  } catch (err) {
+    console.error('Delete interview error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data wawancara.' });
+  }
+});
+
+router.post('/tu/requests/interview/batch-delete', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Daftar ID tidak valid atau kosong.' });
+  }
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `DELETE FROM research_requests WHERE id = ANY($1::text[]) AND letter_kind = 'interview' RETURNING id, name, nim, letter_generated_at`,
+      [ids]
+    );
+    
+    for (const row of result.rows) {
+      if (row.letter_generated_at) {
+        const date = new Date(row.letter_generated_at);
+        await pool.query(
+          `UPDATE tu_letter_number_counters
+           SET last_sequence = GREATEST(last_sequence - 1, 0)
+           WHERE letter_type = 'interview' AND year = $1 AND month = $2`,
+          [date.getFullYear(), date.getMonth() + 1]
+        );
+      }
+    }
+    
+    res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
+  } catch (err) {
+    console.error('Batch delete interview error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data wawancara secara batch.' });
+  }
+});
+
+router.delete('/tu/requests/permission/:id', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(`DELETE FROM research_requests WHERE id = $1 AND letter_kind = 'permission' RETURNING id, name, nim, letter_generated_at`, [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+
+    const deletedRow = result.rows[0];
+    if (deletedRow.letter_generated_at) {
+      const date = new Date(deletedRow.letter_generated_at);
+      await pool.query(
+        `UPDATE tu_letter_number_counters
+         SET last_sequence = GREATEST(last_sequence - 1, 0)
+         WHERE letter_type = 'permission' AND year = $1 AND month = $2`,
+        [date.getFullYear(), date.getMonth() + 1]
+      );
+    }
+    res.json({ success: true, deleted: deletedRow });
+  } catch (err) {
+    console.error('Delete permission error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data perizinan.' });
+  }
+});
+
+router.post('/tu/requests/permission/batch-delete', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Daftar ID tidak valid atau kosong.' });
+  }
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(
+      `DELETE FROM research_requests WHERE id = ANY($1::text[]) AND letter_kind = 'permission' RETURNING id, name, nim, letter_generated_at`,
+      [ids]
+    );
+
+    for (const row of result.rows) {
+      if (row.letter_generated_at) {
+        const date = new Date(row.letter_generated_at);
+        await pool.query(
+          `UPDATE tu_letter_number_counters
+           SET last_sequence = GREATEST(last_sequence - 1, 0)
+           WHERE letter_type = 'permission' AND year = $1 AND month = $2`,
+          [date.getFullYear(), date.getMonth() + 1]
+        );
+      }
+    }
+
+    res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
+  } catch (err) {
+    console.error('Batch delete permission error:', err);
+    res.status(500).json({ error: 'Gagal menghapus data perizinan secara batch.' });
+  }
+});
+
 router.get('/tu/settings', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
   try {
     res.json(await getTuSettingsPayload());
@@ -3558,7 +3983,11 @@ router.get('/tu/letter-backgrounds', verifyRole(TU_ACCESS_ROLES), async (req, re
       letterLayouts,
       counselingSubject,
       counselingRecipientName,
-      counselingReferralUnit
+      counselingReferralUnit,
+      researchAssignmentType,
+      researchAdvisorTitle,
+      researchAdvisorTitleFirst,
+      researchAdvisorTitleSecond
     } = await getTuSettingsPayload();
     res.json({
       success: true,
@@ -3566,7 +3995,11 @@ router.get('/tu/letter-backgrounds', verifyRole(TU_ACCESS_ROLES), async (req, re
       letterLayouts,
       counselingSubject,
       counselingRecipientName,
-      counselingReferralUnit
+      counselingReferralUnit,
+      researchAssignmentType,
+      researchAdvisorTitle,
+      researchAdvisorTitleFirst,
+      researchAdvisorTitleSecond
     });
   } catch (err) {
     console.error('Get TU letter backgrounds error:', err);
@@ -3582,6 +4015,10 @@ router.post('/tu/settings', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
     counselingSubject,
     counselingRecipientName,
     counselingReferralUnit,
+    researchAssignmentType,
+    researchAdvisorTitle,
+    researchAdvisorTitleFirst,
+    researchAdvisorTitleSecond,
     suRekYangTerhormat,
     suRekBerdasarkanNo,
     suRekPerihal,
@@ -3606,6 +4043,10 @@ router.post('/tu/settings', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
     await upsertSystemSetting(client, 'tu_counseling_subject', counselingSubject || '');
     await upsertSystemSetting(client, 'tu_counseling_recipient_name', counselingRecipientName || '');
     await upsertSystemSetting(client, 'tu_counseling_referral_unit', counselingReferralUnit || '');
+    await upsertSystemSetting(client, 'tu_research_assignment_type', researchAssignmentType || '');
+    await upsertSystemSetting(client, 'tu_research_advisor_title', researchAdvisorTitle || '');
+    await upsertSystemSetting(client, 'tu_research_advisor_title_first', researchAdvisorTitleFirst || '');
+    await upsertSystemSetting(client, 'tu_research_advisor_title_second', researchAdvisorTitleSecond || '');
     await upsertSystemSetting(client, 'tu_su_rek_yang_terhormat', suRekYangTerhormat || '');
     await upsertSystemSetting(client, 'tu_su_rek_berdasarkan_no', suRekBerdasarkanNo || '');
     await upsertSystemSetting(client, 'tu_su_rek_perihal', suRekPerihal || '');
@@ -4178,6 +4619,262 @@ router.post('/tu/research-letter/send-email', verifyRole(TU_SUBMIT_ROLES), async
   }
 });
 
+router.post('/tu/interview-letter/generate-and-download', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'verified', req, INTERVIEW_LETTER_KIND);
+    const pdfBuffer = await buildLetterPdfBuffer('interview', requestData, req);
+    await client.query('COMMIT');
+
+    const safeName = (requestData.research_place || requestData.name || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `SuratWawancara_${safeName}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Research-Access-Code', requestData.access_code || '');
+    res.send(pdfBuffer);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Interview letter download & archive error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal membuat dan mengunduh PDF surat wawancara.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/interview-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'verified', req, INTERVIEW_LETTER_KIND);
+    await client.query('COMMIT');
+
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+    res.json({
+      success: true,
+      qrUrl: validationUrl,
+      validationUrl,
+      validationToken: requestData.validation_token,
+      accessCode: requestData.access_code,
+      letterNumber: requestData.letter_number,
+      expiresAt: null
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Interview letter QR generate error:', err);
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode ? err.message : 'Gagal membuat QR Code surat wawancara.',
+      details: err.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/interview-letter/send-email', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const targetEmail = String(req.body?.targetEmail || '').trim();
+  if (!isValidEmailAddress(targetEmail)) {
+    return res.status(400).json({ error: 'Alamat email tujuan tidak valid.' });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'sent', req, INTERVIEW_LETTER_KIND);
+    const config = letterConfig.interview;
+    const pdfBuffer = await buildLetterPdfBuffer('interview', requestData, req);
+    await client.query('COMMIT');
+
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+    const safeLetterNumber = (requestData.letter_number || config.pdfFilename).replace(/\//g, '_');
+    const pdfFilename = `${safeLetterNumber}_${requestData.nim}.pdf`;
+    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
+    const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
+
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: targetEmail,
+      subject: `${config.subject} - ${requestData.name}`,
+      text: [
+        `Halo, ${requestData.name} (${requestData.nim})`,
+        'Surat Izin Wawancara telah diproses oleh Tata Usaha FTI UKSW. Surat terlampir dalam format PDF dan sudah memiliki QR validasi publik.',
+        `Validasi surat: ${validationUrl}`,
+        `Kode akses surat: ${requestData.access_code}`,
+        'Salam, Bagian Tata Usaha Fakultas Teknologi Informasi UKSW'
+      ].join('\n\n'),
+      html: `
+        <div style="font-family: sans-serif; color: #333;">
+          <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
+          ${config.emailBody}
+          <p><strong>Validasi surat:</strong> <a href="${validationUrl}">${validationUrl}</a></p>
+          <p><strong>Kode akses surat:</strong> ${escapeXml(requestData.access_code)}</p>
+          <p>Simpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.</p>
+          <br/>
+          <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
+        </div>
+      `,
+      attachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
+      list: {
+        unsubscribe: {
+          url: `mailto:${fromEmail}?subject=unsubscribe`,
+          comment: 'Unsubscribe'
+        }
+      }
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log('[Mailer] Mock Email Preview (Interview):', previewUrl);
+    else console.log(`[Mailer] Surat wawancara terkirim ke ${targetEmail}`);
+
+    res.json({
+      success: true,
+      message: `Surat berhasil dikirim ke ${targetEmail}`,
+      letterNumber: requestData.letter_number,
+      accessCode: requestData.access_code,
+      validationToken: requestData.validation_token,
+      validationUrl
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('[Mailer] Interview send-email error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal mengirim email surat wawancara. Pastikan konfigurasi EMAIL di .env sudah benar.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/permission-letter/generate-and-download', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'verified', req, PERMISSION_LETTER_KIND);
+    const pdfBuffer = await buildLetterPdfBuffer('permission', requestData, req);
+    await client.query('COMMIT');
+
+    const safeName = (requestData.research_place || requestData.name || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `SuratPerizinan_${safeName}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Research-Access-Code', requestData.access_code || '');
+    res.send(pdfBuffer);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Permission letter download & archive error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal membuat dan mengunduh PDF surat perizinan.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/permission-letter/generate-qr-link', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'verified', req, PERMISSION_LETTER_KIND);
+    await client.query('COMMIT');
+
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+    res.json({
+      success: true,
+      qrUrl: validationUrl,
+      validationUrl,
+      validationToken: requestData.validation_token,
+      accessCode: requestData.access_code,
+      letterNumber: requestData.letter_number,
+      expiresAt: null
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Permission letter QR generate error:', err);
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode ? err.message : 'Gagal membuat QR Code surat perizinan.',
+      details: err.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/permission-letter/send-email', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const targetEmail = String(req.body?.targetEmail || '').trim();
+  if (!isValidEmailAddress(targetEmail)) {
+    return res.status(400).json({ error: 'Alamat email tujuan tidak valid.' });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'sent', req, PERMISSION_LETTER_KIND);
+    const config = letterConfig.permission;
+    const pdfBuffer = await buildLetterPdfBuffer('permission', requestData, req);
+    await client.query('COMMIT');
+
+    const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
+    const safeLetterNumber = (requestData.letter_number || config.pdfFilename).replace(/\//g, '_');
+    const pdfFilename = `${safeLetterNumber}_${requestData.nim}.pdf`;
+    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
+    const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
+
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: targetEmail,
+      subject: `${config.subject} - ${requestData.name}`,
+      text: [
+        `Halo, ${requestData.name} (${requestData.nim})`,
+        'Surat Perizinan telah diproses oleh Tata Usaha FTI UKSW. Surat terlampir dalam format PDF dan sudah memiliki QR validasi publik.',
+        `Validasi surat: ${validationUrl}`,
+        `Kode akses surat: ${requestData.access_code}`,
+        'Salam, Bagian Tata Usaha Fakultas Teknologi Informasi UKSW'
+      ].join('\n\n'),
+      html: `
+        <div style="font-family: sans-serif; color: #333;">
+          <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
+          ${config.emailBody}
+          <p><strong>Validasi surat:</strong> <a href="${validationUrl}">${validationUrl}</a></p>
+          <p><strong>Kode akses surat:</strong> ${escapeXml(requestData.access_code)}</p>
+          <p>Simpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.</p>
+          <br/>
+          <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
+        </div>
+      `,
+      attachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }]
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log('[Mailer] Mock Email Preview (Permission):', previewUrl);
+    else console.log(`[Mailer] Surat perizinan terkirim ke ${targetEmail}`);
+
+    res.json({
+      success: true,
+      message: `Surat berhasil dikirim ke ${targetEmail}`,
+      letterNumber: requestData.letter_number,
+      accessCode: requestData.access_code,
+      validationToken: requestData.validation_token,
+      validationUrl
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('[Mailer] Permission send-email error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal mengirim email surat perizinan. Pastikan konfigurasi EMAIL di .env sudah benar.' });
+  } finally {
+    client.release();
+  }
+});
+
 router.post('/tu/public/research-letter/access', publicObservationAccessLimiter, async (req, res) => {
   const accessCode = normalizeResearchAccessCode(req.body?.accessCode);
   if (!accessCode) {
@@ -4228,9 +4925,11 @@ router.post('/tu/public/research-letter/download', publicObservationAccessLimite
       return res.status(403).json({ error: 'Surat penelitian belum berstatus resmi.' });
     }
 
-    const pdfBuffer = await buildLetterPdfBuffer('research', requestData, req);
+    const letterType = getResearchLetterType(requestData);
+    const config = letterConfig[letterType] || letterConfig.research;
+    const pdfBuffer = await buildLetterPdfBuffer(letterType, requestData, req);
     const safeName = (requestData.research_place || requestData.name || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
-    const filename = `SuratPenelitian_${safeName}.pdf`;
+    const filename = `${config.pdfFilename}_${safeName}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdfBuffer.length);
@@ -4331,13 +5030,14 @@ router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async
     }
 
     if (researchResult.rows.length > 0) {
-      const assetKey = LETTER_TYPE_TO_CLIENT_KEY.research;
+      const researchLetterType = getResearchLetterType(researchResult.rows[0]);
+      const assetKey = letterConfig[researchLetterType]?.assetKey || LETTER_TYPE_TO_CLIENT_KEY.research;
       const layout = normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
-      const letterPayload = buildLetterValidationPayload('research', researchResult.rows[0], req);
+      const letterPayload = buildLetterValidationPayload(researchLetterType, researchResult.rows[0], req);
       const signers = await buildResearchSignerList(researchResult.rows[0]);
       letterPayload.signer = signers[0] || null;
       letterPayload.signers = signers;
-      const html = await buildLetterHtml('research', researchResult.rows[0], req);
+      const html = await buildLetterHtml(researchLetterType, researchResult.rows[0], req);
       return res.json({
         success: true,
         letter: {
@@ -4397,7 +5097,7 @@ router.get('/tu/public/letter-validation/:token/download', publicValidationLimit
         : counselingResult.rows.length > 0
           ? 'counseling'
           : researchResult.rows.length > 0
-            ? 'research'
+            ? getResearchLetterType(researchResult.rows[0])
             : suRekResult.rows.length > 0
               ? 'su-rek'
               : null;

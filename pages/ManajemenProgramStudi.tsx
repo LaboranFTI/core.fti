@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader';
 import Pagination from '../components/Pagination';
 import SearchBar from '../components/SearchBar';
 import { Button, buttonVariants } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { StudyProgram, useStudyPrograms } from '../hooks/useStudyPrograms';
 import { usePagination } from '../hooks/usePagination';
 import { cn } from '../lib/utils';
@@ -158,29 +159,28 @@ const StudyProgramManagement: React.FC<StudyProgramManagementProps> = ({ showToa
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full whitespace-nowrap text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-600 dark:border-gray-700 dark:bg-gray-900/50 dark:text-slate-300">
-              <tr>
-                <th className="px-6 py-4">Kode Awal NIM</th>
-                <th className="px-6 py-4">Jenjang</th>
-                <th className="px-6 py-4">Nama Program Studi</th>
-                <th className="w-24 px-6 py-4">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-gray-700">
+          <Table className="whitespace-nowrap text-left text-sm">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-6">Kode Awal NIM</TableHead>
+                <TableHead className="px-6">Jenjang</TableHead>
+                <TableHead className="px-6">Nama Program Studi</TableHead>
+                <TableHead className="w-24 px-6">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-slate-200 dark:divide-gray-700">
               {isLoading ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={4} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
                       <span>Memuat data program studi...</span>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : error ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-red-500">
+                <TableRow>
+                  <TableCell colSpan={4} className="px-6 py-10 text-center text-red-500">
                     <div className="flex flex-col items-center gap-2">
                       <AlertCircle className="h-6 w-6" />
                       <span>{error}</span>
@@ -188,30 +188,31 @@ const StudyProgramManagement: React.FC<StudyProgramManagementProps> = ({ showToa
                         Coba Lagi
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : paginatedData.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={4} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
                     Tidak ada program studi yang ditemukan.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 paginatedData.map((studyProgram) => (
-                  <tr key={studyProgram.id} className="group transition-colors hover:bg-slate-50 dark:hover:bg-gray-800/80">
-                    <td className="px-6 py-4 font-mono font-semibold text-slate-900 dark:text-white">{studyProgram.id}</td>
-                    <td className="px-6 py-4">
+                  <TableRow key={studyProgram.id} className="group transition-colors hover:bg-slate-50 dark:hover:bg-gray-800/80">
+                    <TableCell className="px-6 py-4 font-mono font-semibold text-slate-900 dark:text-white">{studyProgram.id}</TableCell>
+                    <TableCell className="px-6 py-4">
                       <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                         {studyProgram.level}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{studyProgram.name}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-slate-600 dark:text-slate-300">{studyProgram.name}</TableCell>
+                    <TableCell className="px-6 py-4">
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => openEditModal(studyProgram)}
                           className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')}
+                          aria-label={`Edit program studi ${studyProgram.name}`}
                           title="Edit Program Studi"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -220,18 +221,18 @@ const StudyProgramManagement: React.FC<StudyProgramManagementProps> = ({ showToa
                           type="button"
                           onClick={() => setStudyProgramToDelete(studyProgram)}
                           className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')}
+                          aria-label={`Hapus program studi ${studyProgram.name}`}
                           title="Hapus Program Studi"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
 
         <Pagination
           currentPage={currentPage}

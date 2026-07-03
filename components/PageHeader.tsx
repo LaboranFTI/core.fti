@@ -1,5 +1,4 @@
 import React from 'react';
-import { Buildings, CaretRight } from '@phosphor-icons/react';
 
 import { cn } from '../lib/utils';
 
@@ -42,12 +41,6 @@ const PageHeader: React.FC<PageHeaderProps> = ({
           contentClassName
         )}
       >
-        <div className="inline-flex max-w-full items-center gap-2 text-[11px] font-bold uppercase text-fti-blue-700 dark:text-fti-blue-300">
-          <Buildings size={15} weight="duotone" />
-          CORE.FTI
-          <CaretRight size={12} weight="bold" />
-          Operasional
-        </div>
         <h1
           className={cn(
             'text-2xl font-bold text-balance text-slate-950 dark:text-white',

@@ -1087,7 +1087,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
               <CardHeader className="border-b border-slate-100 dark:border-gray-700">
                 <CardTitle className="text-base text-slate-800 dark:text-white">Ringkasan Data</CardTitle>
-                <CardDescription className="dark:text-gray-400">Informasi penting untuk cek cepat sebelum mencetak ulang atau mengirimkan surat.</CardDescription>
+                <CardDescription className="dark:text-gray-400">Data pemohon, arsip, dan nomor surat.</CardDescription>
               </CardHeader>
               <CardContent className="pt-2">
                 <DetailRow label="Nama" value={item.name} />
@@ -1145,7 +1145,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
       )}
 
       <TUSectionCard
-        title="Kelola arsip surat lebih cepat"
+        title="Arsip Surat TU"
         description="Arsip menyimpan data surat TU agar dapat dilihat kembali, dicetak ulang, atau dikirim email tanpa menyimpan file PDF hasil generate."
         className="overflow-visible"
         contentClassName="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
@@ -1319,7 +1319,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                        <TableRow className="hover:bg-transparent">
                           <TableHead className="w-10">
                             <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
                               checked={selectedActiveIds.size === filteredActiveRequests.length && filteredActiveRequests.length > 0}
@@ -1356,7 +1356,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'active', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
                                   <Eye className="mr-2 h-4 w-4" /> Detail
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'active', item.name)} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Hapus arsip ${item.name}`} onClick={() => openDeleteSingle(item.id, 'active', item.name)} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -1436,7 +1436,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                        <TableRow className="hover:bg-transparent">
                           <TableHead className="w-10">
                             <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
                               checked={selectedObsIds.size === filteredObservationRequests.length && filteredObservationRequests.length > 0}
@@ -1473,10 +1473,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'observation', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
                                   <Eye className="mr-2 h-4 w-4" /> Detail
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => setEditTarget(item)} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Edit arsip observasi ${item.name}`} onClick={() => setEditTarget(item)} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'observation', item.name + ' — ' + (item.company || ''))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Hapus arsip observasi ${item.name}`} onClick={() => openDeleteSingle(item.id, 'observation', item.name + ' — ' + (item.company || ''))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -1562,7 +1562,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                        <TableRow className="hover:bg-transparent">
                           <TableHead className="w-10">
                             <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
                               checked={selectedCounselingIds.size === filteredCounselingRequests.length && filteredCounselingRequests.length > 0}
@@ -1604,10 +1604,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'counseling', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
                                   <Eye className="mr-2 h-4 w-4" /> Detail
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => setEditTarget({ ...item, type: 'counseling' })} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Edit arsip konseling ${item.name}`} onClick={() => setEditTarget({ ...item, type: 'counseling' })} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'counseling', item.name + ' - ' + (item.subject || 'Konseling'))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Hapus arsip konseling ${item.name}`} onClick={() => openDeleteSingle(item.id, 'counseling', item.name + ' - ' + (item.subject || 'Konseling'))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -1689,7 +1689,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-slate-50 dark:bg-gray-800/50">
+                        <TableRow className="hover:bg-transparent">
                           <TableHead className="w-10">
                             <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
                               checked={selectedSuRekIds.size === filteredSuRekRequests.length && filteredSuRekRequests.length > 0}
@@ -1726,10 +1726,10 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'su-rek', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
                                   <Eye className="mr-2 h-4 w-4" /> Detail
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => setEditTarget({ ...item, type: 'su-rek' })} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Edit arsip rekomendasi ${item.name}`} onClick={() => setEditTarget({ ...item, type: 'su-rek' })} className="border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20">
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => openDeleteSingle(item.id, 'su-rek', item.name + ' — ' + (item.nim || ''))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                <Button variant="outline" size="sm" aria-label={`Hapus arsip rekomendasi ${item.name}`} onClick={() => openDeleteSingle(item.id, 'su-rek', item.name + ' — ' + (item.nim || ''))} disabled={isProcessing} className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>

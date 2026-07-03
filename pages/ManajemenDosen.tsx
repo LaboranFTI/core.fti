@@ -11,6 +11,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
 import { Button, buttonVariants } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { cn } from '../lib/utils';
 
 const JABATAN_OPTIONS = [
@@ -438,7 +439,7 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast, role
       {/* Table Section */}
       <PageCard padding="none" className="overflow-hidden rounded-2xl border-slate-200 dark:border-gray-700">
         {/* Toolbar */}
-        <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/50 dark:bg-gray-800/50">
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 print:hidden">
           <div className="w-full sm:w-auto">
             <SearchBar
               value={searchQuery}
@@ -452,56 +453,55 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast, role
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 dark:bg-gray-900/50 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-gray-700">
-              <tr>
-                <th className="px-6 py-4">Kode Dosen (ID)</th>
-                <th className="px-6 py-4">Nama Lengkap</th>
-                <th className="px-6 py-4">Jabatan</th>
-                <th className="px-6 py-4">Program Studi</th>
-                {canEdit && <th className="px-6 py-4 w-24">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-gray-700">
+        <Table className="whitespace-nowrap text-left text-sm">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="px-6 py-4">Kode Dosen (ID)</TableHead>
+              <TableHead className="px-6 py-4">Nama Lengkap</TableHead>
+              <TableHead className="px-6 py-4">Jabatan</TableHead>
+              <TableHead className="px-6 py-4">Program Studi</TableHead>
+              {canEdit && <TableHead className="w-24 px-6 py-4">Aksi</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody className="divide-y divide-slate-200 dark:divide-gray-700 print:divide-gray-400">
               {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={canEdit ? 5 : 4} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                       <p>Memuat data dosen...</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : error ? (
-                <tr>
-                  <td colSpan={canEdit ? 5 : 4} className="px-6 py-8 text-center text-red-500">
+                <TableRow>
+                  <TableCell colSpan={canEdit ? 5 : 4} className="px-6 py-8 text-center text-red-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-6 h-6" />
                       <p>{error}</p>
                       <button onClick={fetchLecturers} className="text-sm underline hover:text-red-600 mt-2">Coba Lagi</button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : paginatedData.length === 0 ? (
-                <tr>
-                  <td colSpan={canEdit ? 5 : 4} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={canEdit ? 5 : 4} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                     Tidak ada data dosen yang ditemukan.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 paginatedData.map((lecturer) => (
-                  <tr key={lecturer.id} className="hover:bg-slate-50 dark:hover:bg-gray-800/80 transition-colors group">
-                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                  <TableRow key={lecturer.id} className="group hover:bg-slate-50 dark:hover:bg-gray-800/80">
+                    <TableCell className="px-6 py-4 font-medium text-slate-900 dark:text-white">
                       {lecturer.id}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-slate-600 dark:text-slate-300">
                       {lecturer.nama}
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       {getJabatanBadge(lecturer.jabatan)}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-slate-600 dark:text-slate-300">
                       {lecturer.study_program_name ? (
                         <span className="text-sm">
                           {lecturer.study_program_level} {lecturer.study_program_name}
@@ -509,33 +509,36 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast, role
                       ) : (
                         <span className="text-slate-400 dark:text-slate-500 text-xs italic">—</span>
                       )}
-                    </td>
+                    </TableCell>
                     {canEdit && (
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <TableCell className="px-6 py-4">
+                        <div className="flex items-center gap-2">
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(lecturer)}
                             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-blue-600 dark:text-blue-400')}
                             title="Edit Dosen"
+                            aria-label={`Edit dosen ${lecturer.nama}`}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleOpenDelete(lecturer)}
                             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }), 'text-red-600 dark:text-red-400')}
                             title="Hapus Dosen"
+                            aria-label={`Hapus dosen ${lecturer.nama}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+          </TableBody>
+        </Table>
 
         <div className="print:hidden">
           <Pagination 

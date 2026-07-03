@@ -40,6 +40,8 @@ import PageHeader from "../components/PageHeader";
 import PageCard from "../components/PageCard";
 import SearchBar from "../components/SearchBar";
 import { Button } from "../components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+
 
 declare global {
   interface Window {
@@ -818,26 +820,29 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         }
       />
 
-      <PageCard className="print:hidden" padding="md">
-        <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-center">
-          <SearchBar
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Cari nama peminjam atau keperluan"
-            className="w-full"
-          />
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:items-center">
+      <PageCard padding="none" className="max-w-full overflow-hidden print:border-2 print:border-black print:shadow-none">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 print:hidden">
+          <div className="min-w-0 flex-1 xl:max-w-md">
+            <SearchBar
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Cari nama peminjam atau keperluan"
+              className="w-full"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              className="h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-auto"
+              className="h-11 cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300"
               title="Filter Tanggal"
             />
             <select
               value={filterRoom}
               onChange={(e) => setFilterRoom(e.target.value)}
-              className="h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
+              className="h-11 cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 w-44"
               title="Filter Ruangan"
             >
               <option value="All">Semua Ruang</option>
@@ -850,7 +855,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-auto"
+              className="h-11 cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300"
             >
               <option value="All">Semua Status</option>
               <option value={BookingStatus.PENDING}>Pending</option>
@@ -861,7 +866,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
               onClick={handleExportExcel}
               variant="secondary"
               size="sm"
-              className="w-full justify-center sm:w-auto"
+              className="justify-center"
               title="Download Laporan Excel"
             >
               <FileSpreadsheet className="h-4 w-4" /> Export Excel
@@ -869,10 +874,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
           </div>
         </div>
 
-        {/* Desktop Table — Expandable Master-Detail */}
-      </PageCard>
-
-      <PageCard padding="none" className="max-w-full overflow-hidden print:border-2 print:border-black print:shadow-none">
         <div className="md:hidden space-y-3 p-3">
           {currentGroups.length > 0 ? (
             currentGroups.map((group) => {
@@ -1072,23 +1073,23 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-left text-sm">
+          <Table className="w-full text-left text-sm">
             {/* ── Table Head ── */}
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
-              <tr>
+            <TableHeader className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
+              <TableRow className="hover:bg-transparent">
                 {/* chevron column — no label */}
-                <th className="pl-4 pr-2 py-3 w-10" />
-                <th className="px-4 py-3">Peminjam</th>
-                <th className="px-4 py-3">Keperluan</th>
-                <th className="px-4 py-3">Ringkasan</th>
-                <th className="px-4 py-3">Dokumen</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Aksi</th>
-              </tr>
-            </thead>
+                <TableHead className="pl-4 pr-2 py-3 w-10" />
+                <TableHead className="px-4 py-3">Peminjam</TableHead>
+                <TableHead className="px-4 py-3">Keperluan</TableHead>
+                <TableHead className="px-4 py-3">Ringkasan</TableHead>
+                <TableHead className="px-4 py-3">Dokumen</TableHead>
+                <TableHead className="px-4 py-3">Status</TableHead>
+                <TableHead className="px-4 py-3 text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
 
             {/* ── Table Body ── */}
-            <tbody>
+            <TableBody>
               {currentGroups.length > 0 ? (
                 currentGroups.map((group) => {
                   const isExpanded = expandedGroups.has(group.key);
@@ -1108,7 +1109,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                         what activity, how many rooms/slots, document, and
                         the dominant status across all child bookings.
                     ══════════════════════════════════════════════════════ */}
-                      <tr
+                      <TableRow
                         onClick={() => openBookingDetail(group.master)}
                         className={`
                         border-t border-slate-200 dark:border-slate-700
@@ -1119,7 +1120,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                       `}
                       >
                         {/* ── Expand / Collapse Chevron ── */}
-                        <td className="pl-4 pr-2 py-4 w-10">
+                        <TableCell className="pl-4 pr-2 py-4 w-10">
                           <button
                             type="button"
                             title={
@@ -1147,10 +1148,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                             `}
                             />
                           </button>
-                        </td>
+                        </TableCell>
 
                         {/* ── Peminjam ── */}
-                        <td className="px-4 py-4">
+                        <TableCell className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                               {group.master.userName.charAt(0).toUpperCase()}
@@ -1164,10 +1165,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                               </p>
                             </div>
                           </div>
-                        </td>
+                        </TableCell>
 
                         {/* ── Keperluan ── */}
-                        <td className="px-4 py-4 max-w-45">
+                        <TableCell className="px-4 py-4 max-w-45">
                           <p
                             className="text-sm text-gray-800 dark:text-gray-200 line-clamp-2 leading-snug"
                             title={group.master.purpose}
@@ -1177,10 +1178,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                           <p className="text-xs text-gray-400 mt-0.5 truncate">
                             {group.master.responsiblePerson}
                           </p>
-                        </td>
+                        </TableCell>
 
                         {/* ── Ringkasan: Room + Schedule count pills ── */}
-                        <td className="px-4 py-4">
+                        <TableCell className="px-4 py-4">
                           <div className="flex flex-wrap gap-1.5">
                             {/* Room pill: show name if only one, else count */}
                             <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
@@ -1195,10 +1196,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                               {group.totalSchedules} Jadwal
                             </span>
                           </div>
-                        </td>
+                        </TableCell>
 
                         {/* ── Dokumen ── */}
-                        <td className="px-4 py-4">
+                        <TableCell className="px-4 py-4">
                           {(group.master as any).hasFile ? (
                             <button
                               onClick={(e) =>
@@ -1213,10 +1214,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                               —
                             </span>
                           )}
-                        </td>
+                        </TableCell>
 
                         {/* ── Status (dominant across group) ── */}
-                        <td className="px-4 py-4">
+                        <TableCell className="px-4 py-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                               group.status === BookingStatus.APPROVED
@@ -1228,10 +1229,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                           >
                             {group.status}
                           </span>
-                        </td>
+                        </TableCell>
 
                         {/* ── Master-level Actions ── */}
-                        <td className="px-4 py-4 text-right">
+                        <TableCell className="px-4 py-4 text-right">
                           {group.status === BookingStatus.PENDING && (
                             <div className="flex items-center justify-end gap-1">
                               <button
@@ -1270,8 +1271,8 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                               </button>
                             </div>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
 
                       {/* ══════════════════════════════════════════════════════
                         DETAIL EXPANSION ROW
@@ -1282,8 +1283,8 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                         The inner wrapper must have overflow-hidden so
                         content is clipped during the transition.
                     ══════════════════════════════════════════════════════ */}
-                      <tr className={`${isExpanded ? "border-t-0" : ""}`}>
-                        <td colSpan={7} className="p-0 border-t-0">
+                      <TableRow className={`${isExpanded ? "border-t-0" : ""}`}>
+                        <TableCell colSpan={7} className="p-0 border-t-0">
                           <div
                             className={`
                             grid transition-[grid-template-rows] duration-300 ease-in-out
@@ -1307,32 +1308,32 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
 
                                 {/* Sub-table */}
                                 <div className="mobile-table-scroll">
-                                <table className="w-full">
-                                  <thead>
-                                    <tr className="bg-gray-50/70 dark:bg-gray-800/50 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                      <th className="px-4 py-2 text-left">
+                                <Table className="w-full">
+                                  <TableHeader className="bg-gray-50/70 dark:bg-gray-800/50 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    <TableRow className="hover:bg-transparent">
+                                      <TableHead className="px-4 py-2 text-left">
                                         Ruangan
-                                      </th>
-                                      <th className="px-4 py-2 text-left">
+                                      </TableHead>
+                                      <TableHead className="px-4 py-2 text-left">
                                         Tanggal
-                                      </th>
-                                      <th className="px-4 py-2 text-left">
+                                      </TableHead>
+                                      <TableHead className="px-4 py-2 text-left">
                                         Jam Mulai
-                                      </th>
-                                      <th className="px-4 py-2 text-left">
+                                      </TableHead>
+                                      <TableHead className="px-4 py-2 text-left">
                                         Jam Selesai
-                                      </th>
-                                      <th className="px-4 py-2 text-left">
+                                      </TableHead>
+                                      <TableHead className="px-4 py-2 text-left">
                                         Status
-                                      </th>
-                                      <th className="px-4 py-2 text-right">
+                                      </TableHead>
+                                      <TableHead className="px-4 py-2 text-right">
                                         Aksi
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40 bg-white dark:bg-gray-900/40">
+                                      </TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody className="divide-y divide-gray-100 dark:divide-gray-700/40 bg-white dark:bg-gray-900/40">
                                     {detailRows.map((row: GroupDetailRow, idx: number) => (
-                                      <tr
+                                      <TableRow
                                         key={`${row.booking.id}-${idx}`}
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1346,7 +1347,7 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                                       >
                                         {/* Room name — shown only on the first schedule row of
                                           each booking so multi-schedule rooms don't repeat */}
-                                        <td className="px-4 py-2.5">
+                                        <TableCell className="px-4 py-2.5">
                                           {row.isFirst ? (
                                             <span className="inline-flex items-center gap-1.5 font-semibold text-gray-800 dark:text-gray-200">
                                               <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
@@ -1363,31 +1364,31 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                                               ↳
                                             </span>
                                           )}
-                                        </td>
+                                        </TableCell>
 
                                         {/* Date */}
-                                        <td className="px-4 py-2.5">
+                                        <TableCell className="px-4 py-2.5">
                                           <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
                                             <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
                                             {formatDateID(row.date)}
                                           </span>
-                                        </td>
+                                        </TableCell>
 
                                         {/* Start time */}
-                                        <td className="px-4 py-2.5">
+                                        <TableCell className="px-4 py-2.5">
                                           <span className="inline-flex items-center gap-1 font-mono text-gray-700 dark:text-gray-300">
                                             <Clock className="w-3 h-3 text-gray-400 shrink-0" />
                                             {row.startTime?.slice(0, 5)}
                                           </span>
-                                        </td>
+                                        </TableCell>
 
                                         {/* End time */}
-                                        <td className="px-4 py-2.5 font-mono text-gray-700 dark:text-gray-300">
+                                        <TableCell className="px-4 py-2.5 font-mono text-gray-700 dark:text-gray-300">
                                           {row.endTime?.slice(0, 5)}
-                                        </td>
+                                        </TableCell>
 
                                         {/* Per-booking status badge — only on first row of that booking */}
-                                        <td className="px-4 py-2.5">
+                                        <TableCell className="px-4 py-2.5">
                                           {row.isFirst && (
                                             <span
                                               className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${
@@ -1403,10 +1404,10 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                                               {row.booking.status}
                                             </span>
                                           )}
-                                        </td>
+                                        </TableCell>
 
                                         {/* Per-booking action buttons — only on first row */}
-                                        <td className="px-4 py-2.5 text-right">
+                                        <TableCell className="px-4 py-2.5 text-right">
                                           {row.isFirst && (
                                             <div className="flex items-center justify-end gap-1">
                                               {row.booking.status ===
@@ -1455,23 +1456,23 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                                               )}
                                             </div>
                                           )}
-                                        </td>
-                                      </tr>
+                                        </TableCell>
+                                      </TableRow>
                                     ))}
-                                  </tbody>
-                                </table>
+                                  </TableBody>
+                                </Table>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     </React.Fragment>
                   );
                 })
               ) : (
-                <tr>
-                  <td
+                <TableRow>
+                  <TableCell
                     colSpan={7}
                     className="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
                   >
@@ -1479,11 +1480,11 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
                       <FileText className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
                       <p>Tidak ada data peminjaman yang sesuai filter.</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         <div className="print:hidden">
           <Pagination

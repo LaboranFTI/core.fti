@@ -37,22 +37,25 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   activeStudent: createEmptyLetterAsset(),
   observation: createEmptyLetterAsset(),
   counseling: createEmptyLetterAsset(),
+  research: createEmptyLetterAsset(),
   suRek: createEmptyLetterAsset()
 });
 
-type LetterLayoutKey = 'activeStudent' | 'observation' | 'counseling' | 'suRek';
+type LetterLayoutKey = 'activeStudent' | 'observation' | 'counseling' | 'research' | 'suRek';
 
 const DEFAULT_LETTER_LAYOUTS: Record<LetterLayoutKey, LetterLayout> = {
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 };
 
 const PREVIEW_LETTER_TYPE_CODES: Record<Exclude<LetterLayoutKey, 'suRek'>, string> = {
   activeStudent: 'S.Ket',
   observation: 'FTI-OBS',
-  counseling: 'FTI'
+  counseling: 'FTI',
+  research: 'FTI/Penelitian'
 };
 const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
 const DEFAULT_COUNSELING_RECIPIENT_NAME = [
@@ -62,6 +65,10 @@ const DEFAULT_COUNSELING_RECIPIENT_NAME = [
   'Salatiga'
 ].join('\n');
 const DEFAULT_COUNSELING_REFERRAL_UNIT = 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.';
+const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
 
 const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number, date = new Date()) => {
   const paddedSequence = String(sequence).padStart(3, '0');
@@ -86,6 +93,7 @@ const createEmptyLetterLayouts = (): TULetterLayouts => ({
   activeStudent: getDefaultLetterLayout('activeStudent'),
   observation: getDefaultLetterLayout('observation'),
   counseling: getDefaultLetterLayout('counseling'),
+  research: getDefaultLetterLayout('research'),
   suRek: getDefaultLetterLayout('suRek')
 });
 
@@ -94,6 +102,7 @@ const normalizeLetterLayouts = (layouts?: Partial<TULetterLayouts>): TULetterLay
     activeStudent: { ...getDefaultLetterLayout('activeStudent'), ...layouts?.activeStudent },
     observation: { ...getDefaultLetterLayout('observation'), ...layouts?.observation },
     counseling: { ...getDefaultLetterLayout('counseling'), ...layouts?.counseling },
+    research: { ...getDefaultLetterLayout('research'), ...layouts?.research },
     suRek: { ...getDefaultLetterLayout('suRek'), ...layouts?.suRek }
   };
 };
@@ -108,15 +117,18 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
       ? backgrounds.observation
       : backgrounds?.counseling?.imageBase64
         ? backgrounds.counseling
-        : backgrounds?.suRek?.imageBase64
-          ? backgrounds.suRek
-          : empty.document;
+        : backgrounds?.research?.imageBase64
+          ? backgrounds.research
+          : backgrounds?.suRek?.imageBase64
+            ? backgrounds.suRek
+            : empty.document;
 
   return {
     document: { ...empty.document, ...sharedBackground },
     activeStudent: { ...empty.activeStudent, ...sharedBackground },
     observation: { ...empty.observation, ...sharedBackground },
     counseling: { ...empty.counseling, ...sharedBackground },
+    research: { ...empty.research, ...sharedBackground },
     suRek: { ...empty.suRek, ...sharedBackground }
   };
 };
@@ -140,6 +152,11 @@ const letterLayoutSections: Array<{
     key: 'counseling',
     title: 'Surat Konseling',
     description: 'Atur batas area tulisan untuk template surat pengantar konseling.'
+  },
+  {
+    key: 'research',
+    title: 'Surat Penelitian',
+    description: 'Atur batas area tulisan untuk template surat rekomendasi penelitian.'
   },
   {
     key: 'suRek',
@@ -238,6 +255,29 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         letterDate: previewDate.toISOString()
       };
     }
+    if (key === 'research') {
+      return {
+        ...firmandez,
+        recipientName: 'Kepala Dinas Komunikasi dan Informatika',
+        recipientTitle: 'Kota Salatiga',
+        destinationPlace: 'Dinas Komunikasi dan Informatika Kota Salatiga',
+        destinationAddress: 'Jl. Letjen Sukowati No. 51, Salatiga',
+        researchPlace: 'Bidang Aplikasi Informatika',
+        assignmentType: tempResearchAssignmentType || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+        researchTitle: 'Analisis Kualitas Layanan Sistem Informasi Akademik Berbasis Web',
+        contactPerson: firmandez.nim,
+        studyProgramLevel: 'S1',
+        studyProgramName: 'Sistem Informasi',
+        advisors: [
+          { name: 'Dr. Budi Santoso', title: tempResearchAdvisorTitleFirst || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST },
+          { name: 'Dr. Citra Lestari', title: tempResearchAdvisorTitleSecond || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND }
+        ],
+        letterNumber: formatPreviewLetterNumber('research', 5, previewDate),
+        validationToken: 'dummy-token-research',
+        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-research`,
+        letterDate: previewDate.toISOString()
+      };
+    }
     return {
       ...firmandez,
       recipientName: tempSuRekYangTerhormat || 'Panitia Seleksi Beasiswa Afirmasi',
@@ -270,6 +310,10 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [tempCounselingSubject, setTempCounselingSubject] = useState<string>(DEFAULT_COUNSELING_SUBJECT);
   const [tempCounselingRecipientName, setTempCounselingRecipientName] = useState<string>(DEFAULT_COUNSELING_RECIPIENT_NAME);
   const [tempCounselingReferralUnit, setTempCounselingReferralUnit] = useState<string>(DEFAULT_COUNSELING_REFERRAL_UNIT);
+  const [tempResearchAssignmentType, setTempResearchAssignmentType] = useState<string>(DEFAULT_RESEARCH_ASSIGNMENT_TYPE);
+  const [tempResearchAdvisorTitle, setTempResearchAdvisorTitle] = useState<string>(DEFAULT_RESEARCH_ADVISOR_TITLE);
+  const [tempResearchAdvisorTitleFirst, setTempResearchAdvisorTitleFirst] = useState<string>(DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST);
+  const [tempResearchAdvisorTitleSecond, setTempResearchAdvisorTitleSecond] = useState<string>(DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND);
   const [tempSuRekYangTerhormat, setTempSuRekYangTerhormat] = useState<string>('');
   const [tempSuRekBerdasarkanNo, setTempSuRekBerdasarkanNo] = useState<string>('');
   const [tempSuRekPerihal, setTempSuRekPerihal] = useState<string>('');
@@ -351,6 +395,10 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         setTempCounselingSubject(json.counselingSubject || DEFAULT_COUNSELING_SUBJECT);
         setTempCounselingRecipientName(json.counselingRecipientName || DEFAULT_COUNSELING_RECIPIENT_NAME);
         setTempCounselingReferralUnit(json.counselingReferralUnit || DEFAULT_COUNSELING_REFERRAL_UNIT);
+        setTempResearchAssignmentType(json.researchAssignmentType || DEFAULT_RESEARCH_ASSIGNMENT_TYPE);
+        setTempResearchAdvisorTitle(json.researchAdvisorTitle || DEFAULT_RESEARCH_ADVISOR_TITLE);
+        setTempResearchAdvisorTitleFirst(json.researchAdvisorTitleFirst || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST);
+        setTempResearchAdvisorTitleSecond(json.researchAdvisorTitleSecond || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND);
         setTempSuRekYangTerhormat(json.suRekYangTerhormat || '');
         setTempSuRekBerdasarkanNo(json.suRekBerdasarkanNo || '');
         setTempSuRekPerihal(json.suRekPerihal || '');
@@ -500,6 +548,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         activeStudent: nextAsset,
         observation: nextAsset,
         counseling: nextAsset,
+        research: nextAsset,
         suRek: nextAsset
       }));
     };
@@ -606,6 +655,10 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
           counselingSubject: tempCounselingSubject,
           counselingRecipientName: tempCounselingRecipientName,
           counselingReferralUnit: tempCounselingReferralUnit,
+          researchAssignmentType: tempResearchAssignmentType,
+          researchAdvisorTitle: tempResearchAdvisorTitle,
+          researchAdvisorTitleFirst: tempResearchAdvisorTitleFirst,
+          researchAdvisorTitleSecond: tempResearchAdvisorTitleSecond,
           suRekYangTerhormat: tempSuRekYangTerhormat,
           suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
           suRekPerihal: tempSuRekPerihal,
@@ -1201,6 +1254,12 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
 
   const selectedLayoutConfig = tempLetterLayouts[selectedLayoutConfigKey] || getDefaultLetterLayout(selectedLayoutConfigKey);
   const selectedPreviewData = getDummyDataForPreview(selectedLayoutConfigKey);
+  const selectedPreviewType: 'active-student' | 'observation' | 'counseling' | 'research' | 'su-rek' =
+    selectedLayoutConfigKey === 'activeStudent'
+      ? 'active-student'
+      : selectedLayoutConfigKey === 'suRek'
+        ? 'su-rek'
+        : selectedLayoutConfigKey;
 
   return (
     <div className="flex flex-col gap-6 print:hidden">
@@ -1516,6 +1575,71 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                         </div>
                       )}
 
+                      {selectedLayoutConfigKey === 'research' && (
+                        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Konten Surat Penelitian</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                              Nilai default ini dipakai pada pengajuan penelitian baru dan langsung terlihat di preview.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="researchAssignmentType" className="text-xs text-slate-500 dark:text-slate-400">
+                              Jenis Tugas
+                            </Label>
+                            <Input
+                              id="researchAssignmentType"
+                              value={tempResearchAssignmentType}
+                              onChange={(e) => setTempResearchAssignmentType(e.target.value)}
+                              placeholder={DEFAULT_RESEARCH_ASSIGNMENT_TYPE}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="researchAdvisorTitle" className="text-xs text-slate-500 dark:text-slate-400">
+                              Label Jabatan Saat Satu Pembimbing
+                            </Label>
+                            <Input
+                              id="researchAdvisorTitle"
+                              value={tempResearchAdvisorTitle}
+                              onChange={(e) => setTempResearchAdvisorTitle(e.target.value)}
+                              placeholder={DEFAULT_RESEARCH_ADVISOR_TITLE}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="researchAdvisorTitleFirst" className="text-xs text-slate-500 dark:text-slate-400">
+                                Label Pembimbing Pertama
+                              </Label>
+                              <Input
+                                id="researchAdvisorTitleFirst"
+                                value={tempResearchAdvisorTitleFirst}
+                                onChange={(e) => setTempResearchAdvisorTitleFirst(e.target.value)}
+                                placeholder={DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST}
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="researchAdvisorTitleSecond" className="text-xs text-slate-500 dark:text-slate-400">
+                                Label Pembimbing Kedua
+                              </Label>
+                              <Input
+                                id="researchAdvisorTitleSecond"
+                                value={tempResearchAdvisorTitleSecond}
+                                onChange={(e) => setTempResearchAdvisorTitleSecond(e.target.value)}
+                                placeholder={DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND}
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Margin Area Tulisan (mm)</p>
                         
@@ -1659,13 +1783,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                           key={`${selectedLayoutConfigKey}-${selectedLayoutConfig.marginTopMm}-${selectedLayoutConfig.marginRightMm}-${selectedLayoutConfig.marginBottomMm}-${selectedLayoutConfig.marginLeftMm}-${tempLetterBackgrounds.document.imageBase64 ? 'has-bg' : 'no-bg'}`}
                         >
                           <LetterPreview
-                            type={selectedLayoutConfigKey === 'activeStudent'
-                              ? 'active-student'
-                              : selectedLayoutConfigKey === 'observation'
-                                ? 'observation'
-                                : selectedLayoutConfigKey === 'counseling'
-                                  ? 'counseling'
-                                  : 'su-rek'}
+                            type={selectedPreviewType}
                             data={selectedPreviewData}
                             backgroundImageBase64={tempLetterBackgrounds.document.imageBase64}
                             layout={selectedLayoutConfig}
@@ -1772,7 +1890,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/50 dark:bg-gray-800/50">
+                  <TableRow className="hover:bg-transparent">
                     <TableHead className="w-10">
                       <input
                         type="checkbox"
@@ -1822,6 +1940,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                           <Button
                             variant="outline"
                             size="sm"
+                            aria-label={`Hapus permohonan ${req.name}`}
                             className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
                             onClick={() => handleDeleteSingle(req)}
                             disabled={isProcessing}

@@ -14,6 +14,7 @@ import Pagination from '../components/Pagination';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
 import { Button, buttonVariants } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { cn } from '../lib/utils';
 
 const getLabelDimensions = (size: '4x2' | '5x3' | '8x6') => {
@@ -866,61 +867,53 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
         </div>
         ) : undefined}
       />
-      <div className="print:hidden">
-         <div className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-center">
-
-           <div className="flex min-w-0">
-             <SearchBar
-                value={searchTerm}
-                onChange={setSearchTerm}
-                placeholder="Cari nama, Kode FTI, UKSW, atau SN..."
-                className="w-full"
-             />
-           </div>
-
-           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:items-center">
-               <div className="relative">
-                   <select
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                      className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
-                   >
-                       <option value="All">Semua Kategori</option>
-                       {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                       ))}
-                   </select>
-                   <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-               </div>
-
-               <div className="relative">
-               <select
-                  value={filterCondition}
-                  onChange={(e) => setFilterCondition(e.target.value as any)}
-                  className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
-               >
-                   <option value="All">Semua Kondisi</option>
-                   <option value="Baik">Baik</option>
-                   <option value="Rusak Ringan">Rusak Ringan</option>
-                   <option value="Rusak Berat">Rusak Berat</option>
-               </select>
-               <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-           </div>
-        </div>
-      </div>
-      </div>
-
-
+      
       <PageCard padding="none" className="mx-auto flex max-w-full flex-col overflow-hidden print:border-2 print:border-black print:shadow-none">
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 print:hidden">
+          <div className="min-w-0 flex-1 lg:max-w-md">
+            <SearchBar
+               value={searchTerm}
+               onChange={setSearchTerm}
+               placeholder="Cari nama, Kode FTI, UKSW, atau SN..."
+               className="w-full"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <select
+                 value={filterCategory}
+                 onChange={(e) => setFilterCategory(e.target.value)}
+                 className="h-11 cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
+              >
+                  <option value="All">Semua Kategori</option>
+                  {categories.map(cat => (
+                     <option key={cat} value={cat}>{cat}</option>
+                  ))}
+              </select>
+              <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
 
-
-
-                    <thead className="border-b border-slate-200 bg-slate-50 font-bold uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400 print:bg-gray-200 print:text-black">
-                        <tr>
+            <div className="relative">
+              <select
+                 value={filterCondition}
+                 onChange={(e) => setFilterCondition(e.target.value as any)}
+                 className="h-11 cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition-[border-color,box-shadow] focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:focus:border-slate-300 lg:w-44"
+              >
+                  <option value="All">Semua Kondisi</option>
+                  <option value="Baik">Baik</option>
+                  <option value="Rusak Ringan">Rusak Ringan</option>
+                  <option value="Rusak Berat">Rusak Berat</option>
+              </select>
+              <Filter className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+          </div>
+        </div>
+                <Table className="text-left text-xs">
+                    <TableHeader className="print:bg-gray-200 print:text-black">
+                        <TableRow className="hover:bg-transparent">
                             {canManageInventory && (
-                            <th className="px-4 py-4 w-12 print:hidden shrink-0">
+                            <TableHead className="w-12 shrink-0 print:hidden">
                                 <input
                                     type="checkbox"
                                     className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
@@ -933,48 +926,48 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                                         }
                                     }}
                                 />
-                            </th>
+                            </TableHead>
                             )}
-                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('name')}>
+                            <TableHead className="cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('name')}>
                                 <div className="flex items-center">Barang <SortIcon columnKey="name" /></div>
-                            </th>
-                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('id')}>
+                            </TableHead>
+                            <TableHead className="cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('id')}>
                                 <div className="flex items-center">Identitas <SortIcon columnKey="id" /></div>
-                            </th>
-                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('condition')}>
+                            </TableHead>
+                            <TableHead className="cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('condition')}>
                                 <div className="flex items-center">Kondisi & Lokasi <SortIcon columnKey="condition" /></div>
-                            </th>
-                            <th className="cursor-pointer px-4 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('isAvailable')}>
+                            </TableHead>
+                            <TableHead className="cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => handleSort('isAvailable')}>
                                 <div className="flex items-center">Status <SortIcon columnKey="isAvailable" /></div>
-                            </th>
+                            </TableHead>
 
-                            {canManageInventory && <th className="px-4 py-4 text-right print:hidden">Aksi</th>}
-                        </tr>
+                            {canManageInventory && <TableHead className="text-right print:hidden">Aksi</TableHead>}
+                        </TableRow>
 
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700 print:divide-gray-400">
+                    </TableHeader>
+                    <TableBody className="divide-y divide-slate-200 dark:divide-slate-700 print:divide-gray-400">
                         {currentItems.length > 0 ? currentItems.map(item => (
-                            <tr key={item.id} className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => setViewDetailItem(item)}>
+                            <TableRow key={item.id} className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => setViewDetailItem(item)}>
                                 {canManageInventory && (
-                                <td className="px-4 py-3 print:hidden shrink-0 w-12" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="w-12 shrink-0 print:hidden" onClick={(e) => e.stopPropagation()}>
                                     <input
                                         type="checkbox"
                                         className="mx-auto h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                                         checked={selectedItems.includes(item.id)}
                                         onChange={(e) => handleSelectItem(item.id, e.target.checked)}
                                     />
-                                </td>
+                                </TableCell>
                                 )}
-                                <td className="px-4 py-3">
+                                <TableCell>
                                     <div className="text-sm font-bold text-slate-950 dark:text-white">{item.name}</div>
                                     <div className="mt-0.5 text-xs text-slate-500">{item.category}</div>
-                                </td>
-                                <td className="px-4 py-3">
+                                </TableCell>
+                                <TableCell>
                                     <div className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">{item.id}</div>
                                     <div className="mt-0.5 font-mono text-xs text-slate-500" title="Kode UKSW">{item.ukswCode || '-'}</div>
                                     {item.serialNumber && <div className="mt-0.5 font-mono text-xs text-slate-400" title="Serial Number">SN: {item.serialNumber}</div>}
-                                </td>
-                                <td className="px-4 py-3">
+                                </TableCell>
+                                <TableCell>
                                     <div className="mb-1.5">
                                         <span className={`rounded-md border px-2 py-0.5 text-xs font-bold print:border-gray-400 ${getConditionColor(item.condition)}`}>
                                         {item.condition}
@@ -983,37 +976,36 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                                     <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                                         <MapPin className="w-3 h-3 mr-1" /> {item.location || '-'}
                                     </div>
-                                </td>
-                                <td className="px-4 py-3">
+                                </TableCell>
+                                <TableCell>
                                     <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold print:border-gray-400 ${item.isAvailable ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-200' : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200'}`}>
                                         {item.isAvailable ? 'Tersedia' : 'Dipinjam'}
                                     </span>
-                                </td>
+                                </TableCell>
 
                                 {canManageInventory && (
-                                <td className="px-4 py-3 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="text-right print:hidden" onClick={(e) => e.stopPropagation()}>
 
                                     <div className="flex justify-end space-x-2">
-                                        <button onClick={() => handleShowQR(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-slate-600 dark:text-slate-300')} title="Lihat QR Code"><QrCode className="w-4 h-4"/></button>
-                                        <button onClick={() => handleOpenModal(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-slate-600 dark:text-slate-300')} title="Edit"><Edit className="w-4 h-4"/></button>
-                                        <button onClick={() => handleDeleteClick(item.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-red-600 dark:text-red-400')} title="Hapus"><Trash2 className="w-4 h-4"/></button>
+                                        <button aria-label="Lihat QR Code" onClick={() => handleShowQR(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-slate-600 dark:text-slate-300')} title="Lihat QR Code"><QrCode className="w-4 h-4"/></button>
+                                        <button aria-label="Edit barang" onClick={() => handleOpenModal(item)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-slate-600 dark:text-slate-300')} title="Edit"><Edit className="w-4 h-4"/></button>
+                                        <button aria-label="Hapus barang" onClick={() => handleDeleteClick(item.id)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-red-600 dark:text-red-400')} title="Hapus"><Trash2 className="w-4 h-4"/></button>
                                     </div>
-                                </td>
+                                </TableCell>
                                 )}
-                            </tr>
+                            </TableRow>
                         )) : (
-                           <tr>
-                              <td colSpan={canManageInventory ? 6 : 4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                           <TableRow>
+                              <TableCell colSpan={canManageInventory ? 6 : 4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                  <div className="flex flex-col items-center justify-center">
                                     <Box className="w-12 h-12 text-gray-300 mb-3" />
                                     <p>Tidak ada barang yang ditemukan.</p>
                                  </div>
-                              </td>
-                           </tr>
+                              </TableCell>
+                           </TableRow>
                         )}
-                    </tbody>
-                </table>
-            </div>
+                    </TableBody>
+                </Table>
             <div className="print:hidden">
               <Pagination
                 currentPage={currentPage}

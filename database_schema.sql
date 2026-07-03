@@ -592,9 +592,11 @@ CREATE TABLE research_requests (
     research_address TEXT,
     assignment_type VARCHAR(255),
     research_title TEXT,
+    permission_purpose VARCHAR(255),
     contact_person VARCHAR(255),
     study_program_level VARCHAR(100),
     study_program_name VARCHAR(255),
+    letter_kind VARCHAR(30) DEFAULT 'research',
     advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
     include_research_place BOOLEAN DEFAULT TRUE,
     signature_base64 TEXT,
@@ -678,7 +680,7 @@ CREATE TRIGGER update_tu_letter_backgrounds_updated_at BEFORE UPDATE ON tu_lette
 -- Counter nomor surat TU per jenis surat per bulan
 CREATE TABLE tu_letter_number_counters (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek')),
     year INTEGER NOT NULL,
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
     last_sequence INTEGER NOT NULL DEFAULT 0,
@@ -753,7 +755,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_access_code_unique
 ON su_rek_requests(access_code)
 WHERE access_code IS NOT NULL;
 
--- Pengaturan default untuk Layanan TU
+-- Pengaturan default untuk Layanan Surat
 INSERT INTO system_settings (key, value) VALUES ('tu_dean_signature_base64', '') ON CONFLICT (key) DO NOTHING;
 INSERT INTO system_settings (key, value) VALUES ('tu_faculty_stamp_base64', '') ON CONFLICT (key) DO NOTHING;
 INSERT INTO system_settings (key, value) VALUES ('tu_current_semester_code', '') ON CONFLICT (key) DO NOTHING;

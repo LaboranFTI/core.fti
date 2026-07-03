@@ -876,8 +876,8 @@ export default function App() {
     };
     return (<div className="space-y-6 sm:space-y-8 text-slate-900 font-sans selection:bg-blue-600 selection:text-white pb-6 transition-colors duration-500 dark:text-slate-100">
       <PageHeader
-        title="LabGuard FTI UKSW"
-        description="Sistem Keamanan Jaringan dan Kontrol Akses MikroTik Laboratorium."
+        title="LabGuard"
+        description="Kontrol Akses VLAN Laboratorium."
         actions={(
           <button onClick={handleRefresh} className="flex items-center justify-center p-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-fti-blue-600 hover:text-fti-blue-700 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-fti-blue-300 dark:hover:text-white">
             <RefreshCcw size={16} className={loading ? 'animate-spin' : ''}/>

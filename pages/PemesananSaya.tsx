@@ -24,6 +24,7 @@ import { formatDateID } from '../src/utils/formatters';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
 import SearchBar from '../components/SearchBar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import MetricCard from '../components/MetricCard';
 
 interface PemesananSayaProps {
@@ -203,7 +204,7 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
     <div className="space-y-6">
       <PageHeader
         title="Pemesanan Saya"
-        description="Pantau status pengajuan ruangan, unduh bukti persetujuan, dan revisi permohonan yang masih menunggu."
+        description="Status pengajuan ruangan, bukti persetujuan, dan revisi permohonan."
         actions={
           <button onClick={handleCreateBooking} className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
             <Plus className="mr-2 h-4 w-4" weight="bold" /> Buat Pesanan Baru
@@ -236,7 +237,7 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
       </div>
 
       <PageCard padding="none" className="overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/60">
+        <div className="border-b border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/40 print:hidden">
             <SearchBar
               value={searchTerm}
               onChange={setSearchTerm}
@@ -246,24 +247,24 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
-              <tr>
-                <th className="px-6 py-4">Detail Kegiatan</th>
-                <th className="px-6 py-4">Ruangan & Waktu</th>
-                <th className="px-6 py-4">Dokumen</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <Table className="whitespace-nowrap text-left text-sm">
+            <TableHeader className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-6 py-4">Detail Kegiatan</TableHead>
+                <TableHead className="px-6 py-4">Ruangan & Waktu</TableHead>
+                <TableHead className="px-6 py-4">Dokumen</TableHead>
+                <TableHead className="px-6 py-4">Status</TableHead>
+                <TableHead className="px-6 py-4 text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredBookings.length > 0 ? filteredBookings.map((booking) => {
                 const statusConfig = getStatusConfig(booking.status);
                 const StatusIcon = statusConfig.icon;
 
                 return (
-                  <tr key={booking.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                     <td className="px-6 py-4">
+                  <TableRow key={booking.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                     <TableCell className="px-6 py-4">
                         <div className="mb-1 text-base font-bold text-slate-950 dark:text-white">{booking.purpose}</div>
                         <div className="flex flex-col gap-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
                             <span>PJ: {booking.responsiblePerson}</span>
@@ -274,8 +275,8 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
                                 </span>
                             )}
                         </div>
-                     </td>
-                     <td className="px-6 py-4">
+                     </TableCell>
+                     <TableCell className="px-6 py-4">
                         <div className="mb-1 flex items-center font-semibold text-slate-900 dark:text-white">
                            <MapPin className="mr-1.5 h-3.5 w-3.5 text-slate-500" weight="bold" /> {getRoomName(booking.roomId)}
                         </div>
@@ -283,8 +284,8 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
                            <span className="flex items-center"><CalendarBlank className="mr-1.5 h-3.5 w-3.5" weight="bold"/> {formatDateID(booking.date)}</span>
                            <span className="flex items-center"><Clock className="mr-1.5 h-3.5 w-3.5" weight="bold"/> {booking.startTime} - {booking.endTime}</span>
                         </div>
-                     </td>
-                     <td className="px-6 py-4">
+                     </TableCell>
+                     <TableCell className="px-6 py-4">
                      {(booking as any).hasFile ? (
                            <button
                            onClick={() => handleViewFile(booking.id)}
@@ -295,14 +296,14 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
                         ) : (
                            <span className="text-xs italic text-slate-400">Tidak ada file</span>
                         )}
-                     </td>
-                     <td className="px-6 py-4">
+                     </TableCell>
+                     <TableCell className="px-6 py-4">
                         <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold ${statusConfig.color}`}>
                            <StatusIcon className="mr-1.5 h-3.5 w-3.5" weight="duotone" />
                            {booking.status}
                         </span>
-                     </td>
-                     <td className="px-6 py-4 text-right">
+                     </TableCell>
+                     <TableCell className="px-6 py-4 text-right">
                         {booking.status === BookingStatus.PENDING ? (
                            <div className="flex items-center justify-end space-x-2">
                              <button
@@ -335,23 +336,23 @@ const PemesananSaya: React.FC<PemesananSayaProps> = ({ userId, showToast }) => {
                         ) : (
                            <span className="text-xs italic text-slate-400">Tidak dapat diubah</span>
                         )}
-                     </td>
-                  </tr>
+                     </TableCell>
+                  </TableRow>
                 );
               }) : (
-                 <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                 <TableRow>
+                    <TableCell colSpan={5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                        <div className="flex flex-col items-center justify-center">
                           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
                              <FileText className="h-7 w-7 text-slate-400" weight="duotone" />
                           </div>
                           <p className="font-semibold">Belum ada riwayat pemesanan.</p>
                        </div>
-                    </td>
-                 </tr>
+                    </TableCell>
+                 </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </PageCard>
 

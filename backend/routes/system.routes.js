@@ -263,7 +263,10 @@ router.delete('/staff/:id', async (req, res) => {
 router.get('/pkl', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, s.nama as pembimbing_nama 
+      SELECT p.id, p.nama_siswa, p.sekolah, p.jurusan, p.tanggal_mulai, p.tanggal_selesai, 
+             p.status, p.pembimbing_id, p.created_at, p.updated_at,
+             (p.surat_pengajuan IS NOT NULL) AS has_surat,
+             s.nama as pembimbing_nama 
       FROM pkl_students p 
       LEFT JOIN staff s ON p.pembimbing_id = s.id
       ORDER BY p.created_at DESC
@@ -277,7 +280,7 @@ router.get('/pkl', async (req, res) => {
       tanggalMulai: row.tanggal_mulai ? new Date(row.tanggal_mulai).toLocaleDateString('en-CA') : '',
       tanggalSelesai: row.tanggal_selesai ? new Date(row.tanggal_selesai).toLocaleDateString('en-CA') : '',
       status: row.status,
-      suratPengajuan: row.surat_pengajuan ? `data:application/pdf;base64,${row.surat_pengajuan.toString('base64')}` : undefined,
+      hasSurat: row.has_surat,
       pembimbingId: row.pembimbing_id,
       pembimbingNama: row.pembimbing_nama,
       createdAt: row.created_at,
@@ -288,6 +291,26 @@ router.get('/pkl', async (req, res) => {
   } catch (err) {
     console.error('Get PKL error:', err);
     res.status(500).json({ error: 'Gagal mengambil data PKL.' });
+  }
+});
+
+// Get PKL Document (On-Demand)
+router.get('/pkl/:id/document', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT surat_pengajuan FROM pkl_students WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0 || !result.rows[0].surat_pengajuan) {
+      return res.status(404).json({ error: 'Surat pengajuan tidak ditemukan.' });
+    }
+    
+    const base64Data = `data:application/pdf;base64,${result.rows[0].surat_pengajuan.toString('base64')}`;
+    res.json({ file: base64Data });
+  } catch (err) {
+    console.error('Get PKL document error:', err);
+    res.status(500).json({ error: 'Gagal mengambil dokumen PKL.' });
   }
 });
 

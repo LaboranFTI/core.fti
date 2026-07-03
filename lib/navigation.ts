@@ -92,7 +92,7 @@ export const mainNavigationItems: NavigationItem[] = [
   },
   {
     id: "layanan-tu",
-    label: "Layanan TU",
+    label: "Layanan Surat",
     icon: FileText,
     roles: [
       Role.ADMIN,

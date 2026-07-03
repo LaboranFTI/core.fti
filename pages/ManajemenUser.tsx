@@ -23,6 +23,7 @@ import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import { Button } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
 
@@ -450,7 +451,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
         <PageCard className="border-l-4 border-l-emerald-500">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Aktif</p>
           <p className="mt-3 text-3xl font-bold text-slate-950 dark:text-white">{userStats.active}</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Akun siap digunakan</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Status aktif</p>
         </PageCard>
         <PageCard className="border-l-4 border-l-amber-500">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Reset</p>
@@ -464,74 +465,75 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
         </PageCard>
       </div>
 
-      <div>
-        <div className="grid gap-3 lg:grid-cols-[auto_1fr]">
-          <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
-            {sourceTabs.map(tab => (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setActiveTab(tab.value)}
-                className={`min-w-[132px] rounded-md px-3 py-2 text-left transition ${
-                  activeTab === tab.value
-                    ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:text-white dark:ring-slate-700'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
-                }`}
-              >
-                <span className="block text-sm font-bold">{tab.label}</span>
-                <span className="block text-[11px] leading-4">{tab.description}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
-            <div className="min-w-0 flex-1 xl:max-w-md">
-              <SearchBar
-                value={searchTerm}
-                onChange={setSearchTerm}
-                placeholder="Cari nama, NIM, username, atau email..."
-              />
+      <PageCard padding="none" className="overflow-hidden">
+        {/* Toolbar & Tabs */}
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50/50 dark:bg-slate-900/40 flex flex-col gap-4 print:hidden">
+          <div className="grid gap-3 lg:grid-cols-[auto_1fr] items-center">
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
+              {sourceTabs.map(tab => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setActiveTab(tab.value)}
+                  className={`min-w-[132px] rounded-md px-3 py-2 text-left transition ${
+                    activeTab === tab.value
+                      ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:text-white dark:ring-slate-700'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{tab.label}</span>
+                  <span className="block text-[11px] leading-4">{tab.description}</span>
+                </button>
+              ))}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                onClick={fetchUsers}
-                disabled={isLoading}
-                variant="outline"
-                size="icon-sm"
-                title="Refresh Data"
-              >
-                {isLoading ? <CircleNotch className="w-4 h-4 animate-spin" /> : <ArrowsClockwise className="w-4 h-4" />}
-              </Button>
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-                <Filter className="h-4 w-4 text-slate-400" />
-                <select
-                  value={filterRole}
-                  onChange={(e) => setFilterRole(e.target.value as UserRoleFilter)}
-                  className="bg-transparent text-sm font-semibold text-slate-700 outline-none dark:text-slate-200"
-                >
-                  {roleFilterOptions.map(option => (
-                    <option key={option} value={option}>{option === 'All' ? 'Semua Role' : option}</option>
-                  ))}
-                </select>
+
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
+              <div className="min-w-0 flex-1 xl:max-w-md">
+                <SearchBar
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  placeholder="Cari nama, NIM, username, atau email..."
+                />
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as UserStatusFilter)}
-                  className="bg-transparent text-sm font-semibold text-slate-700 outline-none dark:text-slate-200"
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  onClick={fetchUsers}
+                  disabled={isLoading}
+                  variant="outline"
+                  size="icon-sm"
+                  title="Refresh Data"
                 >
-                  {statusFilterOptions.map(option => (
-                    <option key={option} value={option}>{option === 'All' ? 'Semua Status' : option}</option>
-                  ))}
-                </select>
+                  {isLoading ? <CircleNotch className="w-4 h-4 animate-spin" /> : <ArrowsClockwise className="w-4 h-4" />}
+                </Button>
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+                  <Filter className="h-4 w-4 text-slate-400" />
+                  <select
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value as UserRoleFilter)}
+                    className="bg-transparent text-sm font-semibold text-slate-700 outline-none dark:text-slate-200"
+                  >
+                    {roleFilterOptions.map(option => (
+                      <option key={option} value={option}>{option === 'All' ? 'Semua Role' : option}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as UserStatusFilter)}
+                    className="bg-transparent text-sm font-semibold text-slate-700 outline-none dark:text-slate-200"
+                  >
+                    {statusFilterOptions.map(option => (
+                      <option key={option} value={option}>{option === 'All' ? 'Semua Status' : option}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <PageCard padding="none" className="overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -543,21 +545,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
             </p>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
-            <thead className="border-b border-slate-200 bg-white text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-              <tr>
-                <th className="px-5 py-3">User Info</th>
-                <th className="px-5 py-3">Role & Kontak</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Last Login</th>
-                <th className="px-5 py-3 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+          <Table className="min-w-[920px] text-left text-sm">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-6">USER INFO</TableHead>
+                <TableHead className="px-6">ROLE & KONTAK</TableHead>
+                <TableHead className="px-6">STATUS</TableHead>
+                <TableHead className="px-6">LAST LOGIN</TableHead>
+                <TableHead className="px-6 text-right">AKSI</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {currentUsers.length > 0 ? currentUsers.map((user) => (
-                <tr key={user.id} className="bg-white transition-colors hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/80">
-                  <td className="px-5 py-4">
+                <TableRow key={user.id}>
+                  <TableCell className="px-6 py-4">
                     <div className="flex items-start gap-3">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         {getUserInitials(user.name)}
@@ -575,46 +576,47 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                         </div>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-5 py-4">
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
                     <div className="font-semibold text-slate-800 dark:text-slate-200">{user.role}</div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">{user.phone || 'Kontak belum diisi'}</div>
-                  </td>
-                  <td className="px-5 py-4">
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
                     <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold ${getStatusBadgeClass(user.status)}`}>
                       {user.status}
                     </span>
-                  </td>
-                  <td className="px-5 py-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400">
                     {user.lastLogin || '-'}
-                  </td>
-                  <td className="px-5 py-4 text-right">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button
                         type="button"
                         onClick={() => toggleStatus(user)}
                         variant="outline"
                         size="icon-xs"
+                        aria-label={user.status === 'Non-Aktif' ? `Aktifkan ${user.name}` : `Nonaktifkan ${user.name}`}
                         className={user.status === 'Non-Aktif' ? 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-300' : 'text-amber-600 hover:text-amber-700 dark:text-amber-300'}
                         title={user.status === 'Non-Aktif' ? 'Aktifkan' : 'Non-aktifkan'}
                       >
                         {user.status === 'Non-Aktif' ? <UserCheck className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />}
                       </Button>
-                      <Button type="button" onClick={() => handleResetPasswordClick(user)} variant="outline" size="icon-xs" className="text-amber-600 hover:text-amber-700 dark:text-amber-300" title="Reset Password">
+                      <Button type="button" onClick={() => handleResetPasswordClick(user)} variant="outline" size="icon-xs" aria-label={`Reset password ${user.name}`} className="text-amber-600 hover:text-amber-700 dark:text-amber-300" title="Reset Password">
                         <Key className="w-4 h-4" />
                       </Button>
-                      <Button type="button" onClick={() => handleOpenModal(user)} variant="outline" size="icon-xs" title="Edit">
+                      <Button type="button" onClick={() => handleOpenModal(user)} variant="outline" size="icon-xs" aria-label={`Edit ${user.name}`} title="Edit">
                         <PencilSimple className="w-4 h-4" />
                       </Button>
-                      <Button type="button" onClick={() => handleDeleteClick(user.id)} variant="outline" size="icon-xs" className="text-red-600 hover:text-red-700 dark:text-red-300" title="Hapus">
+                      <Button type="button" onClick={() => handleDeleteClick(user.id)} variant="outline" size="icon-xs" aria-label={`Hapus ${user.name}`} className="text-red-600 hover:text-red-700 dark:text-red-300" title="Hapus">
                         <Trash className="w-4 h-4" />
                       </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-14 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={5} className="px-6 py-14 text-center text-slate-500 dark:text-slate-400">
                     <div className="flex flex-col items-center justify-center">
                       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
                         <Users className="w-5 h-5 text-slate-400" />
@@ -622,12 +624,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
                       <p className="font-semibold text-slate-700 dark:text-slate-200">Tidak ada user yang ditemukan.</p>
                       <p className="mt-1 text-sm">Coba longgarkan kata kunci atau filter yang dipilih.</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
 
         <div className="border-t border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-800/50">
           <Pagination

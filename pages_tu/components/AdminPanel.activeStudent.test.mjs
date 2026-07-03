@@ -28,12 +28,37 @@ describe('AdminPanel active student detail layout', () => {
     assert.match(source, /Pratinjau Layout Margin Resmi/);
   });
 
+  it('includes research letters in margin configuration and renders the research preview type', () => {
+    assert.match(source, /type LetterLayoutKey = 'activeStudent' \| 'observation' \| 'counseling' \| 'research' \| 'suRek'/);
+    assert.match(source, /key:\s*'research'/);
+    assert.match(source, /title:\s*'Surat Penelitian'/);
+    assert.match(source, /description:\s*'Atur batas area tulisan untuk template surat rekomendasi penelitian\.'/);
+    assert.match(source, /research:\s*getDefaultLetterLayout\('research'\)/);
+    assert.match(source, /research:\s*\{\s*\.\.\.getDefaultLetterLayout\('research'\),\s*\.\.\.layouts\?\.research\s*\}/);
+    assert.match(source, /selectedPreviewType/);
+    assert.match(source, /type=\{selectedPreviewType\}/);
+  });
+
+  it('keeps research assignment and advisor labels as admin-managed defaults', () => {
+    assert.match(source, /DEFAULT_RESEARCH_ASSIGNMENT_TYPE/);
+    assert.match(source, /tempResearchAssignmentType/);
+    assert.match(source, /tempResearchAdvisorTitle/);
+    assert.match(source, /tempResearchAdvisorTitleFirst/);
+    assert.match(source, /tempResearchAdvisorTitleSecond/);
+    assert.match(source, /id="researchAssignmentType"/);
+    assert.match(source, /id="researchAdvisorTitle"/);
+    assert.match(source, /id="researchAdvisorTitleFirst"/);
+    assert.match(source, /id="researchAdvisorTitleSecond"/);
+    assert.match(source, /researchAssignmentType:\s*tempResearchAssignmentType/);
+    assert.match(source, /researchAdvisorTitle:\s*tempResearchAdvisorTitle/);
+  });
+
   it('places background settings beside semester and separates margin preview into its own card', () => {
     assert.match(source, /Semester Berjalan/);
     assert.match(source, /Background Surat/);
     assert.match(source, /xl:col-span-2/);
     assert.match(source, /Pengaturan & Pratinjau Margin Surat/);
-    assert.match(source, /Atur batas area tulisan, konten rekomendasi, dan tembusan sambil melihat preview surat/);
+    assert.match(source, /Atur batas area tulisan, konten default surat, dan tembusan sambil melihat preview surat/);
     assert.match(source, /Pilih jenis surat/);
   });
 
@@ -58,6 +83,7 @@ describe('AdminPanel active student detail layout', () => {
     assert.match(source, /formatPreviewLetterNumber/);
     assert.match(source, /S\.Ket/);
     assert.match(source, /FTI-OBS/);
+    assert.match(source, /FTI\/Penelitian/);
     assert.match(source, /FTI\/Su\.Rek/);
     assert.match(source, /Firmandez Febrian Afandy/);
     assert.match(source, /682022013/);

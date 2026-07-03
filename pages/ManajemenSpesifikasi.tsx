@@ -11,6 +11,7 @@ import ComputerForm from '../components/ComputerForm';
 import SoftwareForm from '../components/SoftwareForm';
 import ConfirmModal from '../components/ConfirmModal';
 import { Button, buttonVariants } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { cn } from '../lib/utils';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
@@ -669,75 +670,72 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
       {/* COMPUTERS TABLE */}
       {activeTab === 'computers' && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
-                <tr>
-                  <th className="px-4 py-3">No. PC</th>
-                  <th className="px-4 py-3">CPU</th>
-                  <th className="px-4 py-3">GPU</th>
-                  <th className="px-4 py-3">RAM/Storage</th>
-                  <th className="px-4 py-3">Kondisi</th>
-                  <th className="px-4 py-3">OS</th>
-                  {canManage && <th className="px-4 py-3 text-right">Aksi</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          <Table className="text-left text-sm">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-4 py-3">No. PC</TableHead>
+                <TableHead className="px-4 py-3">CPU</TableHead>
+                <TableHead className="px-4 py-3">GPU</TableHead>
+                <TableHead className="px-4 py-3">RAM/Storage</TableHead>
+                <TableHead className="px-4 py-3">Kondisi</TableHead>
+                <TableHead className="px-4 py-3">OS</TableHead>
+                {canManage && <TableHead className="px-4 py-3 text-right">Aksi</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {filteredComputers.map(pc => (
-                  <tr key={pc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100">
-                    <td className="px-4 py-3 font-bold">{pc.pcNumber}</td>
-                    <td className="px-4 py-3">{pc.cpu}</td>
-                    <td className="px-4 py-3">
+                  <TableRow key={pc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100">
+                    <TableCell className="px-4 py-3 font-bold">{pc.pcNumber}</TableCell>
+                    <TableCell className="px-4 py-3">{pc.cpu}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <div className="text-xs">{pc.gpuModel}</div>
                       <div className="text-[10px] text-gray-500 dark:text-gray-400">{pc.gpuType} ({pc.vram})</div>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
                       <div>{pc.ram}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{pc.storage}</div>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getConditionColor(pc.condition)}`}>{pc.condition}</span>
-                    </td>
-                    <td className="px-4 py-3">{pc.os}</td>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">{pc.os}</TableCell>
                     {canManage && (
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => setEditingComputer(pc)} className="text-blue-600 hover:text-blue-800 mr-3"><Edit2 className="w-4 h-4"/></button>
-                        <button onClick={() => handleDeleteComputerClick(pc.id)} className="text-red-600 hover:text-red-800"><Trash2 className="w-4 h-4"/></button>
-                      </td>
+                      <TableCell className="px-4 py-3 text-right">
+                        <button type="button" onClick={() => setEditingComputer(pc)} className="text-blue-600 hover:text-blue-800 mr-3" aria-label={`Edit komputer ${pc.pcNumber}`}><Edit2 className="w-4 h-4"/></button>
+                        <button type="button" onClick={() => handleDeleteComputerClick(pc.id)} className="text-red-600 hover:text-red-800" aria-label={`Hapus komputer ${pc.pcNumber}`}><Trash2 className="w-4 h-4"/></button>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
                 {filteredComputers.length === 0 && (
-                  <tr><td colSpan={canManage ? 7 : 6} className="text-center py-8 text-gray-500 dark:text-gray-400">Belum ada data komputer</td></tr>
+                  <TableRow><TableCell colSpan={canManage ? 7 : 6} className="text-center py-8 text-gray-500 dark:text-gray-400">Belum ada data komputer</TableCell></TableRow>
                 )}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
         </div>
       )}
 
       {/* SOFTWARE TABLE */}
       {activeTab === 'software' && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
-                <tr>
-                  <th className="px-4 py-3">Nama Software</th>
-                  <th className="px-4 py-3">Versi</th>
-                  <th className="px-4 py-3">Kategori</th>
-                  <th className="px-4 py-3">Lisensi</th>
-                  <th className="px-4 py-3">Vendor</th>
-                  {canManage && <th className="px-4 py-3 text-right">Aksi</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          <Table className="text-left text-sm">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-4 py-3">Nama Software</TableHead>
+                <TableHead className="px-4 py-3">Versi</TableHead>
+                <TableHead className="px-4 py-3">Kategori</TableHead>
+                <TableHead className="px-4 py-3">Lisensi</TableHead>
+                <TableHead className="px-4 py-3">Vendor</TableHead>
+                {canManage && <TableHead className="px-4 py-3 text-right">Aksi</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {filteredSoftware.map(soft => (
-                  <tr key={soft.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100">
-                    <td className="px-4 py-3 font-medium">{soft.name}</td>
-                    <td className="px-4 py-3">{soft.version}</td>
-                    <td className="px-4 py-3">{soft.category || '-'}</td>
-                    <td className="px-4 py-3">
+                  <TableRow key={soft.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100">
+                    <TableCell className="px-4 py-3 font-medium">{soft.name}</TableCell>
+                    <TableCell className="px-4 py-3">{soft.version}</TableCell>
+                    <TableCell className="px-4 py-3">{soft.category || '-'}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         soft.licenseType === 'Commercial' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
                         soft.licenseType === 'Open Source' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
@@ -745,22 +743,21 @@ const ManajemenSpesifikasi: React.FC<ManajemenSpesifikasiProps> = ({ role, isDar
                       }`}>
                         {soft.licenseType}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">{soft.vendor || '-'}</td>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">{soft.vendor || '-'}</TableCell>
                     {canManage && (
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => setEditingSoftware(soft)} className="text-blue-600 hover:text-blue-800 mr-3"><Edit2 className="w-4 h-4"/></button>
-                        <button onClick={() => handleDeleteSoftwareClick(soft.id)} className="text-red-600 hover:text-red-800"><Trash2 className="w-4 h-4"/></button>
-                      </td>
+                      <TableCell className="px-4 py-3 text-right">
+                        <button type="button" onClick={() => setEditingSoftware(soft)} className="text-blue-600 hover:text-blue-800 mr-3" aria-label={`Edit software ${soft.name}`}><Edit2 className="w-4 h-4"/></button>
+                        <button type="button" onClick={() => handleDeleteSoftwareClick(soft.id)} className="text-red-600 hover:text-red-800" aria-label={`Hapus software ${soft.name}`}><Trash2 className="w-4 h-4"/></button>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
                 {filteredSoftware.length === 0 && (
-                  <tr><td colSpan={canManage ? 6 : 5} className="text-center py-8 text-gray-500 dark:text-gray-400">Belum ada data software</td></tr>
+                  <TableRow><TableCell colSpan={canManage ? 6 : 5} className="text-center py-8 text-gray-500 dark:text-gray-400">Belum ada data software</TableCell></TableRow>
                 )}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
         </div>
       )}
 

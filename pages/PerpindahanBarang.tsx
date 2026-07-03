@@ -13,6 +13,7 @@ import Pagination from '../components/Pagination';
 import { formatDateID } from '../src/utils/formatters';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface ItemMovementsProps {
   role: Role;
@@ -374,69 +375,72 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
         }
       />
 
-      <PageCard className="flex flex-col items-stretch justify-between gap-4 xl:flex-row xl:items-center">
-        <div className="flex flex-col gap-4 w-full xl:w-auto">
-          <div className="grid w-full grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 sm:w-fit sm:grid-cols-2">
-            <button
-              onClick={() => setViewMode('latest')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                viewMode === 'latest'
-                  ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              Posisi Terakhir
-            </button>
-            <button
-              onClick={() => setViewMode('history')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                viewMode === 'history'
-                  ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              Riwayat Lengkap
-            </button>
-          </div>
-          <SearchBar 
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Cari barang atau orang..."
-          />
-        </div>
-        
-        <div className="flex flex-wrap gap-3 w-full xl:w-auto items-center justify-end">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400" />
-            <select 
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as any)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 sm:w-auto"
-            >
-              <option value="All">Semua Jenis</option>
-              <option value="Peminjaman">Peminjaman</option>
-              <option value="Manual">Manual</option>
-              <option value="Pengembalian">Pengembalian</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Box className="w-4 h-4 text-gray-400" />
-            <select 
-              value={filterInventory}
-              onChange={(e) => setFilterInventory(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 sm:w-auto sm:max-w-50"
-            >
-              <option value="All">Semua Barang</option>
-              {equipment.map(item => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </PageCard>
-
       <PageCard padding="none" className="overflow-hidden">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 print:hidden">
+          <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto items-stretch sm:items-center">
+            <div className="grid w-full grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 sm:w-fit sm:grid-cols-2">
+              <button
+                onClick={() => setViewMode('latest')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  viewMode === 'latest'
+                    ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                Posisi Terakhir
+              </button>
+              <button
+                onClick={() => setViewMode('history')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  viewMode === 'history'
+                    ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                Riwayat Lengkap
+              </button>
+            </div>
+            <div className="min-w-0 flex-1 sm:max-w-xs">
+              <SearchBar 
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Cari barang atau orang..."
+              />
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3 w-full xl:w-auto items-center justify-end">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select 
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as any)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 sm:w-auto"
+              >
+                <option value="All">Semua Jenis</option>
+                <option value="Peminjaman">Peminjaman</option>
+                <option value="Manual">Manual</option>
+                <option value="Pengembalian">Pengembalian</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Box className="w-4 h-4 text-gray-400" />
+              <select 
+                value={filterInventory}
+                onChange={(e) => setFilterInventory(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-700 focus:ring-3 focus:ring-slate-400/25 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:border-slate-300 sm:w-auto sm:max-w-50"
+              >
+                <option value="All">Semua Barang</option>
+                {equipment.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="md:hidden space-y-3 p-3">
           {currentMovements.length > 0 ? currentMovements.map((movement) => (
             <div key={movement.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -502,44 +506,44 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
           )}
         </div>
 
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400">
-              <tr>
-                <th className="px-6 py-4">Barang</th>
-                <th className="px-6 py-4">Jenis</th>
-                <th className="px-6 py-4">Lokasi Sebelum</th>
-                <th className="px-6 py-4">Lokasi Sekarang</th>
-                <th className="px-6 py-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="hidden md:block">
+          <Table className="text-left text-sm">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-6">Barang</TableHead>
+                <TableHead className="px-6">Jenis</TableHead>
+                <TableHead className="px-6">Lokasi Sebelum</TableHead>
+                <TableHead className="px-6">Lokasi Sekarang</TableHead>
+                <TableHead className="px-6 text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-slate-100 dark:divide-slate-800">
               {currentMovements.length > 0 ? currentMovements.map((movement) => (
-                <tr key={movement.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                  <td className="px-6 py-4">
+                <TableRow key={movement.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                  <TableCell className="px-6 py-4">
                     <div className="font-medium text-gray-900 dark:text-white">{movement.inventoryName || getEquipmentName(movement.inventoryId)}</div>
                     <div className="text-xs font-mono text-blue-600 dark:text-blue-400 mt-0.5">{movement.inventoryId}</div>
                     <div className="text-xs text-gray-500 mt-0.5">
                       {formatDateID(movement.movementDate)}
                       {movement.createdAt && ` • ${new Date(movement.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`}
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
                     {renderTypeBadge(movement.movementType)}
-                  </td>
-                  <td className="px-6 py-4">
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
                     <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm">
                       <MapPin className="w-3 h-3 mr-1" />
                       {movement.fromLocation || '-'}
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
                     <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm">
                       <MapPin className="w-3 h-3 mr-1" />
                       {movement.toLocation || '-'}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {movement.movementType === 'Manual' && viewMode === 'latest' && (
                         <button
@@ -565,20 +569,20 @@ const ItemMovements: React.FC<ItemMovementsProps> = ({ role, showToast }) => {
                         <Eye className="w-4 h-4 mr-1" /> Detail
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                <TableRow>
+                  <TableCell colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center">
                       <ArrowRightLeft className="w-12 h-12 text-gray-300 mb-3" />
                       <p>Tidak ada data perpindahan.</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
 
         <Pagination 

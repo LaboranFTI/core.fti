@@ -43,10 +43,40 @@ import { LetterActionMenu } from './LetterFormControls';
 import { ValidationQrCode } from './ValidationQrCode';
 
 const MAX_RESEARCH_ADVISORS = 2;
+const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
 
-const getInitialResearchCc = () => {
+type ResearchFormDefaults = {
+  assignmentType: string;
+  advisorTitle: string;
+  advisorTitleFirst: string;
+  advisorTitleSecond: string;
+};
+
+const createDefaultResearchDefaults = (): ResearchFormDefaults => ({
+  assignmentType: DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  advisorTitle: DEFAULT_RESEARCH_ADVISOR_TITLE,
+  advisorTitleFirst: DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  advisorTitleSecond: DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
+});
+
+const normalizeResearchDefaults = (settings: Partial<ResearchFormDefaults> = {}): ResearchFormDefaults => ({
+  assignmentType: settings.assignmentType?.trim() || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  advisorTitle: settings.advisorTitle?.trim() || DEFAULT_RESEARCH_ADVISOR_TITLE,
+  advisorTitleFirst: settings.advisorTitleFirst?.trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  advisorTitleSecond: settings.advisorTitleSecond?.trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
+});
+
+const getResearchAdvisorTitle = (index: number, total: number, defaults: ResearchFormDefaults) => {
+  if (total <= 1) return defaults.advisorTitle;
+  return index === 0 ? defaults.advisorTitleFirst : defaults.advisorTitleSecond;
+};
+
+const getInitialResearchCc = (storageKey = 'core_fti_last_research_cc') => {
   try {
-    const saved = localStorage.getItem('core_fti_last_research_cc');
+    const saved = localStorage.getItem(storageKey);
     if (saved) return JSON.parse(saved);
   } catch (e) {
     console.error('Failed to load research carbon copies:', e);
@@ -54,7 +84,11 @@ const getInitialResearchCc = () => {
   return [];
 };
 
-const createDefaultResearchData = (): ResearchLetterData => ({
+const createDefaultResearchData = (
+  defaults = createDefaultResearchDefaults(),
+  letterKind: ResearchLetterVariant = 'research',
+  storageKey = 'core_fti_last_research_cc'
+): ResearchLetterData => ({
   name: '',
   nim: '',
   email: '',
@@ -63,15 +97,17 @@ const createDefaultResearchData = (): ResearchLetterData => ({
   destinationPlace: '',
   destinationAddress: '',
   researchPlace: '',
-  assignmentType: 'Tugas Talenta Unggul',
+  assignmentType: defaults.assignmentType,
   researchTitle: '',
+  permissionPurpose: '',
   contactPerson: '',
   studyProgramId: '',
   studyProgramName: '',
   studyProgramLevel: '',
   advisors: [],
   includeResearchPlace: true,
-  carbonCopies: getInitialResearchCc()
+  letterKind,
+  carbonCopies: getInitialResearchCc(storageKey)
 });
 
 const safeFilenamePart = (value: string) => (value || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
@@ -85,7 +121,8 @@ type ResearchLetterErrorField =
   | 'destinationPlace'
   | 'destinationAddress'
   | 'researchPlace'
-  | 'researchTitle';
+  | 'researchTitle'
+  | 'permissionPurpose';
 
 type ResearchLetterFieldErrors = Partial<Record<ResearchLetterErrorField, string>>;
 
@@ -97,15 +134,90 @@ const researchFieldFocusIds: Partial<Record<ResearchLetterErrorField, string>> =
   destinationPlace: 'destinationPlace',
   destinationAddress: 'destinationAddress',
   researchPlace: 'researchPlace',
-  researchTitle: 'researchTitle'
+  researchTitle: 'researchTitle',
+  permissionPurpose: 'permissionPurpose'
+};
+
+type ResearchLetterVariant = 'research' | 'interview' | 'permission';
+
+const letterVariantConfig: Record<ResearchLetterVariant, {
+  title: string;
+  placeLabel: string;
+  placePlaceholder: string;
+  titleLabel: string;
+  titlePlaceholder: string;
+  purposeLabel?: string;
+  purposePlaceholder?: string;
+  endpointBase: string;
+  filenamePrefix: string;
+  storageKey: string;
+  successLabel: string;
+  qrAriaLabel: string;
+  sendOverlayTitle: string;
+  sendSuccessTitle: string;
+  validatePlaceMessage: string;
+  validateTitleMessage: string;
+}> = {
+  research: {
+    title: 'Surat Rekomendasi Penelitian',
+    placeLabel: 'Tempat Penelitian',
+    placePlaceholder: 'Contoh: SMA Kristen 1 Salatiga',
+    titleLabel: 'Judul Penelitian',
+    titlePlaceholder: 'Judul penelitian mahasiswa',
+    endpointBase: '/api/tu/research-letter',
+    filenamePrefix: 'SuratPenelitian',
+    storageKey: 'core_fti_last_research_cc',
+    successLabel: 'surat penelitian',
+    qrAriaLabel: 'QR Code Validasi Surat Penelitian',
+    sendOverlayTitle: 'Mengirim surat penelitian...',
+    sendSuccessTitle: 'Surat penelitian berhasil dikirim',
+    validatePlaceMessage: 'Tempat penelitian wajib diisi.',
+    validateTitleMessage: 'Judul penelitian wajib diisi.'
+  },
+  interview: {
+    title: 'Surat Izin Wawancara',
+    placeLabel: 'Tempat Wawancara',
+    placePlaceholder: 'Contoh: Dinas Komunikasi dan Informatika Kota Salatiga',
+    titleLabel: 'Topik / Judul Wawancara',
+    titlePlaceholder: 'Topik atau judul kegiatan wawancara mahasiswa',
+    endpointBase: '/api/tu/interview-letter',
+    filenamePrefix: 'SuratWawancara',
+    storageKey: 'core_fti_last_interview_cc',
+    successLabel: 'surat wawancara',
+    qrAriaLabel: 'QR Code Validasi Surat Wawancara',
+    sendOverlayTitle: 'Mengirim surat wawancara...',
+    sendSuccessTitle: 'Surat wawancara berhasil dikirim',
+    validatePlaceMessage: 'Tempat wawancara wajib diisi.',
+    validateTitleMessage: 'Topik atau judul wawancara wajib diisi.'
+  },
+  permission: {
+    title: 'Surat Perizinan',
+    placeLabel: 'Lokasi / Instansi Perizinan',
+    placePlaceholder: 'Contoh: PT Satya Data Indonesia',
+    titleLabel: 'Judul Tugas Akhir',
+    titlePlaceholder: 'Judul tugas akhir mahasiswa',
+    purposeLabel: 'Keperluan Izin',
+    purposePlaceholder: 'Contoh: pengambilan data, observasi sistem, pengujian aplikasi',
+    endpointBase: '/api/tu/permission-letter',
+    filenamePrefix: 'SuratPerizinan',
+    storageKey: 'core_fti_last_permission_cc',
+    successLabel: 'surat perizinan',
+    qrAriaLabel: 'QR Code Validasi Surat Perizinan',
+    sendOverlayTitle: 'Mengirim surat perizinan...',
+    sendSuccessTitle: 'Surat perizinan berhasil dikirim',
+    validatePlaceMessage: 'Lokasi atau instansi perizinan wajib diisi.',
+    validateTitleMessage: 'Judul tugas akhir wajib diisi.'
+  }
 };
 
 interface ResearchLetterFormProps {
   onCompleted?: () => void;
   readOnly?: boolean;
+  variant?: ResearchLetterVariant;
 }
 
-export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLetterFormProps) {
+export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'research' }: ResearchLetterFormProps) {
+  const variantConfig = letterVariantConfig[variant];
   const [formFeedback, setFormFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ResearchLetterFieldErrors>({});
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
@@ -118,12 +230,13 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
   const [qrAccessCode, setQrAccessCode] = useState<string | null>(null);
   const [selectedProdiId, setSelectedProdiId] = useState('');
   const [researchPlaceSameAsDestination, setResearchPlaceSameAsDestination] = useState(false);
+  const [researchDefaults, setResearchDefaults] = useState<ResearchFormDefaults>(createDefaultResearchDefaults);
 
   const { lecturers } = useLecturers();
   const { studyPrograms } = useStudyPrograms();
 
   const { register, control, getValues, setValue, reset, watch } = useForm<ResearchLetterData>({
-    defaultValues: createDefaultResearchData()
+    defaultValues: createDefaultResearchData(createDefaultResearchDefaults(), variant, variantConfig.storageKey)
   });
 
   const { fields: advisorFields, append: appendAdvisor, remove: removeAdvisor } = useFieldArray({
@@ -136,6 +249,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
     name: 'carbonCopies'
   });
 
+  const advisorRoleLabel = researchDefaults.advisorTitle;
   const destinationPlaceValue = watch('destinationPlace');
   const nimValue = watch('nim');
 
@@ -149,6 +263,53 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
       setValue('researchPlace', destinationPlaceValue || '');
     }
   }, [destinationPlaceValue, researchPlaceSameAsDestination, setValue]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const fetchResearchDefaults = async () => {
+      try {
+        const res = await api('/api/tu/letter-backgrounds');
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json || cancelled) return;
+
+        const nextDefaults = normalizeResearchDefaults({
+          assignmentType: json.researchAssignmentType,
+          advisorTitle: json.researchAdvisorTitle,
+          advisorTitleFirst: json.researchAdvisorTitleFirst,
+          advisorTitleSecond: json.researchAdvisorTitleSecond
+        });
+        setResearchDefaults(nextDefaults);
+        setValue('assignmentType', nextDefaults.assignmentType, { shouldDirty: false, shouldValidate: false });
+
+        const currentAdvisors = getValues('advisors') || [];
+        currentAdvisors.forEach((_, index) => {
+          setValue(`advisors.${index}.title`, getResearchAdvisorTitle(index, currentAdvisors.length, nextDefaults), {
+            shouldDirty: false,
+            shouldValidate: false
+          });
+        });
+      } catch (error) {
+        console.error('Failed to fetch research letter defaults:', error);
+      }
+    };
+
+    fetchResearchDefaults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getValues, setValue]);
+
+  React.useEffect(() => {
+    const currentAdvisors = getValues('advisors') || [];
+    currentAdvisors.forEach((_, index) => {
+      setValue(`advisors.${index}.title`, getResearchAdvisorTitle(index, currentAdvisors.length, researchDefaults), {
+        shouldDirty: false,
+        shouldValidate: false
+      });
+    });
+  }, [advisorFields.length, getValues, researchDefaults, setValue]);
 
   React.useEffect(() => {
     if (useStudentEmail) {
@@ -189,7 +350,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
   }, [setValue, studyPrograms]);
 
   const resetFlow = useCallback(() => {
-    const defaultData = createDefaultResearchData();
+    const defaultData = createDefaultResearchData(researchDefaults, variant, variantConfig.storageKey);
     reset(defaultData);
     setSelectedProdiId('');
     setQrUrl(null);
@@ -199,30 +360,26 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
     setResearchPlaceSameAsDestination(false);
     setFormFeedback(null);
     setFieldErrors({});
-  }, [reset]);
+  }, [reset, researchDefaults, variant, variantConfig.storageKey]);
 
   const buildPayload = () => {
     const values = getValues();
     const advisors = (values.advisors || [])
       .map((advisor) => ({
-        name: advisor.name.trim(),
-        title: (advisor.title || '').trim()
+        name: advisor.name.trim()
       }))
       .filter((advisor) => advisor.name);
 
     return {
       ...values,
+      letterKind: variant,
+      assignmentType: researchDefaults.assignmentType,
+      permissionPurpose: values.permissionPurpose?.trim() || '',
       includeResearchPlace: true,
-      advisors: advisors.map((advisor, index) => {
-        const defaultTitle = advisors.length === 1 ? 'Dosen Pembimbing' : `Dosen Pembimbing ${index === 0 ? 'I' : 'II'}`;
-        if (advisors.length === 1 && /^Dosen Pembimbing (I|II)$/.test(advisor.title)) {
-          return { name: advisor.name, title: defaultTitle };
-        }
-        return {
-          name: advisor.name,
-          title: advisor.title === 'Dosen Pembimbing' && advisors.length > 1 ? defaultTitle : advisor.title || defaultTitle
-        };
-      }),
+      advisors: advisors.map((advisor, index) => ({
+        name: advisor.name,
+        title: getResearchAdvisorTitle(index, advisors.length, researchDefaults)
+      })),
       carbonCopies: (values.carbonCopies || [])
         .map((cc) => ({ role: cc.role.trim(), name: cc.name?.trim() || '' }))
         .filter((cc) => cc.role || cc.name)
@@ -236,8 +393,9 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
     if (!data.recipientTitle.trim()) return { field: 'recipientTitle' as const, message: 'Jabatan penerima surat wajib diisi.' };
     if (!data.destinationPlace.trim()) return { field: 'destinationPlace' as const, message: 'Instansi atau tempat tujuan surat wajib diisi.' };
     if (!data.destinationAddress.trim()) return { field: 'destinationAddress' as const, message: 'Alamat tujuan surat wajib diisi.' };
-    if (!data.researchPlace.trim()) return { field: 'researchPlace' as const, message: 'Tempat penelitian wajib diisi.' };
-    if (!data.researchTitle.trim()) return { field: 'researchTitle' as const, message: 'Judul penelitian wajib diisi.' };
+    if (variant === 'permission' && !data.permissionPurpose?.trim()) return { field: 'permissionPurpose' as const, message: 'Keperluan izin wajib diisi.' };
+    if (!data.researchPlace.trim()) return { field: 'researchPlace' as const, message: variantConfig.validatePlaceMessage };
+    if (!data.researchTitle.trim()) return { field: 'researchTitle' as const, message: variantConfig.validateTitleMessage };
     return null;
   };
 
@@ -264,7 +422,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
     setIsDownloadingPdf(true);
     setFormFeedback(null);
     try {
-      const res = await api('/api/tu/research-letter/generate-and-download', {
+      const res = await api(`${variantConfig.endpointBase}/generate-and-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -277,7 +435,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
 
       const blob = await res.blob();
       const accessCode = res.headers.get('X-Research-Access-Code');
-      const filename = `SuratPenelitian_${safeFilenamePart(payload.researchPlace || payload.name)}.pdf`;
+      const filename = `${variantConfig.filenamePrefix}_${safeFilenamePart(payload.researchPlace || payload.name)}.pdf`;
       const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
       const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
       const a = document.createElement('a');
@@ -288,16 +446,16 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      localStorage.setItem('core_fti_last_research_cc', JSON.stringify(payload.carbonCopies || []));
+      localStorage.setItem(variantConfig.storageKey, JSON.stringify(payload.carbonCopies || []));
       setFormFeedback({
         type: 'success',
         message: accessCode
-          ? `Surat penelitian berhasil diunduh dan diarsipkan. Kode akses: ${accessCode}.`
-          : 'Surat penelitian berhasil diunduh dan diarsipkan.'
+          ? `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil diunduh dan diarsipkan. Kode akses: ${accessCode}.`
+          : `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil diunduh dan diarsipkan.`
       });
       onCompleted?.();
     } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengunduh PDF surat penelitian.' });
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal mengunduh PDF ${variantConfig.successLabel}.` });
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -310,7 +468,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
     setIsGeneratingQr(true);
     setFormFeedback(null);
     try {
-      const res = await api('/api/tu/research-letter/generate-qr-link', {
+      const res = await api(`${variantConfig.endpointBase}/generate-qr-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -318,18 +476,18 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
       const json = await res.json().catch(() => ({ error: 'Gagal membuat QR.' }));
       if (!res.ok || !json.success) throw new Error(json.error || 'Gagal membuat QR.');
 
-      localStorage.setItem('core_fti_last_research_cc', JSON.stringify(payload.carbonCopies || []));
+      localStorage.setItem(variantConfig.storageKey, JSON.stringify(payload.carbonCopies || []));
       setQrUrl(json.validationUrl || json.qrUrl || null);
       setQrAccessCode(json.accessCode || null);
       setFormFeedback({
         type: 'success',
         message: json.accessCode
-          ? `QR validasi surat penelitian berhasil dibuat. Kode akses: ${json.accessCode}.`
-          : 'QR validasi surat penelitian berhasil dibuat.'
+          ? `QR validasi ${variantConfig.successLabel} berhasil dibuat. Kode akses: ${json.accessCode}.`
+          : `QR validasi ${variantConfig.successLabel} berhasil dibuat.`
       });
       onCompleted?.();
     } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal membuat QR validasi surat penelitian.' });
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal membuat QR validasi ${variantConfig.successLabel}.` });
     } finally {
       setIsGeneratingQr(false);
     }
@@ -348,7 +506,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
     setIsSendingEmail(true);
     setFormFeedback(null);
     try {
-      const res = await api('/api/tu/research-letter/send-email', {
+      const res = await api(`${variantConfig.endpointBase}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payload, targetEmail: emailToUse })
@@ -356,12 +514,12 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
       const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
       if (!res.ok || !json.success) throw new Error(json.error || 'Gagal mengirim email.');
 
-      localStorage.setItem('core_fti_last_research_cc', JSON.stringify(payload.carbonCopies || []));
-      setFormFeedback({ type: 'success', message: `Surat penelitian berhasil dikirim ke ${emailToUse}.` });
+      localStorage.setItem(variantConfig.storageKey, JSON.stringify(payload.carbonCopies || []));
+      setFormFeedback({ type: 'success', message: `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil dikirim ke ${emailToUse}.` });
       setEmailSuccessState({ email: emailToUse, letterNumber: json.letterNumber || null, accessCode: json.accessCode || null });
       onCompleted?.();
     } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengirim email surat penelitian.' });
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal mengirim email ${variantConfig.successLabel}.` });
     } finally {
       setIsSendingEmail(false);
     }
@@ -380,7 +538,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
         <CardHeader className="border-b border-slate-200 bg-slate-50 dark:border-gray-700 dark:bg-gray-800/70">
           <CardTitle className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
             <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            Surat Rekomendasi Penelitian
+            {variantConfig.title}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -446,13 +604,23 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
                   />
                   {fieldErrors.studyProgram && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.studyProgram}</p>}
                 </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="assignmentType">Jenis Tugas</Label>
-                  <Input id="assignmentType" placeholder="Tugas Talenta Unggul" disabled={readOnly} {...register('assignmentType')} />
-                </div>
+                <input type="hidden" {...register('assignmentType')} />
+                {variant === 'permission' && (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label htmlFor="permissionPurpose">{variantConfig.purposeLabel} <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="permissionPurpose"
+                      placeholder={variantConfig.purposePlaceholder}
+                      disabled={readOnly}
+                      aria-invalid={Boolean(fieldErrors.permissionPurpose)}
+                      {...register('permissionPurpose')}
+                    />
+                    {fieldErrors.permissionPurpose && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.permissionPurpose}</p>}
+                  </div>
+                )}
                 <div className="space-y-1.5 md:col-span-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <Label htmlFor="researchPlace">Tempat Penelitian <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="researchPlace">{variantConfig.placeLabel} <span className="text-red-500">*</span></Label>
                     <label htmlFor="research-place-same" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer select-none">
                       <input
                         id="research-place-same"
@@ -473,7 +641,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
                   </div>
                   <Input
                     id="researchPlace"
-                    placeholder="Contoh: SMA Kristen 1 Salatiga"
+                    placeholder={variantConfig.placePlaceholder}
                     disabled={readOnly || researchPlaceSameAsDestination}
                     className={researchPlaceSameAsDestination ? "bg-slate-50 dark:bg-slate-900/50" : undefined}
                     aria-invalid={Boolean(fieldErrors.researchPlace)}
@@ -482,8 +650,8 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
                   {fieldErrors.researchPlace && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.researchPlace}</p>}
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="researchTitle">Judul Penelitian <span className="text-red-500">*</span></Label>
-                  <Textarea id="researchTitle" placeholder="Judul penelitian mahasiswa" className="min-h-24 resize-y" disabled={readOnly} aria-invalid={Boolean(fieldErrors.researchTitle)} {...register('researchTitle')} />
+                  <Label htmlFor="researchTitle">{variantConfig.titleLabel} <span className="text-red-500">*</span></Label>
+                  <Textarea id="researchTitle" placeholder={variantConfig.titlePlaceholder} className="min-h-24 resize-y" disabled={readOnly} aria-invalid={Boolean(fieldErrors.researchTitle)} {...register('researchTitle')} />
                   {fieldErrors.researchTitle && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.researchTitle}</p>}
                 </div>
               </div>
@@ -548,7 +716,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                   <Users className="h-5 w-5" />
-                  <h3 className="text-lg font-semibold">Dosen Pembimbing</h3>
+                  <h3 className="text-lg font-semibold">{advisorRoleLabel}</h3>
                 </div>
                 <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-medium text-slate-600 dark:bg-gray-700 dark:text-slate-300">
                   {advisorFields.length} / {MAX_RESEARCH_ADVISORS}
@@ -557,24 +725,24 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
 
               <div className="space-y-3">
                 {advisorFields.map((field, index) => (
-                  <div key={field.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 md:grid-cols-[1fr_220px_auto]">
+                  <div key={field.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 md:grid-cols-[1fr_auto]">
                     <div className="space-y-1.5">
-                      <Label>Nama Pembimbing {index + 1}</Label>
+                      <Label>Nama {advisorRoleLabel} {index + 1}</Label>
                       <SearchableSelect
                         options={lecturerOptions}
                         value={watch(`advisors.${index}.name`) || ''}
                         onChange={(value) => {
                           setValue(`advisors.${index}.name`, value);
-                          setValue(`advisors.${index}.title`, advisorFields.length === 1 ? 'Dosen Pembimbing' : `Dosen Pembimbing ${index === 0 ? 'I' : 'II'}`);
+                          setValue(`advisors.${index}.title`, getResearchAdvisorTitle(index, advisorFields.length, researchDefaults));
                         }}
                         placeholder="Pilih Dosen"
                         searchPlaceholder="Cari nama dosen..."
                         disabled={readOnly}
                       />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Label Jabatan</Label>
-                      <Input disabled={readOnly} {...register(`advisors.${index}.title` as const)} />
+                      <input type="hidden" {...register(`advisors.${index}.title` as const)} />
+                      <span className="inline-flex w-fit rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-200">
+                        {getResearchAdvisorTitle(index, advisorFields.length, researchDefaults)}
+                      </span>
                     </div>
                     {!readOnly && (
                       <Button
@@ -583,7 +751,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
                         size="icon"
                         className="self-end text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                         onClick={() => removeAdvisor(index)}
-                        aria-label={`Hapus dosen pembimbing ${index + 1}`}
+                        aria-label={`Hapus ${advisorRoleLabel.toLowerCase()} ${index + 1}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -597,15 +765,16 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
                 variant="outline"
                 className="mt-4 w-full border-2 border-dashed text-slate-600 hover:bg-slate-100 dark:border-gray-700 dark:text-slate-300 dark:hover:bg-gray-800 sm:w-auto"
                 onClick={() => {
+                  const nextTotal = advisorFields.length + 1;
                   if (advisorFields.length === 1) {
-                    setValue('advisors.0.title', 'Dosen Pembimbing I');
+                    setValue('advisors.0.title', getResearchAdvisorTitle(0, nextTotal, researchDefaults));
                   }
-                  appendAdvisor({ name: '', title: advisorFields.length === 0 ? 'Dosen Pembimbing' : 'Dosen Pembimbing II' });
+                  appendAdvisor({ name: '', title: getResearchAdvisorTitle(advisorFields.length, nextTotal, researchDefaults) });
                 }}
                 disabled={readOnly || advisorFields.length >= MAX_RESEARCH_ADVISORS}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Tambah Dosen Pembimbing
+                Tambah {advisorRoleLabel}
               </Button>
             </section>
 
@@ -696,7 +865,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
           {qrUrl && (
             <>
               <div className="inline-block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <ValidationQrCode value={qrUrl} size={192} className="h-48 w-48" ariaLabel="QR Code Validasi Surat Penelitian" />
+                <ValidationQrCode value={qrUrl} size={192} className="h-48 w-48" ariaLabel={variantConfig.qrAriaLabel} />
               </div>
               {qrAccessCode && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-left dark:border-blue-900/50 dark:bg-blue-950/20">
@@ -717,7 +886,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
 
       <EmailActionOverlay
         open={isSendingEmail}
-        title="Mengirim surat penelitian..."
+        title={variantConfig.sendOverlayTitle}
         description="Sistem sedang membuat PDF final lalu mengirimkannya ke email tujuan."
       />
       <EmailSuccessDialog
@@ -726,7 +895,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false }: ResearchLe
         recipientEmail={emailSuccessState?.email}
         letterNumber={emailSuccessState?.letterNumber}
         accessCode={emailSuccessState?.accessCode}
-        title="Surat penelitian berhasil dikirim"
+        title={variantConfig.sendSuccessTitle}
       />
     </>
   );

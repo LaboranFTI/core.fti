@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, X, AlertCircle, Loader2, Users, Search, ChevronRig
 import { useLecturers, Lecturer } from '../hooks/useLecturers';
 import { usePagination } from '../hooks/usePagination';
 import { api } from '../services/api';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 // Asumsi komponen ini menerima fungsi showToast dari parent/layout untuk notifikasi
 interface LecturerManagementProps {
@@ -179,74 +180,76 @@ const LecturerManagement: React.FC<LecturerManagementProps> = ({ showToast }) =>
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 dark:bg-gray-900/50 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-gray-700">
-              <tr>
-                <th className="px-6 py-4">Kode Dosen (ID)</th>
-                <th className="px-6 py-4">Nama Lengkap</th>
-                <th className="px-6 py-4 w-24">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-gray-700">
+        <Table className="whitespace-nowrap text-left text-sm">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="px-6 py-4">Kode Dosen (ID)</TableHead>
+              <TableHead className="px-6 py-4">Nama Lengkap</TableHead>
+              <TableHead className="w-24 px-6 py-4">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {isLoading ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={3} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                       <p>Memuat data dosen...</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : error ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-red-500">
+                <TableRow>
+                  <TableCell colSpan={3} className="px-6 py-8 text-center text-red-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-6 h-6" />
                       <p>{error}</p>
                       <button onClick={fetchLecturers} className="text-sm underline hover:text-red-600 mt-2">Coba Lagi</button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : paginatedData.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                <TableRow>
+                  <TableCell colSpan={3} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                     Tidak ada data dosen yang ditemukan.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 paginatedData.map((lecturer) => (
-                  <tr key={lecturer.id} className="hover:bg-slate-50 dark:hover:bg-gray-800/80 transition-colors group">
-                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                  <TableRow key={lecturer.id} className="group hover:bg-slate-50 dark:hover:bg-gray-800/80">
+                    <TableCell className="px-6 py-4 font-medium text-slate-900 dark:text-white">
                       {lecturer.id}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-slate-600 dark:text-slate-300">
                       {lecturer.nama}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      <div className="flex items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => handleOpenEdit(lecturer)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Edit Dosen"
+                          aria-label={`Edit dosen ${lecturer.nama}`}
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleOpenDelete(lecturer)}
                           className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Hapus Dosen"
+                          aria-label={`Hapus dosen ${lecturer.nama}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+          </TableBody>
+        </Table>
 
         {/* Pagination Footer */}
         {!isLoading && filteredLecturers.length > 0 && (

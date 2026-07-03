@@ -248,7 +248,7 @@ const Login: React.FC<LoginProps> = ({
 
         if (data.profileIncomplete) {
           showToast(
-            `Halo ${data.name}, yuk lengkapi data profil Anda (No. HP & Prodi) agar memudahkan administrasi.`,
+            `Halo ${data.name}, lengkapi data profil Anda (No. HP & Prodi) untuk data administrasi.`,
             "info",
           );
         }
@@ -536,7 +536,7 @@ const Login: React.FC<LoginProps> = ({
               Sistem Informasi Manajemen Sarana, Prasarana, dan Administrasi Terpadu.
             </h1>
             <p className="mt-5 max-w-md text-base leading-7 text-blue-100/90 sm:text-lg">
-              Layanan pengelolaan fasilitas, inventarisasi aset, penjadwalan kuliah, dan administrasi akademik FTI UKSW secara terintegrasi.
+              Layanan fasilitas, inventaris, jadwal kuliah, dan administrasi akademik FTI UKSW.
             </p>
           </div>
           <div className="grid max-w-xl gap-4 sm:grid-cols-3">
@@ -549,7 +549,7 @@ const Login: React.FC<LoginProps> = ({
               <p className="mt-2 text-sm font-semibold text-white leading-snug">Manajemen aset sarana prasarana</p>
             </div>
             <div className="rounded-xl border border-white/5 bg-white/5 p-4 backdrop-blur-xs shadow-md hover:bg-white/10 hover:border-white/12 transition-all duration-300">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80">Layanan TU</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80">Layanan Surat</p>
               <p className="mt-2 text-sm font-semibold text-white leading-snug">Administrasi persuratan akademik</p>
             </div>
           </div>

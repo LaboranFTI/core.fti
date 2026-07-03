@@ -2,29 +2,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   AlertTriangle, 
-  CheckCircle2, 
   Download, 
   FileText, 
-  GraduationCap, 
   Loader2, 
   ShieldCheck, 
   Users, 
   Copy, 
   Check, 
-  ExternalLink,
   Award,
-  Landmark,
-  User,
-  Mail,
   Calendar,
-  Hash,
-  Printer
+  Hash
 } from 'lucide-react';
 import { api } from '../services/api';
 import { API_BASE_URL } from '../config';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { cn } from '../lib/utils';
 
 import ukswLogo from '../src/assets/UKSW.svg';
 import ftiLogo from '../src/assets/FTI.svg';
@@ -123,25 +117,31 @@ const formatDate = (value?: string | null) => {
   }).format(date);
 };
 
-const formatDateOnly = (value?: string | null) => {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(date);
+const copyText = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textArea = document.createElement('textarea');
+  textArea.value = value;
+  textArea.setAttribute('readonly', '');
+  textArea.style.position = 'fixed';
+  textArea.style.top = '-9999px';
+  document.body.appendChild(textArea);
+  textArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textArea);
 };
 
 function DetailRow({ label, value, icon: Icon }: { label: string; value?: string | null; icon?: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3 last:border-b-0 dark:border-slate-800/80">
-      <span className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        {Icon && <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
+    <div className="grid gap-1 border-b border-slate-100 py-3 last:border-b-0 dark:border-slate-800/80 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:items-start sm:gap-4">
+      <span className="flex min-w-0 items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        {Icon && <Icon className="size-4 shrink-0 text-slate-400 dark:text-slate-500" />}
         {label}
       </span>
-      <span className="text-right text-sm font-semibold text-slate-900 dark:text-white">{value || '-'}</span>
+      <span className="min-w-0 break-words text-sm font-semibold text-slate-900 dark:text-white sm:text-right">{value || '-'}</span>
     </div>
   );
 }
@@ -187,22 +187,30 @@ export default function PublicLetterValidation() {
     [token]
   );
 
-  const handleCopyToken = () => {
+  const handleCopyToken = async () => {
     if (!letter) return;
-    navigator.clipboard.writeText(letter.validationToken);
-    setCopiedToken(true);
-    setTimeout(() => setCopiedToken(false), 2000);
+    try {
+      await copyText(letter.validationToken);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy validation token:', err);
+    }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+  const handleCopyLink = async () => {
+    try {
+      await copyText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy validation link:', err);
+    }
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
@@ -220,7 +228,7 @@ export default function PublicLetterValidation() {
 
   if (error || !letter) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+      <div className="flex min-h-dvh items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
         <Card className="w-full max-w-lg border-red-200 shadow-md dark:border-red-900/50">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400">
@@ -254,21 +262,47 @@ export default function PublicLetterValidation() {
   const isResearch = letter.type === 'research';
   const isSuRek = letter.type === 'su-rek';
   const digitalSigners = letter.signers?.length ? letter.signers : letter.signer ? [letter.signer] : [];
+  const tabButtonClass = (tab: 'summary' | 'preview') => cn(
+    'flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:px-4',
+    activeTab === tab
+      ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
+      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+  );
+  const renderDownloadCard = (className = '') => (
+    <Card className={cn('border-slate-200 shadow-sm dark:border-slate-800', className)}>
+      <CardHeader>
+        <CardTitle className="text-base font-bold">Dokumen Resmi</CardTitle>
+        <CardDescription>Unduh salinan asli berformat PDF.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button
+          className="w-full justify-center bg-blue-600 text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+          onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
+          disabled={!letter.isValid}
+        >
+          <Download className="mr-2 size-4" /> Unduh Dokumen PDF
+        </Button>
+        <p className="text-pretty text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+          Dokumen PDF hanya dapat diunduh untuk surat yang sudah berstatus resmi/terverifikasi.
+        </p>
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-12 text-slate-900 dark:bg-slate-950 dark:text-white font-sans antialiased">
+    <div className="min-h-dvh bg-slate-50/50 pb-12 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-white">
       {/* Official Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex items-center gap-2">
               <img src={ukswLogo} alt="UKSW Logo" className="h-9 w-auto object-contain" />
               <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
               <img src={ftiLogo} alt="FTI Logo" className="h-9 w-auto object-contain" />
             </div>
-            <div>
-              <span className="block text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-400">FAKULTAS TEKNOLOGI INFORMASI</span>
-              <span className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Universitas Kristen Satya Wacana Salatiga</span>
+            <div className="min-w-0">
+              <span className="block truncate text-xs font-bold uppercase text-blue-900 dark:text-blue-400">FAKULTAS TEKNOLOGI INFORMASI</span>
+              <span className="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">Universitas Kristen Satya Wacana Salatiga</span>
             </div>
           </div>
           <Badge variant="outline" className="hidden sm:inline-flex border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
@@ -279,25 +313,27 @@ export default function PublicLetterValidation() {
 
       {/* Main Content Area */}
       <main className="mx-auto mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           
           {/* Left Column: Verification & Letter Tabs */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             
             {/* Status Card (Seal) */}
-            <div className={`relative overflow-hidden rounded-2xl border p-6 shadow-sm transition-all duration-300 ${
-              letter.isValid 
-                ? 'border-emerald-200 bg-emerald-50/50 shadow-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/10' 
+            <div className={cn(
+              'relative overflow-hidden rounded-2xl border p-6 shadow-sm',
+              letter.isValid
+                ? 'border-emerald-200 bg-emerald-50/50 shadow-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/10'
                 : 'border-amber-200 bg-amber-50/50 shadow-amber-50 dark:border-amber-900/40 dark:bg-amber-950/10'
-            }`}>
+            )}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                    letter.isValid 
-                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                  <div className={cn(
+                    'flex size-12 shrink-0 items-center justify-center rounded-2xl',
+                    letter.isValid
+                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
                       : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                  }`}>
-                    {letter.isValid ? <ShieldCheck className="h-7 w-7" /> : <AlertTriangle className="h-7 w-7" />}
+                  )}>
+                    {letter.isValid ? <ShieldCheck className="size-7" /> : <AlertTriangle className="size-7" />}
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -312,10 +348,10 @@ export default function PublicLetterValidation() {
                         {letter.typeLabel}
                       </Badge>
                     </div>
-                    <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                    <h1 className="mt-2 text-balance text-xl font-bold text-slate-900 dark:text-white">
                       {letter.isValid ? 'Keaslian Dokumen Terjamin' : 'Dokumen Belum Diresmikan'}
                     </h1>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 leading-normal">
+                    <p className="mt-1 text-pretty text-sm leading-normal text-slate-600 dark:text-slate-400">
                       {letter.isValid 
                         ? 'QR Code ini merujuk ke data surat resmi yang diterbitkan oleh Tata Usaha FTI UKSW.' 
                         : 'Surat terdaftar di sistem tetapi belum ditandatangani atau disahkan secara resmi oleh dekan.'}
@@ -326,36 +362,44 @@ export default function PublicLetterValidation() {
             </div>
 
             {/* Custom Interactive Tab System */}
-            <div className="border-b border-slate-200 dark:border-slate-800">
-              <div className="flex gap-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900" role="tablist" aria-label="Tampilan validasi surat">
+              <div className="grid grid-cols-2 gap-1">
                 <button
+                  id="validation-summary-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'summary'}
+                  aria-controls="validation-summary-panel"
                   onClick={() => setActiveTab('summary')}
-                  className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                    activeTab === 'summary'
-                      ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
+                  className={tabButtonClass('summary')}
                 >
-                  <FileText className="h-4 w-4" />
-                  Ringkasan Informasi
+                  <FileText className="size-4 shrink-0" />
+                  <span className="min-w-0 truncate">
+                    <span className="sm:hidden">Ringkasan</span>
+                    <span className="hidden sm:inline">Ringkasan Informasi</span>
+                  </span>
                 </button>
                 <button
+                  id="validation-preview-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'preview'}
+                  aria-controls="validation-preview-panel"
                   onClick={() => setActiveTab('preview')}
-                  className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                    activeTab === 'preview'
-                      ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
+                  className={tabButtonClass('preview')}
                 >
-                  <Award className="h-4 w-4" />
-                  Pratinjau Surat Resmi
+                  <Award className="size-4 shrink-0" />
+                  <span className="min-w-0 truncate">
+                    <span className="sm:hidden">Pratinjau</span>
+                    <span className="hidden sm:inline">Pratinjau Surat Resmi</span>
+                  </span>
                 </button>
               </div>
             </div>
 
             {/* Tab 1: Ringkasan Informasi */}
             {activeTab === 'summary' && (
-              <div className="space-y-6">
+              <div id="validation-summary-panel" role="tabpanel" aria-labelledby="validation-summary-tab" className="space-y-6">
                 <Card className="border-slate-200 shadow-sm dark:border-slate-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base font-bold">
@@ -369,14 +413,14 @@ export default function PublicLetterValidation() {
                     </p>
                     <div className="space-y-3 rounded-lg bg-slate-50 p-4 border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
                       {digitalSigners.length > 0 ? digitalSigners.map((signer, index) => (
-                        <div key={`${signer.name}-${index}`} className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+                        <div key={`${signer.name}-${index}`} className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2 text-sm">
                           <span className="text-slate-500 dark:text-slate-400">Nama</span>
-                          <span className="font-bold text-slate-900 dark:text-white">: {signer.name || '-'}</span>
+                          <span className="min-w-0 break-words font-bold text-slate-900 dark:text-white">: {signer.name || '-'}</span>
                           <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
-                          <span className="font-medium text-slate-900 dark:text-white">: {signer.title || '-'}</span>
+                          <span className="min-w-0 break-words font-medium text-slate-900 dark:text-white">: {signer.title || '-'}</span>
                         </div>
                       )) : (
-                        <div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+                        <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2 text-sm">
                           <span className="text-slate-500 dark:text-slate-400">Nama</span>
                           <span className="font-bold text-slate-900 dark:text-white">: -</span>
                           <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
@@ -430,8 +474,22 @@ export default function PublicLetterValidation() {
 
             {/* Tab 2: Pratinjau Dokumen (Official Component Preview) */}
             {activeTab === 'preview' && (
-              <div className="overflow-auto rounded-2xl border border-slate-200 bg-slate-200/50 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-900/50 flex justify-center">
-                <div className="mx-auto overflow-auto max-w-full">
+              <div id="validation-preview-panel" role="tabpanel" aria-labelledby="validation-preview-tab" className="space-y-4">
+                {renderDownloadCard('lg:hidden')}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Pratinjau Dokumen</span>
+                    <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      Lembar A4
+                    </Badge>
+                  </div>
+                  <div
+                    role="region"
+                    aria-label="Pratinjau dokumen surat resmi"
+                    tabIndex={0}
+                    className="max-h-[75dvh] max-w-full overflow-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-200/70 p-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-800 dark:bg-slate-950/60 dark:focus-visible:ring-offset-slate-900 sm:p-4"
+                  >
+                    <div className="mx-auto w-max max-w-none">
                   {isObservation ? (
                     <LetterPreview
                       data={{
@@ -553,34 +611,19 @@ export default function PublicLetterValidation() {
                       }}
                     />
                   )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
           {/* Right Column: Actions & Token Info */}
-          <aside className="space-y-6">
+          <aside className="min-w-0 space-y-6 lg:sticky lg:top-24 lg:self-start">
             
             {/* Download PDF Card */}
             {activeTab === 'preview' && (
-              <Card className="border-slate-200 shadow-sm dark:border-slate-800">
-                <CardHeader>
-                  <CardTitle className="text-base font-bold">Dokumen Resmi</CardTitle>
-                  <CardDescription>Unduh salinan asli berformat PDF.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button
-                    className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 shadow-sm"
-                    onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
-                    disabled={!letter.isValid}
-                  >
-                    <Download className="mr-2 h-4 w-4" /> Unduh Dokumen PDF
-                  </Button>
-                  <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                    Dokumen PDF hanya dapat diunduh untuk surat yang sudah berstatus resmi/terverifikasi.
-                  </p>
-                </CardContent>
-              </Card>
+              renderDownloadCard('hidden lg:block')
             )}
 
             {/* Token QR & Link Card */}
@@ -592,42 +635,46 @@ export default function PublicLetterValidation() {
               <CardContent className="space-y-4">
                 {/* Validation Link */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Tautan Verifikasi</label>
-                  <div className="flex gap-2">
+                  <label className="text-[11px] font-bold uppercase text-slate-400">Tautan Verifikasi</label>
+                  <div className="flex min-w-0 gap-2">
                     <input 
                       type="text" 
                       readOnly 
                       value={window.location.href}
-                      className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      aria-label="Tautan verifikasi surat"
+                      className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
                     />
                     <Button 
-                      size="icon" 
+                      size="icon-xs" 
                       variant="outline" 
                       onClick={handleCopyLink}
-                      className="h-8 w-8 shrink-0 dark:border-slate-800 dark:hover:bg-slate-800"
+                      aria-label={copiedLink ? 'Tautan verifikasi tersalin' : 'Salin tautan verifikasi'}
+                      className="shrink-0 dark:border-slate-800 dark:hover:bg-slate-800"
                     >
-                      {copiedLink ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedLink ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
                     </Button>
                   </div>
                 </div>
 
                 {/* Validation Token */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Token Digital</label>
-                  <div className="flex gap-2">
+                  <label className="text-[11px] font-bold uppercase text-slate-400">Token Digital</label>
+                  <div className="flex min-w-0 gap-2">
                     <input 
                       type="text" 
                       readOnly 
                       value={letter.validationToken}
-                      className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      aria-label="Token digital surat"
+                      className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
                     />
                     <Button 
-                      size="icon" 
+                      size="icon-xs" 
                       variant="outline" 
                       onClick={handleCopyToken}
-                      className="h-8 w-8 shrink-0 dark:border-slate-800 dark:hover:bg-slate-800"
+                      aria-label={copiedToken ? 'Token digital tersalin' : 'Salin token digital'}
+                      className="shrink-0 dark:border-slate-800 dark:hover:bg-slate-800"
                     >
-                      {copiedToken ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedToken ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
                     </Button>
                   </div>
                 </div>
