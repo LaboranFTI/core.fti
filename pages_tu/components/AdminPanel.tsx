@@ -41,13 +41,15 @@ const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
   suRek: createEmptyLetterAsset()
 });
 
-type LetterLayoutKey = 'activeStudent' | 'observation' | 'counseling' | 'research' | 'suRek';
+type LetterLayoutKey = 'activeStudent' | 'observation' | 'counseling' | 'research' | 'interview' | 'permission' | 'suRek';
 
 const DEFAULT_LETTER_LAYOUTS: Record<LetterLayoutKey, LetterLayout> = {
   activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  interview: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
+  permission: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
   suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
 };
 
@@ -55,7 +57,9 @@ const PREVIEW_LETTER_TYPE_CODES: Record<Exclude<LetterLayoutKey, 'suRek'>, strin
   activeStudent: 'S.Ket',
   observation: 'FTI-OBS',
   counseling: 'FTI',
-  research: 'FTI/Penelitian'
+  research: 'FTI/Penelitian',
+  interview: 'FTI/Wawancara',
+  permission: 'FTI/Perizinan'
 };
 const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
 const DEFAULT_COUNSELING_RECIPIENT_NAME = [
@@ -69,6 +73,14 @@ const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
 const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
 const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
 const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
+const DEFAULT_INTERVIEW_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_INTERVIEW_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
+const DEFAULT_PERMISSION_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_PERMISSION_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
 
 const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number, date = new Date()) => {
   const paddedSequence = String(sequence).padStart(3, '0');
@@ -94,6 +106,8 @@ const createEmptyLetterLayouts = (): TULetterLayouts => ({
   observation: getDefaultLetterLayout('observation'),
   counseling: getDefaultLetterLayout('counseling'),
   research: getDefaultLetterLayout('research'),
+  interview: getDefaultLetterLayout('interview'),
+  permission: getDefaultLetterLayout('permission'),
   suRek: getDefaultLetterLayout('suRek')
 });
 
@@ -103,6 +117,8 @@ const normalizeLetterLayouts = (layouts?: Partial<TULetterLayouts>): TULetterLay
     observation: { ...getDefaultLetterLayout('observation'), ...layouts?.observation },
     counseling: { ...getDefaultLetterLayout('counseling'), ...layouts?.counseling },
     research: { ...getDefaultLetterLayout('research'), ...layouts?.research },
+    interview: { ...getDefaultLetterLayout('interview'), ...layouts?.interview },
+    permission: { ...getDefaultLetterLayout('permission'), ...layouts?.permission },
     suRek: { ...getDefaultLetterLayout('suRek'), ...layouts?.suRek }
   };
 };
@@ -157,6 +173,16 @@ const letterLayoutSections: Array<{
     key: 'research',
     title: 'Surat Penelitian',
     description: 'Atur batas area tulisan untuk template surat rekomendasi penelitian.'
+  },
+  {
+    key: 'interview',
+    title: 'Surat Wawancara',
+    description: 'Atur batas area tulisan untuk template surat izin wawancara.'
+  },
+  {
+    key: 'permission',
+    title: 'Surat Perizinan',
+    description: 'Atur batas area tulisan untuk template surat perizinan tugas akhir.'
   },
   {
     key: 'suRek',
@@ -278,6 +304,52 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         letterDate: previewDate.toISOString()
       };
     }
+    if (key === 'interview') {
+      return {
+        ...firmandez,
+        recipientName: 'Pimpinan Redaksi Jawa Pos',
+        recipientTitle: 'Jawa Pos Radar Semarang',
+        destinationPlace: 'Kantor Jawa Pos Radar Semarang',
+        destinationAddress: 'Jl. Veteran No. 55, Semarang',
+        researchPlace: 'Divisi Pemberitaan',
+        assignmentType: tempInterviewAssignmentType || DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+        researchTitle: 'Peran Jurnalisme Investigatif dalam Menyoroti Isu Transparansi Publik',
+        contactPerson: firmandez.nim,
+        studyProgramLevel: 'S1',
+        studyProgramName: 'Sistem Informasi',
+        advisors: [
+          { name: 'Dr. Budi Santoso', title: tempInterviewAdvisorTitleFirst || DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST },
+          { name: 'Dr. Citra Lestari', title: tempInterviewAdvisorTitleSecond || DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND }
+        ],
+        letterNumber: formatPreviewLetterNumber('interview', 6, previewDate),
+        validationToken: 'dummy-token-interview',
+        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-interview`,
+        letterDate: previewDate.toISOString()
+      };
+    }
+    if (key === 'permission') {
+      return {
+        ...firmandez,
+        recipientName: 'Kepala Sekolah SMA Negeri 1 Salatiga',
+        recipientTitle: 'Salatiga',
+        destinationPlace: 'SMA Negeri 1 Salatiga',
+        destinationAddress: 'Jl. Kemiri No. 1, Salatiga',
+        researchPlace: 'Laboratorium Komputer',
+        assignmentType: tempPermissionAssignmentType || DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+        researchTitle: 'Implementasi Sistem Informasi Pendaftaran Siswa Baru Berbasis Cloud',
+        contactPerson: firmandez.nim,
+        studyProgramLevel: 'S1',
+        studyProgramName: 'Sistem Informasi',
+        advisors: [
+          { name: 'Dr. Budi Santoso', title: tempPermissionAdvisorTitleFirst || DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST },
+          { name: 'Dr. Citra Lestari', title: tempPermissionAdvisorTitleSecond || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND }
+        ],
+        letterNumber: formatPreviewLetterNumber('permission', 7, previewDate),
+        validationToken: 'dummy-token-permission',
+        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-permission`,
+        letterDate: previewDate.toISOString()
+      };
+    }
     return {
       ...firmandez,
       recipientName: tempSuRekYangTerhormat || 'Panitia Seleksi Beasiswa Afirmasi',
@@ -314,6 +386,14 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [tempResearchAdvisorTitle, setTempResearchAdvisorTitle] = useState<string>(DEFAULT_RESEARCH_ADVISOR_TITLE);
   const [tempResearchAdvisorTitleFirst, setTempResearchAdvisorTitleFirst] = useState<string>(DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST);
   const [tempResearchAdvisorTitleSecond, setTempResearchAdvisorTitleSecond] = useState<string>(DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND);
+  const [tempInterviewAssignmentType, setTempInterviewAssignmentType] = useState<string>(DEFAULT_INTERVIEW_ASSIGNMENT_TYPE);
+  const [tempInterviewAdvisorTitle, setTempInterviewAdvisorTitle] = useState<string>(DEFAULT_INTERVIEW_ADVISOR_TITLE);
+  const [tempInterviewAdvisorTitleFirst, setTempInterviewAdvisorTitleFirst] = useState<string>(DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST);
+  const [tempInterviewAdvisorTitleSecond, setTempInterviewAdvisorTitleSecond] = useState<string>(DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND);
+  const [tempPermissionAssignmentType, setTempPermissionAssignmentType] = useState<string>(DEFAULT_PERMISSION_ASSIGNMENT_TYPE);
+  const [tempPermissionAdvisorTitle, setTempPermissionAdvisorTitle] = useState<string>(DEFAULT_PERMISSION_ADVISOR_TITLE);
+  const [tempPermissionAdvisorTitleFirst, setTempPermissionAdvisorTitleFirst] = useState<string>(DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST);
+  const [tempPermissionAdvisorTitleSecond, setTempPermissionAdvisorTitleSecond] = useState<string>(DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND);
   const [tempSuRekYangTerhormat, setTempSuRekYangTerhormat] = useState<string>('');
   const [tempSuRekBerdasarkanNo, setTempSuRekBerdasarkanNo] = useState<string>('');
   const [tempSuRekPerihal, setTempSuRekPerihal] = useState<string>('');
@@ -399,6 +479,14 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         setTempResearchAdvisorTitle(json.researchAdvisorTitle || DEFAULT_RESEARCH_ADVISOR_TITLE);
         setTempResearchAdvisorTitleFirst(json.researchAdvisorTitleFirst || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST);
         setTempResearchAdvisorTitleSecond(json.researchAdvisorTitleSecond || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND);
+        setTempInterviewAssignmentType(json.interviewAssignmentType || DEFAULT_INTERVIEW_ASSIGNMENT_TYPE);
+        setTempInterviewAdvisorTitle(json.interviewAdvisorTitle || DEFAULT_INTERVIEW_ADVISOR_TITLE);
+        setTempInterviewAdvisorTitleFirst(json.interviewAdvisorTitleFirst || DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST);
+        setTempInterviewAdvisorTitleSecond(json.interviewAdvisorTitleSecond || DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND);
+        setTempPermissionAssignmentType(json.permissionAssignmentType || DEFAULT_PERMISSION_ASSIGNMENT_TYPE);
+        setTempPermissionAdvisorTitle(json.permissionAdvisorTitle || DEFAULT_PERMISSION_ADVISOR_TITLE);
+        setTempPermissionAdvisorTitleFirst(json.permissionAdvisorTitleFirst || DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST);
+        setTempPermissionAdvisorTitleSecond(json.permissionAdvisorTitleSecond || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND);
         setTempSuRekYangTerhormat(json.suRekYangTerhormat || '');
         setTempSuRekBerdasarkanNo(json.suRekBerdasarkanNo || '');
         setTempSuRekPerihal(json.suRekPerihal || '');
@@ -659,6 +747,14 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
           researchAdvisorTitle: tempResearchAdvisorTitle,
           researchAdvisorTitleFirst: tempResearchAdvisorTitleFirst,
           researchAdvisorTitleSecond: tempResearchAdvisorTitleSecond,
+          interviewAssignmentType: tempInterviewAssignmentType,
+          interviewAdvisorTitle: tempInterviewAdvisorTitle,
+          interviewAdvisorTitleFirst: tempInterviewAdvisorTitleFirst,
+          interviewAdvisorTitleSecond: tempInterviewAdvisorTitleSecond,
+          permissionAssignmentType: tempPermissionAssignmentType,
+          permissionAdvisorTitle: tempPermissionAdvisorTitle,
+          permissionAdvisorTitleFirst: tempPermissionAdvisorTitleFirst,
+          permissionAdvisorTitleSecond: tempPermissionAdvisorTitleSecond,
           suRekYangTerhormat: tempSuRekYangTerhormat,
           suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
           suRekPerihal: tempSuRekPerihal,
@@ -1254,7 +1350,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
 
   const selectedLayoutConfig = tempLetterLayouts[selectedLayoutConfigKey] || getDefaultLetterLayout(selectedLayoutConfigKey);
   const selectedPreviewData = getDummyDataForPreview(selectedLayoutConfigKey);
-  const selectedPreviewType: 'active-student' | 'observation' | 'counseling' | 'research' | 'su-rek' =
+  const selectedPreviewType: 'active-student' | 'observation' | 'counseling' | 'research' | 'interview' | 'permission' | 'su-rek' =
     selectedLayoutConfigKey === 'activeStudent'
       ? 'active-student'
       : selectedLayoutConfigKey === 'suRek'
@@ -1640,6 +1736,136 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                         </div>
                       )}
 
+                      {selectedLayoutConfigKey === 'interview' && (
+                        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Konten Surat Wawancara</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                              Nilai default ini dipakai pada pengajuan izin wawancara baru dan langsung terlihat di preview.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="interviewAssignmentType" className="text-xs text-slate-500 dark:text-slate-400">
+                              Jenis Tugas
+                            </Label>
+                            <Input
+                              id="interviewAssignmentType"
+                              value={tempInterviewAssignmentType}
+                              onChange={(e) => setTempInterviewAssignmentType(e.target.value)}
+                              placeholder={DEFAULT_INTERVIEW_ASSIGNMENT_TYPE}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="interviewAdvisorTitle" className="text-xs text-slate-500 dark:text-slate-400">
+                              Label Jabatan Saat Satu Pembimbing
+                            </Label>
+                            <Input
+                              id="interviewAdvisorTitle"
+                              value={tempInterviewAdvisorTitle}
+                              onChange={(e) => setTempInterviewAdvisorTitle(e.target.value)}
+                              placeholder={DEFAULT_INTERVIEW_ADVISOR_TITLE}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="interviewAdvisorTitleFirst" className="text-xs text-slate-500 dark:text-slate-400">
+                                Label Pembimbing Pertama
+                              </Label>
+                              <Input
+                                id="interviewAdvisorTitleFirst"
+                                value={tempInterviewAdvisorTitleFirst}
+                                onChange={(e) => setTempInterviewAdvisorTitleFirst(e.target.value)}
+                                placeholder={DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST}
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="interviewAdvisorTitleSecond" className="text-xs text-slate-500 dark:text-slate-400">
+                                Label Pembimbing Kedua
+                              </Label>
+                              <Input
+                                id="interviewAdvisorTitleSecond"
+                                value={tempInterviewAdvisorTitleSecond}
+                                onChange={(e) => setTempInterviewAdvisorTitleSecond(e.target.value)}
+                                placeholder={DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND}
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedLayoutConfigKey === 'permission' && (
+                        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Konten Surat Perizinan</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                              Nilai default ini dipakai pada pengajuan perizinan baru dan langsung terlihat di preview.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="permissionAssignmentType" className="text-xs text-slate-500 dark:text-slate-400">
+                              Jenis Tugas
+                            </Label>
+                            <Input
+                              id="permissionAssignmentType"
+                              value={tempPermissionAssignmentType}
+                              onChange={(e) => setTempPermissionAssignmentType(e.target.value)}
+                              placeholder={DEFAULT_PERMISSION_ASSIGNMENT_TYPE}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="permissionAdvisorTitle" className="text-xs text-slate-500 dark:text-slate-400">
+                              Label Jabatan Saat Satu Pembimbing
+                            </Label>
+                            <Input
+                              id="permissionAdvisorTitle"
+                              value={tempPermissionAdvisorTitle}
+                              onChange={(e) => setTempPermissionAdvisorTitle(e.target.value)}
+                              placeholder={DEFAULT_PERMISSION_ADVISOR_TITLE}
+                              className="bg-white dark:bg-gray-800"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="permissionAdvisorTitleFirst" className="text-xs text-slate-500 dark:text-slate-400">
+                                Label Pembimbing Pertama
+                              </Label>
+                              <Input
+                                id="permissionAdvisorTitleFirst"
+                                value={tempPermissionAdvisorTitleFirst}
+                                onChange={(e) => setTempPermissionAdvisorTitleFirst(e.target.value)}
+                                placeholder={DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST}
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="permissionAdvisorTitleSecond" className="text-xs text-slate-500 dark:text-slate-400">
+                                Label Pembimbing Kedua
+                              </Label>
+                              <Input
+                                id="permissionAdvisorTitleSecond"
+                                value={tempPermissionAdvisorTitleSecond}
+                                onChange={(e) => setTempPermissionAdvisorTitleSecond(e.target.value)}
+                                placeholder={DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND}
+                                className="bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Margin Area Tulisan (mm)</p>
                         
@@ -1821,17 +2047,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
             >
               Surat Aktif Kuliah
             </button>
-            <button
-              type="button"
-              onClick={() => { setActiveRequestType('observation'); setSelectedIds(new Set()); }}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                activeRequestType === 'observation'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              Surat Observasi
-            </button>
+
             <button
               type="button"
               onClick={() => { setActiveRequestType('counseling'); setSelectedIds(new Set()); }}

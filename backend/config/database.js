@@ -3,6 +3,11 @@ import 'dotenv/config';
 
 const { Pool } = pg;
 
+// Force TIMESTAMP (oid 1114) to be parsed as UTC instead of local system timezone
+pg.types.setTypeParser(1114, function(stringValue) {
+  return new Date(stringValue.replace(' ', 'T') + 'Z');
+});
+
 // Validation function to check required environment variables
 const validateDbConfig = () => {
   const requiredVars = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT'];

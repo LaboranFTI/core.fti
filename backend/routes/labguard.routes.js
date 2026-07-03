@@ -117,6 +117,7 @@ function nowTime() {
         minute: '2-digit',
         second: '2-digit',
         hour12: false,
+        timeZone: 'Asia/Jakarta'
     }).format(new Date());
 }
 function pushLocalLog(event, type = 'info') {

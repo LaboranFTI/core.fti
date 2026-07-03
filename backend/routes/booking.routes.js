@@ -448,7 +448,7 @@ router.get('/bookings/export', verifyRole(['Admin', 'Laboran', 'Supervisor']), a
         result.rows.forEach(row => {
             worksheet.addRow({
                 ...row,
-                created_at: new Date(row.created_at).toLocaleString('id-ID')
+                created_at: new Date(row.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
             });
         });
 

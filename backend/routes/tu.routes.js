@@ -616,7 +616,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
 
     // 3. Ganti placeholder umum
-    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
     htmlContent = htmlContent.replace(/{{name}}/g, requestData.name)
                              .replace(/{{nim}}/g, requestData.nim)
                              .replace(/{{tanggalSurat}}/g, tanggalSurat)

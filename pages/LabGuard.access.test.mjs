@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const appSource = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
+const appRoutesSource = readFileSync(new URL('../src/router/AppRoutes.tsx', import.meta.url), 'utf8');
 const navigationSource = readFileSync(new URL('../lib/navigation.ts', import.meta.url), 'utf8');
 const labGuardRoutesSource = readFileSync(new URL('../backend/routes/labguard.routes.js', import.meta.url), 'utf8');
 
 describe('LabGuard access control', () => {
   it('limits the LabGuard route to Admin, Laboran, and Supervisor', () => {
-    const routeBlock = appSource.match(/<Route path="\/labguard"[\s\S]*?\}\s*\/>/)?.[0] || '';
+    const routeBlock = appRoutesSource.match(/<Route path="\/labguard"[\s\S]*?\}\s*\/>/)?.[0] || '';
 
     assert.match(routeBlock, /allowedRoles=\{\[Role\.ADMIN,\s*Role\.LABORAN,\s*Role\.SUPERVISOR\]\}/);
     assert.doesNotMatch(routeBlock, /Role\.DOSEN/);

@@ -30,6 +30,8 @@ export interface TULetterLayouts {
   observation: LetterLayout;
   counseling?: LetterLayout;
   research?: LetterLayout;
+  interview?: LetterLayout;
+  permission?: LetterLayout;
   suRek?: LetterLayout;
 }
 

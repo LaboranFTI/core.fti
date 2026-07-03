@@ -18,9 +18,9 @@ import {
   CalendarDays,
   CheckCircle,
   Clock3,
+  Eye,
   FileSearch,
   FileText,
-  GraduationCap,
   Mail,
   Loader2,
   RefreshCcw,
@@ -159,7 +159,13 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     }
   };
 
-  const fetchArchiveData = async ({ showLoader = false }: { showLoader?: boolean } = {}) => {
+  const fetchArchiveData = async ({
+    showLoader = false,
+    showError = true
+  }: {
+    showLoader?: boolean;
+    showError?: boolean;
+  } = {}) => {
     if (showLoader && researchRequests.length === 0 && interviewRequests.length === 0 && permissionRequests.length === 0) {
       setLoading(true);
     } else {
@@ -167,15 +173,19 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     }
 
     try {
-      const [researchRes, settingsRes] = await Promise.all([
-        api('/api/research-requests'),
-        api('/api/tu/settings')
+      const [researchResult, settingsResult] = await Promise.allSettled([
+        api('/api/research-requests', { timeoutMs: 12000 }),
+        api('/api/tu/settings', { timeoutMs: 12000 })
       ]);
 
-      const [researchJson, settingsJson] = await Promise.all([
-        researchRes.json(),
-        settingsRes.json()
-      ]);
+      if (researchResult.status === 'rejected') {
+        throw researchResult.reason;
+      }
+
+      const researchRes = researchResult.value;
+      const researchJson = await researchRes.json().catch(() => ({}));
+      const settingsRes = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+      const settingsJson = settingsRes ? await settingsRes.json().catch(() => ({})) : {};
 
       const rawAll: ResearchRequest[] =
         researchRes.ok && researchJson.success && Array.isArray(researchJson.data) ? researchJson.data : [];
@@ -184,7 +194,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       setInterviewRequests(rawAll.filter(r => r.letterKind === 'interview'));
       setPermissionRequests(rawAll.filter(r => r.letterKind === 'permission'));
 
-      if (settingsRes.ok && settingsJson) {
+      if (settingsRes?.ok && settingsJson) {
         if (settingsJson.letterBackgrounds) {
           setLetterBackgrounds(prev => ({ ...createEmptyLetterBackgrounds(), ...settingsJson.letterBackgrounds }));
         }
@@ -195,8 +205,11 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       }
 
       setLastUpdatedAt(new Date().toISOString());
-    } catch {
-      // Silent fail
+    } catch (error) {
+      console.error('Failed to fetch final-task archive data:', error);
+      if (showError) {
+        setFeedback({ type: 'error', message: 'Gagal memuat arsip tugas akhir.' });
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -411,14 +424,12 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     { value: 'permission', label: `Perizinan (${permissionRequests.length})`, icon: ShieldCheck }
   ];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-        <span className="ml-3 text-slate-500 dark:text-gray-400">Memuat arsip tugas akhir...</span>
-      </div>
-    );
-  }
+  const renderLoadingState = () => (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+      <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Memuat arsip tugas akhir...</span>
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -636,7 +647,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                     </Button>
                   </div>
                 )}
-                {filteredResearchRequests.length === 0 ? (
+                {loading ? renderLoadingState() : filteredResearchRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
                     <p className="text-sm text-slate-400 dark:text-gray-500">
@@ -695,7 +706,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                                 aria-label={`Lihat detail ${item.name}`}
                                 className="dark:border-gray-600 dark:text-gray-300"
                               >
-                                <GraduationCap className="w-4 h-4" />
+                                <Eye className="w-4 h-4" />
                               </Button>
                               <Button
                                 variant="outline"
@@ -743,7 +754,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                     </Button>
                   </div>
                 )}
-                {filteredInterviewRequests.length === 0 ? (
+                {loading ? renderLoadingState() : filteredInterviewRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
                     <p className="text-sm text-slate-400 dark:text-gray-500">
@@ -802,7 +813,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                                 aria-label={`Lihat detail ${item.name}`}
                                 className="dark:border-gray-600 dark:text-gray-300"
                               >
-                                <GraduationCap className="w-4 h-4" />
+                                <Eye className="w-4 h-4" />
                               </Button>
                               <Button
                                 variant="outline"
@@ -850,7 +861,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                     </Button>
                   </div>
                 )}
-                {filteredPermissionRequests.length === 0 ? (
+                {loading ? renderLoadingState() : filteredPermissionRequests.length === 0 ? (
                   <div className="text-center py-12">
                     <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
                     <p className="text-sm text-slate-400 dark:text-gray-500">
@@ -909,7 +920,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                                 aria-label={`Lihat detail ${item.name}`}
                                 className="dark:border-gray-600 dark:text-gray-300"
                               >
-                                <GraduationCap className="w-4 h-4" />
+                                <Eye className="w-4 h-4" />
                               </Button>
                               <Button
                                 variant="outline"

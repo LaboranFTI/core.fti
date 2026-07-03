@@ -1,81 +1,14 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Role, Notification, ToastMessage } from './types';
-import AppShell from './components/AppShell';
 import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
-import ProtectedRoute from './components/ProtectedRoute';
 import { GoogleAuthProvider } from './src/context/GoogleAuthContext';
 import { api } from './services/api';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, useNavigate, useLocation } from 'react-router-dom';
 import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
-
-// Helper fungsi untuk membersihkan cache PWA (Service Worker) sebelum reload
-const clearCacheAndReload = async () => {
-  if ('serviceWorker' in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    for (const registration of registrations) {
-      await registration.unregister();
-    }
-  }
-  if ('caches' in window) {
-    const cacheNames = await caches.keys();
-    for (const name of cacheNames) {
-      await caches.delete(name);
-    }
-  }
-  window.location.reload();
-};
-
-// 1. Helper wrapper untuk menangkap Error Chunk saat deploy versi baru
-const lazyWithReload = (componentImport: () => Promise<any>) => {
-  return lazy(async () => {
-    try {
-      return await componentImport();
-    } catch (error) {
-      console.error('Versi baru mendeteksi perubahan file:', error);
-      if (window.confirm("Versi baru aplikasi tersedia. Halaman perlu dimuat ulang. Lanjutkan?")) {
-        clearCacheAndReload();
-      }
-      return Promise.reject(error);
-    }
-  });
-};
-
-// Lazy load all pages with reload wrapper
-const Dashboard = lazyWithReload(() => import('./pages/Dashboard'));
-const Ruangan = lazyWithReload(() => import('./pages/Ruangan'));
-const JadwalRuang = lazyWithReload(() => import('./pages/JadwalRuang'));
-const PeminjamanBarang = lazyWithReload(() => import('./pages/PeminjamanBarang'));
-const Acara = lazyWithReload(() => import('./pages/Acara'));
-const ManajemenLaboran = lazyWithReload(() => import('./pages/ManajemenLaboran'));
-const ManajemenPKL = lazyWithReload(() => import('./pages/ManajemenPKL'));
-const Inventaris = lazyWithReload(() => import('./pages/Inventaris'));
-const PerpindahanBarang = lazyWithReload(() => import('./pages/PerpindahanBarang'));
-const ManajemenUser = lazyWithReload(() => import('./pages/ManajemenUser'));
-const PesananRuang = lazyWithReload(() => import('./pages/PesananRuang'));
-const PemesananSaya = lazyWithReload(() => import('./pages/PemesananSaya'));
-const Profile = lazyWithReload(() => import('./pages/Profile'));
-const Settings = lazyWithReload(() => import('./pages/Settings'));
-const Login = lazyWithReload(() => import('./pages/Login'));
-const Maintenance = lazyWithReload(() => import('./pages/Maintenance'));
-const JadwalKuliah = lazyWithReload(() => import('./pages/JadwalKuliah'));
-const ManajemenSpesifikasi = lazyWithReload(() => import('./pages/ManajemenSpesifikasi'));
-const Tentang = lazyWithReload(() => import('./pages/Tentang'));
-const NotFound = lazyWithReload(() => import('./pages/NotFound'));
-const LabGuard = lazyWithReload(() => import('./pages/LabGuard'));
-const LayananTU = lazyWithReload(() => import('./pages_tu/LayananTU'));
-const PublicLetterValidation = lazyWithReload(() => import('./pages_tu/PublicLetterValidation'));
-const MobileUpload = lazyWithReload(() => import('./pages_tu/components/MobileUpload'));
-const LecturerManagement = lazyWithReload(() => import('./pages/ManajemenDosen'));
-const StudyProgramManagement = lazyWithReload(() => import('./pages/ManajemenProgramStudi'));
-
-
-// Loading fallback component
-const PageLoader = () => (
-  <div className="flex items-center justify-center h-full min-h-100">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-  </div>
-);
+import AppRoutes from './src/router/AppRoutes';
+import { clearCacheAndReload } from './src/router/lazyWithReload';
+import { Maintenance, MobileUpload } from './src/router/lazyPages';
 
 const AppContent: React.FC = () => {
   const navigate = useNavigate();
@@ -629,192 +562,59 @@ const AppContent: React.FC = () => {
   if (isMaintenanceMode && !canBypassMaintenance && !isPublicLetterValidationRoute) {
     // Izinkan akses ke path /login agar admin yang sedang logout tetap bisa masuk
     if (location.pathname !== '/login') {
-      return <Maintenance />;
+      return (
+        <Suspense fallback={<LoadingScreen />}>
+          <Maintenance />
+        </Suspense>
+      );
     }
   }
 
+  const handleNavigate = (page: string) => {
+    const navItem = getNavigationItemById(page);
+    if (navItem?.url) {
+      window.open(navItem.url, '_blank', 'noopener,noreferrer');
+    } else if (page.startsWith('http://') || page.startsWith('https://')) {
+      window.open(page, '_blank', 'noopener,noreferrer');
+    } else {
+      navigate(`/${page}`);
+    }
+  };
+
   return (
     <div>
-      <Routes>
-        <Route path="/tu/validasi-surat/:token" element={
-          <Suspense fallback={<LoadingScreen />}>
-            <PublicLetterValidation />
-          </Suspense>
-        } />
+      <AppRoutes
+        isAuthenticated={isAuthenticated}
+        currentRole={currentRole}
+        currentPage={currentPage}
+        userName={userName}
+        userEmail={userEmail}
+        isDarkMode={isDarkMode}
+        isSidebarOpen={isSidebarOpen}
+        isSidebarCollapsed={isSidebarCollapsed}
+        isMaintenanceMode={isMaintenanceMode}
+        isMobileTopBarVisible={isMobileTopBarVisible}
+        hasSidebarNavigation={hasSidebarNavigation}
+        pageLabel={pageLabel}
+        announcement={announcement}
+        notifications={notifications}
+        userId={getStorageItem('userId') || ''}
+        onLogin={handleLogin}
+        onCloseSidebar={() => setIsSidebarOpen(false)}
+        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        onToggleSidebarCollapse={toggleSidebarCollapse}
+        onToggleDarkMode={toggleDarkMode}
+        onLogout={handleLogout}
+        onMarkNotificationAsRead={markNotificationAsRead}
+        onMarkAllNotificationsAsRead={markAllNotificationsAsRead}
+        onClearAllNotifications={clearAllNotifications}
+        onNavigate={handleNavigate}
+        onMainScroll={handleMainScroll}
+        getDefaultRouteForRole={getDefaultRouteForRole}
+        showToast={showToast}
+        addNotification={addNotification}
+      />
 
-        {/* Route Khusus Login (Tanpa Layout) */}
-        <Route path="/login" element={
-          !isAuthenticated ? (
-            <Suspense fallback={<LoadingScreen />}>
-              <Login 
-                onLogin={handleLogin} 
-                showToast={showToast} 
-                isDarkMode={isDarkMode} 
-                toggleDarkMode={toggleDarkMode}
-              />
-            </Suspense>
-          ) : (
-            <Navigate to={getDefaultRouteForRole(currentRole)} replace />
-          )
-        } />
-
-        <Route element={
-          isAuthenticated ? (
-            <AppShell
-              currentRole={currentRole}
-              currentPage={currentPage}
-              userName={userName}
-              userEmail={userEmail}
-              isDarkMode={isDarkMode}
-              isSidebarOpen={isSidebarOpen}
-              isSidebarCollapsed={isSidebarCollapsed}
-              isMaintenanceMode={isMaintenanceMode}
-              isMobileTopBarVisible={isMobileTopBarVisible}
-              hasSidebarNavigation={hasSidebarNavigation}
-              pageLabel={pageLabel}
-              announcement={announcement}
-              notifications={notifications}
-              onCloseSidebar={() => setIsSidebarOpen(false)}
-              onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-              onToggleSidebarCollapse={toggleSidebarCollapse}
-              toggleDarkMode={toggleDarkMode}
-              onLogout={handleLogout}
-              onMarkAsRead={markNotificationAsRead}
-              onMarkAllAsRead={markAllNotificationsAsRead}
-              onClearAllNotifications={clearAllNotifications}
-              onNavigate={(page) => {
-                const navItem = getNavigationItemById(page);
-                if (navItem?.url) {
-                  window.open(navItem.url, '_blank', 'noopener,noreferrer');
-                } else if (page.startsWith('http://') || page.startsWith('https://')) {
-                  window.open(page, '_blank', 'noopener,noreferrer');
-                } else {
-                  navigate(`/${page}`);
-                }
-              }}
-              onMainScroll={handleMainScroll}
-            >
-              <Suspense fallback={<PageLoader />}>
-                <Outlet />
-              </Suspense>
-            </AppShell>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }>
-          <Route path="/" element={<Navigate to={getDefaultRouteForRole(currentRole)} replace />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <Dashboard role={currentRole} onNavigate={(p: string) => navigate(`/${p}`)} />
-            </ProtectedRoute>
-          } />
-          <Route path="/jadwal-ruang" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <JadwalRuang role={currentRole} showToast={showToast} isDarkMode={isDarkMode} />
-            </ProtectedRoute>
-          } />
-          <Route path="/ruangan" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <Ruangan role={currentRole} isDarkMode={isDarkMode} onNavigate={(p: string) => navigate(`/${p}`)} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/acara" element={<Acara showToast={showToast} isDarkMode={isDarkMode} />} />
-          <Route path="/peminjaman-barang" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <PeminjamanBarang showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/manajemen-laboran" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <ManajemenLaboran onNavigate={(p: string) => navigate(`/${p}`)} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/manajemen-pkl" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <ManajemenPKL showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/inventaris" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <Inventaris role={currentRole} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/perpindahan-barang" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <PerpindahanBarang role={currentRole} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/manajemen-user" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <ManajemenUser showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/manajemen-dosen" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <LecturerManagement showToast={showToast} role={currentRole} />
-            </ProtectedRoute>
-          } />
-          <Route path="/manajemen-program-studi" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <StudyProgramManagement showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/pemesanan-saya" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.LEMBAGA_KEMAHASISWAAN, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <PemesananSaya userId={getStorageItem('userId') || ''} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/pesanan-ruang" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <PesananRuang role={currentRole} addNotification={addNotification} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/labguard" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.SUPERVISOR]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <LabGuard />
-            </ProtectedRoute>
-          } />
-          <Route path="/profil" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <Profile role={currentRole} showToast={showToast} onNavigate={(p: string) => navigate(`/${p}`)} />
-            </ProtectedRoute>
-          } />
-          <Route path="/pengaturan" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <Settings showToast={showToast} onNavigate={(p: string) => navigate(`/${p}`)} />
-            </ProtectedRoute>
-          } />
-          <Route path="/jadwal-kuliah" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.DOSEN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <JadwalKuliah role={currentRole} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/manajemen-spesifikasi" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, 'Supervisor' as Role]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <ManajemenSpesifikasi role={currentRole} isDarkMode={isDarkMode} showToast={showToast} />
-            </ProtectedRoute>
-          } />
-          <Route path="/tentang" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.MAHASISWA, Role.ADMIN, Role.LABORAN, Role.LEMBAGA_KEMAHASISWAAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <Tentang />
-            </ProtectedRoute>
-          } />
-          <Route path="/layanan-tu" element={
-            <ProtectedRoute currentRole={currentRole} allowedRoles={[Role.ADMIN, Role.LABORAN, Role.DOSEN, 'Supervisor' as Role, Role.USER_TU, Role.ADMIN_TU]} onNavigate={(p: string) => navigate(`/${p}`)}>
-              <LayananTU role={currentRole} />
-            </ProtectedRoute>
-          } />
-        </Route>
-        
-        <Route path="*" element={
-          <Suspense fallback={<PageLoader />}>
-            <NotFound />
-          </Suspense>
-        } />
-      </Routes>
-
-      
-      
       <Toast toasts={toasts} removeToast={removeToast} isDarkMode={isDarkMode} />
     </div>
   );

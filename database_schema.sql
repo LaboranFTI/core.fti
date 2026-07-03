@@ -578,8 +578,8 @@ CREATE TABLE counseling_requests (
 
 CREATE TRIGGER update_counseling_requests_updated_at BEFORE UPDATE ON counseling_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Tabel Research Requests (Surat Rekomendasi Penelitian)
-CREATE TABLE research_requests (
+-- Tabel Surat Tugas Akhir (Penelitian, Wawancara, Perizinan)
+CREATE TABLE ta_letter_requests (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     nim VARCHAR(50) NOT NULL,
@@ -614,7 +614,7 @@ CREATE TABLE research_requests (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TRIGGER update_research_requests_updated_at BEFORE UPDATE ON research_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ta_letter_requests_updated_at BEFORE UPDATE ON ta_letter_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Tabel Surat Rekomendasi Afirmasi Cemerlang (su-rek)
 CREATE TABLE su_rek_requests (
@@ -655,8 +655,8 @@ CREATE UNIQUE INDEX idx_counseling_requests_validation_token_unique
 ON counseling_requests(validation_token)
 WHERE validation_token IS NOT NULL;
 
-CREATE UNIQUE INDEX idx_research_requests_validation_token_unique
-ON research_requests(validation_token)
+CREATE UNIQUE INDEX idx_ta_letter_requests_validation_token_unique
+ON ta_letter_requests(validation_token)
 WHERE validation_token IS NOT NULL;
 
 CREATE UNIQUE INDEX idx_su_rek_requests_validation_token_unique
@@ -666,7 +666,7 @@ WHERE validation_token IS NOT NULL;
 -- Tabel Background Surat TU (1 PNG A4 bersama untuk semua format surat)
 CREATE TABLE tu_letter_backgrounds (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'su-rek')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek')),
     file_name VARCHAR(255),
     mime_type VARCHAR(100) DEFAULT 'image/png',
     image_base64 TEXT NOT NULL,
@@ -695,7 +695,7 @@ CREATE TRIGGER update_tu_letter_number_counters_updated_at BEFORE UPDATE ON tu_l
 
 CREATE TABLE tu_letter_layouts (
     id SERIAL PRIMARY KEY,
-    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
+    letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek')),
     margin_top_mm NUMERIC(6,2) NOT NULL DEFAULT 40,
     margin_right_mm NUMERIC(6,2) NOT NULL DEFAULT 22,
     margin_bottom_mm NUMERIC(6,2) NOT NULL DEFAULT 26,
@@ -719,8 +719,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_counseling_requests_letter_number_unique
 ON counseling_requests(letter_number)
 WHERE letter_number IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_letter_number_unique
-ON research_requests(letter_number)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ta_letter_requests_letter_number_unique
+ON ta_letter_requests(letter_number)
 WHERE letter_number IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_letter_number_unique
@@ -735,8 +735,8 @@ CREATE INDEX IF NOT EXISTS idx_counseling_requests_qr_download_token_hash
 ON counseling_requests(qr_download_token_hash)
 WHERE qr_download_token_hash IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_research_requests_qr_download_token_hash
-ON research_requests(qr_download_token_hash)
+CREATE INDEX IF NOT EXISTS idx_ta_letter_requests_qr_download_token_hash
+ON ta_letter_requests(qr_download_token_hash)
 WHERE qr_download_token_hash IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_su_rek_requests_qr_download_token_hash
@@ -747,8 +747,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_access_code_unique
 ON observation_requests(access_code)
 WHERE access_code IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_research_requests_access_code_unique
-ON research_requests(access_code)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ta_letter_requests_access_code_unique
+ON ta_letter_requests(access_code)
 WHERE access_code IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_access_code_unique

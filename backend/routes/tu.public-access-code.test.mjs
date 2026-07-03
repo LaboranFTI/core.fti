@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const routeSource = readFileSync(new URL('./tu.routes.v2.js', import.meta.url), 'utf8');
+// Source is now concatenated from all TU sub-modules (modularised from tu.routes.v2.js)
+const readTu = (name) => readFileSync(new URL(`./tu/${name}`, import.meta.url), 'utf8');
+const routeSource = ['core.js', 'settings.js', 'validation.js', 'requests.active-student.js',
+  'requests.counseling.js', 'requests.su-rek.js', 'requests.observation.js',
+  'requests.ta.js', 'index.js'].map(readTu).join('\n');
 const authSource = readFileSync(new URL('../middleware/auth.js', import.meta.url), 'utf8');
 
 describe('TU public observation access-code routes', () => {

@@ -47,6 +47,14 @@ const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
 const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
 const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
 const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
+const DEFAULT_INTERVIEW_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_INTERVIEW_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
+const DEFAULT_PERMISSION_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
+const DEFAULT_PERMISSION_ADVISOR_TITLE = 'Dosen Pembimbing';
+const DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
+const DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
 
 type ResearchFormDefaults = {
   assignmentType: string;
@@ -55,19 +63,43 @@ type ResearchFormDefaults = {
   advisorTitleSecond: string;
 };
 
-const createDefaultResearchDefaults = (): ResearchFormDefaults => ({
-  assignmentType: DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
-  advisorTitle: DEFAULT_RESEARCH_ADVISOR_TITLE,
-  advisorTitleFirst: DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
-  advisorTitleSecond: DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
-});
+const createDefaultResearchDefaults = (variant?: 'research' | 'interview' | 'permission'): ResearchFormDefaults => {
+  if (variant === 'interview') {
+    return {
+      assignmentType: DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+      advisorTitle: DEFAULT_INTERVIEW_ADVISOR_TITLE,
+      advisorTitleFirst: DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+      advisorTitleSecond: DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND
+    };
+  }
+  if (variant === 'permission') {
+    return {
+      assignmentType: DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+      advisorTitle: DEFAULT_PERMISSION_ADVISOR_TITLE,
+      advisorTitleFirst: DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+      advisorTitleSecond: DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND
+    };
+  }
+  return {
+    assignmentType: DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+    advisorTitle: DEFAULT_RESEARCH_ADVISOR_TITLE,
+    advisorTitleFirst: DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+    advisorTitleSecond: DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
+  };
+};
 
-const normalizeResearchDefaults = (settings: Partial<ResearchFormDefaults> = {}): ResearchFormDefaults => ({
-  assignmentType: settings.assignmentType?.trim() || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
-  advisorTitle: settings.advisorTitle?.trim() || DEFAULT_RESEARCH_ADVISOR_TITLE,
-  advisorTitleFirst: settings.advisorTitleFirst?.trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
-  advisorTitleSecond: settings.advisorTitleSecond?.trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
-});
+const normalizeResearchDefaults = (
+  settings: Partial<ResearchFormDefaults> = {},
+  variant: 'research' | 'interview' | 'permission' = 'research'
+): ResearchFormDefaults => {
+  const defaults = createDefaultResearchDefaults(variant);
+  return {
+    assignmentType: settings.assignmentType?.trim() || defaults.assignmentType,
+    advisorTitle: settings.advisorTitle?.trim() || defaults.advisorTitle,
+    advisorTitleFirst: settings.advisorTitleFirst?.trim() || defaults.advisorTitleFirst,
+    advisorTitleSecond: settings.advisorTitleSecond?.trim() || defaults.advisorTitleSecond
+  };
+};
 
 const getResearchAdvisorTitle = (index: number, total: number, defaults: ResearchFormDefaults) => {
   if (total <= 1) return defaults.advisorTitle;
@@ -85,7 +117,7 @@ const getInitialResearchCc = (storageKey = 'core_fti_last_research_cc') => {
 };
 
 const createDefaultResearchData = (
-  defaults = createDefaultResearchDefaults(),
+  defaults: ResearchFormDefaults,
   letterKind: ResearchLetterVariant = 'research',
   storageKey = 'core_fti_last_research_cc'
 ): ResearchLetterData => ({
@@ -197,7 +229,7 @@ const letterVariantConfig: Record<ResearchLetterVariant, {
     titleLabel: 'Judul Tugas Akhir',
     titlePlaceholder: 'Judul tugas akhir mahasiswa',
     purposeLabel: 'Keperluan Izin',
-    purposePlaceholder: 'Contoh: pengambilan data, observasi sistem, pengujian aplikasi',
+    purposePlaceholder: 'Contoh: pengambilan data, penerbangan drone, dll',
     endpointBase: '/api/tu/permission-letter',
     filenamePrefix: 'SuratPerizinan',
     storageKey: 'core_fti_last_permission_cc',
@@ -230,13 +262,13 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
   const [qrAccessCode, setQrAccessCode] = useState<string | null>(null);
   const [selectedProdiId, setSelectedProdiId] = useState('');
   const [researchPlaceSameAsDestination, setResearchPlaceSameAsDestination] = useState(false);
-  const [researchDefaults, setResearchDefaults] = useState<ResearchFormDefaults>(createDefaultResearchDefaults);
+  const [researchDefaults, setResearchDefaults] = useState<ResearchFormDefaults>(() => createDefaultResearchDefaults(variant));
 
   const { lecturers } = useLecturers();
   const { studyPrograms } = useStudyPrograms();
 
   const { register, control, getValues, setValue, reset, watch } = useForm<ResearchLetterData>({
-    defaultValues: createDefaultResearchData(createDefaultResearchDefaults(), variant, variantConfig.storageKey)
+    defaultValues: createDefaultResearchData(createDefaultResearchDefaults(variant), variant, variantConfig.storageKey)
   });
 
   const { fields: advisorFields, append: appendAdvisor, remove: removeAdvisor } = useFieldArray({
@@ -273,12 +305,29 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
         const json = await res.json().catch(() => null);
         if (!res.ok || !json || cancelled) return;
 
+        let assignmentType = json.researchAssignmentType;
+        let advisorTitle = json.researchAdvisorTitle;
+        let advisorTitleFirst = json.researchAdvisorTitleFirst;
+        let advisorTitleSecond = json.researchAdvisorTitleSecond;
+
+        if (variant === 'interview') {
+          assignmentType = json.interviewAssignmentType;
+          advisorTitle = json.interviewAdvisorTitle;
+          advisorTitleFirst = json.interviewAdvisorTitleFirst;
+          advisorTitleSecond = json.interviewAdvisorTitleSecond;
+        } else if (variant === 'permission') {
+          assignmentType = json.permissionAssignmentType;
+          advisorTitle = json.permissionAdvisorTitle;
+          advisorTitleFirst = json.permissionAdvisorTitleFirst;
+          advisorTitleSecond = json.permissionAdvisorTitleSecond;
+        }
+
         const nextDefaults = normalizeResearchDefaults({
-          assignmentType: json.researchAssignmentType,
-          advisorTitle: json.researchAdvisorTitle,
-          advisorTitleFirst: json.researchAdvisorTitleFirst,
-          advisorTitleSecond: json.researchAdvisorTitleSecond
-        });
+          assignmentType,
+          advisorTitle,
+          advisorTitleFirst,
+          advisorTitleSecond
+        }, variant);
         setResearchDefaults(nextDefaults);
         setValue('assignmentType', nextDefaults.assignmentType, { shouldDirty: false, shouldValidate: false });
 
@@ -299,7 +348,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
     return () => {
       cancelled = true;
     };
-  }, [getValues, setValue]);
+  }, [getValues, setValue, variant]);
 
   React.useEffect(() => {
     const currentAdvisors = getValues('advisors') || [];
@@ -373,6 +422,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
     return {
       ...values,
       letterKind: variant,
+      recipientTitle: values.recipientTitle?.trim() || '',
       assignmentType: researchDefaults.assignmentType,
       permissionPurpose: values.permissionPurpose?.trim() || '',
       includeResearchPlace: true,
@@ -390,7 +440,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
     if (!data.name.trim()) return { field: 'name' as const, message: 'Nama mahasiswa wajib diisi.' };
     if (!data.nim.trim()) return { field: 'nim' as const, message: 'NIM mahasiswa wajib diisi.' };
     if (!data.studyProgramName) return { field: 'studyProgram' as const, message: 'Program studi wajib dipilih.' };
-    if (!data.recipientTitle.trim()) return { field: 'recipientTitle' as const, message: 'Jabatan penerima surat wajib diisi.' };
+    if (!data.recipientTitle?.trim()) return { field: 'recipientTitle' as const, message: 'Jabatan penerima surat wajib diisi.' };
     if (!data.destinationPlace.trim()) return { field: 'destinationPlace' as const, message: 'Instansi atau tempat tujuan surat wajib diisi.' };
     if (!data.destinationAddress.trim()) return { field: 'destinationAddress' as const, message: 'Alamat tujuan surat wajib diisi.' };
     if (variant === 'permission' && !data.permissionPurpose?.trim()) return { field: 'permissionPurpose' as const, message: 'Keperluan izin wajib diisi.' };
@@ -565,7 +615,7 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="recipientName">Nama Penerima</Label>
-                  <Input id="recipientName" placeholder="Contoh: Kepala Dinas Pendidikan" disabled={readOnly} aria-invalid={Boolean(fieldErrors.recipientName)} {...register('recipientName')} />
+                  <Input id="recipientName" placeholder="Contoh: John Doe" disabled={readOnly} aria-invalid={Boolean(fieldErrors.recipientName)} {...register('recipientName')} />
                   {fieldErrors.recipientName && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.recipientName}</p>}
                 </div>
                 <div className="space-y-1.5">

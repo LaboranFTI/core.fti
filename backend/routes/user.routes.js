@@ -111,6 +111,7 @@ const formatNotificationTimestamp = (value) => {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Jakarta'
   });
 };
 
@@ -167,7 +168,7 @@ router.get('/users', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req,
       role: row.role,
       identifier: row.identifier,
       status: row.status,
-      lastLogin: row.last_login ? new Date(row.last_login).toLocaleString('id-ID') : '-',
+      lastLogin: row.last_login ? new Date(row.last_login).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-',
       phone: row.telepon
     }));
 
@@ -592,11 +593,13 @@ router.get('/users/:id', verifyRole(PROFILE_ACCESS_ROLES), async (req, res) => {
         month: 'long', 
         year: 'numeric', 
         hour: '2-digit', 
-        minute: '2-digit' 
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
       }) : null,
       memberSince: row.created_at ? new Date(row.created_at).toLocaleString('id-ID', { 
         month: 'long', 
-        year: 'numeric' 
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
       }) : null,
       avatar: row.avatar_image ? `data:image/jpeg;base64,${row.avatar_image.toString('base64')}` : null
     });
@@ -651,16 +654,19 @@ router.get('/users/:id/account-info', verifyRole(PROFILE_ACCESS_ROLES), async (r
         month: 'long', 
         year: 'numeric', 
         hour: '2-digit', 
-        minute: '2-digit' 
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
       }) : 'Belum pernah login',
       memberSince: user.created_at ? new Date(user.created_at).toLocaleString('id-ID', { 
         month: 'long', 
-        year: 'numeric' 
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
       }) : '-',
       passwordChanged: user.password_changed_at ? new Date(user.password_changed_at).toLocaleString('id-ID', { 
         day: 'numeric', 
         month: 'long', 
-        year: 'numeric' 
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
       }) : 'Belum pernah diubah',
       unreadNotifications: unreadCount,
       totalBookings: totalBookings,

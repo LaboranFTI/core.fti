@@ -119,24 +119,6 @@ function formatArchiveDate(value?: string) {
   }).format(date);
 }
 
-function ArchiveMetricCard({
-  title,
-  value,
-  description,
-  icon,
-  accentClass
-}: {
-  title: string;
-  value: string;
-  description: string;
-  icon: React.ReactNode;
-  accentClass: string;
-}) {
-  return (
-    <TUMetricCard title={title} value={value} description={description} icon={icon} accentClassName={accentClass} />
-  );
-}
-
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-gray-700 py-3 last:border-b-0 last:pb-0">
@@ -789,22 +771,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const sentCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
     (item: any) => item.status === 'sent'
   ).length;
-  const currentResultsCount =
-    activeListTab === 'active'
-      ? filteredActiveRequests.length
-      : activeListTab === 'observation'
-        ? filteredObservationRequests.length
-        : activeListTab === 'counseling'
-          ? filteredCounselingRequests.length
-          : filteredSuRekRequests.length;
-  const currentTotalCount =
-    activeListTab === 'active'
-      ? activeRequests.length
-      : activeListTab === 'observation'
-        ? observationRequests.length
-        : activeListTab === 'counseling'
-          ? counselingRequests.length
-          : suRekRequests.length;
 
   const emailUx = (
     <>
@@ -1144,61 +1110,99 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         </TUNotice>
       )}
 
-      <TUSectionCard
-        title="Arsip Surat TU"
-        description="Arsip menyimpan data surat TU agar dapat dilihat kembali, dicetak ulang, atau dikirim email tanpa menyimpan file PDF hasil generate."
-        className="overflow-visible"
-        contentClassName="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-        actions={
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-              <p className="font-medium text-slate-800 dark:text-gray-200">Sinkronisasi otomatis tiap 20 detik</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                {lastUpdatedAt ? `Terakhir diperbarui ${formatArchiveDate(lastUpdatedAt)}` : 'Belum ada data terbaru.'}
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => fetchArchiveData()} disabled={isRefreshing || loading} className="dark:border-gray-700 dark:hover:bg-gray-800">
-              <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Muat Ulang
-            </Button>
-          </div>
-        }
-      >
-        <ArchiveMetricCard
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-white">Arsip Surat TU</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-0.5">
+            Kelola arsip surat aktif kuliah, observasi, konseling, dan rekomendasi
+          </p>
+          {lastUpdatedAt && (
+            <p className="mt-1 text-xs text-slate-400 dark:text-gray-500">
+              Terakhir diperbarui {formatArchiveDate(lastUpdatedAt)}
+            </p>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fetchArchiveData()}
+          disabled={isRefreshing || loading}
+          className="gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <TUMetricCard
           title="Total Arsip"
           value={String(totalArchiveCount)}
-          description={`${activeRequests.length} aktif kuliah, ${observationRequests.length} observasi, ${counselingRequests.length} konseling.`}
-          accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-          icon={<FileText className="h-5 w-5" />}
+          description={`${activeRequests.length} aktif kuliah, ${observationRequests.length} observasi, ${counselingRequests.length} konseling, ${suRekRequests.length} rekomendasi`}
+          icon={<FileText className="h-5 w-5 text-blue-500" />}
+          accentClassName="bg-blue-50 dark:bg-blue-950/30"
         />
-        <ArchiveMetricCard
-          title="Perlu Tindak Lanjut"
+        <TUMetricCard
+          title="Menunggu"
           value={String(pendingCount)}
-          description="Surat yang masih menunggu verifikasi atau proses lanjutan."
-          accentClass="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-          icon={<Clock3 className="h-5 w-5" />}
+          description="Surat yang belum diproses"
+          icon={<Clock3 className="h-5 w-5 text-amber-500" />}
+          accentClassName="bg-amber-50 dark:bg-amber-950/30"
         />
-        <ArchiveMetricCard
-          title="Siap Dikirim"
+        <TUMetricCard
+          title="Terverifikasi"
           value={String(verifiedCount)}
-          description="Surat terverifikasi yang sudah siap dicetak atau dikirim ke email."
-          accentClass="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-          icon={<CheckCircle className="h-5 w-5" />}
+          description="Surat siap dicetak atau dikirim"
+          icon={<CheckCircle className="h-5 w-5 text-sky-500" />}
+          accentClassName="bg-sky-50 dark:bg-sky-950/30"
         />
-        <ArchiveMetricCard
-          title="Sudah Terkirim"
+        <TUMetricCard
+          title="Terkirim"
           value={String(sentCount)}
-          description="Riwayat surat yang sudah pernah didistribusikan ke pemohon."
-          accentClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-          icon={<Mail className="h-5 w-5" />}
+          description="Surat sudah dikirim email"
+          icon={<Mail className="h-5 w-5 text-emerald-500" />}
+          accentClassName="bg-emerald-50 dark:bg-emerald-950/30"
         />
-      </TUSectionCard>
+      </div>
 
-      <TUSectionCard
-        title="Daftar Arsip"
-        description="Cari arsip berdasarkan nama, NIM, tujuan surat, instansi, nomor surat, atau tanggal pembuatan."
-        contentClassName="space-y-5"
-        actions={
+      <TUSectionCard>
+        <CardHeader className="pb-4">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={activeListTab === 'active'
+                  ? 'Cari nama, NIM, email, prodi, atau nomor surat...'
+                  : activeListTab === 'observation'
+                    ? 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...'
+                    : activeListTab === 'counseling'
+                      ? 'Cari nama, NIM, hal, tujuan, unit rujukan, atau nomor surat...'
+                      : 'Cari nama, NIM, perihal, atau nomor surat...'}
+                className="pl-10 dark:bg-gray-800 dark:border-gray-700"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {statusFilterOptions.map((option) => {
+                const isActive = statusFilter === option.value;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={isActive ? 'primary' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter(option.value)}
+                    className={`rounded-md ${!isActive ? 'dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800' : ''}`}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
           <Tabs value={activeListTab} onValueChange={(value) => setActiveListTab(value as 'active' | 'observation' | 'counseling' | 'su-rek')}>
             <PageTabs
               items={[
@@ -1207,83 +1211,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 { value: 'counseling', label: `Konseling (${counselingRequests.length})`, icon: FileText },
                 { value: 'su-rek', label: `Rekomendasi (${suRekRequests.length})`, icon: Award }
               ]}
-              className="w-full sm:w-fit"
             />
-          </Tabs>
-        }
-      >
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={activeListTab === 'active'
-                ? 'Cari nama, NIM, email, prodi, atau nomor surat...'
-                : activeListTab === 'observation'
-                  ? 'Cari tujuan, instansi, nama mahasiswa, atau nomor surat...'
-                  : activeListTab === 'counseling'
-                    ? 'Cari nama, NIM, hal, tujuan, unit rujukan, atau nomor surat...'
-                    : 'Cari nama, NIM, perihal, atau nomor surat...'}
-              className="pl-10 dark:bg-gray-800 dark:border-gray-700"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {statusFilterOptions.map((option) => {
-              const isActive = statusFilter === option.value;
-              return (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={isActive ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={() => setStatusFilter(option.value)}
-                  className={`rounded-md ${!isActive ? 'dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800' : ''}`}
-                >
-                  {option.label}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-white dark:bg-gray-700 p-3 text-slate-600 dark:text-gray-300 shadow-sm">
-                <FileSearch className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                  Menampilkan {currentResultsCount} dari {currentTotalCount} arsip
-                </p>
-                <p className="text-sm text-slate-500 dark:text-gray-400">
-                  {activeListTab === 'active'
-                    ? 'Daftar surat aktif kuliah yang tersimpan di sistem.'
-                    : activeListTab === 'observation'
-                      ? 'Daftar surat observasi yang dapat diverifikasi, dicetak, atau dikirim ulang.'
-                      : activeListTab === 'counseling'
-                        ? 'Daftar surat pengantar konseling yang dapat diedit, dicetak, atau dikirim ulang.'
-                        : 'Daftar surat rekomendasi afirmasi cemerlang yang tersimpan di sistem.'}
-                </p>
-              </div>
-            </div>
-            {(searchQuery || statusFilter !== 'all') && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="dark:hover:bg-gray-700"
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                }}
-              >
-                Reset Filter
-              </Button>
-            )}
-          </div>
-
-          <Tabs value={activeListTab}>
             <TabsContent value="active" className="mt-0">
               {/* Batch Delete Toolbar */}
               {selectedActiveIds.size > 0 && (
@@ -1303,20 +1231,20 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
 
               {loading ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
-                  Memuat arsip surat aktif kuliah...
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                  <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Memuat arsip surat aktif kuliah...</span>
                 </div>
               ) : filteredActiveRequests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center">
-                  <FileText className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-gray-600" />
-                  <p className="text-base font-medium text-slate-700 dark:text-gray-300">
+                <div className="text-center py-12">
+                  <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-slate-400 dark:text-gray-500">
                     {activeRequests.length === 0 ? 'Belum ada data surat aktif kuliah yang tersimpan.' : 'Tidak ada arsip yang cocok dengan filter saat ini.'}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">Ubah kata kunci pencarian atau reset filter untuk melihat arsip lainnya.</p>
                 </div>
               ) : (
                 <>
-                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
@@ -1420,20 +1348,20 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
 
               {loading ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
-                  Memuat arsip surat observasi...
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                  <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Memuat arsip surat observasi...</span>
                 </div>
               ) : filteredObservationRequests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center">
-                  <FileText className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-gray-600" />
-                  <p className="text-base font-medium text-slate-700 dark:text-gray-300">
+                <div className="text-center py-12">
+                  <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-slate-400 dark:text-gray-500">
                     {observationRequests.length === 0 ? 'Belum ada data surat observasi yang tersimpan.' : 'Tidak ada arsip yang cocok dengan filter saat ini.'}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">Coba kata kunci lain atau reset filter untuk melihat seluruh arsip.</p>
                 </div>
               ) : (
                 <>
-                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
@@ -1546,20 +1474,20 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
 
               {loading ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
-                  Memuat arsip surat konseling...
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                  <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Memuat arsip surat konseling...</span>
                 </div>
               ) : filteredCounselingRequests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center">
-                  <FileText className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-gray-600" />
-                  <p className="text-base font-medium text-slate-700 dark:text-gray-300">
+                <div className="text-center py-12">
+                  <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-slate-400 dark:text-gray-500">
                     {counselingRequests.length === 0 ? 'Belum ada data surat konseling yang tersimpan.' : 'Tidak ada arsip yang cocok dengan filter saat ini.'}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">Coba kata kunci lain atau reset filter untuk melihat seluruh arsip.</p>
                 </div>
               ) : (
                 <>
-                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
@@ -1673,20 +1601,20 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
 
               {loading ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center text-slate-500 dark:text-gray-400">
-                  Memuat arsip surat rekomendasi...
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                  <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Memuat arsip surat rekomendasi...</span>
                 </div>
               ) : filteredSuRekRequests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-gray-700 p-10 text-center">
-                  <FileText className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-gray-600" />
-                  <p className="text-base font-medium text-slate-700 dark:text-gray-300">
+                <div className="text-center py-12">
+                  <FileSearch className="h-10 w-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-slate-400 dark:text-gray-500">
                     {suRekRequests.length === 0 ? 'Belum ada data surat rekomendasi yang tersimpan.' : 'Tidak ada arsip yang cocok dengan filter saat ini.'}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">Coba kata kunci lain atau reset filter untuk melihat seluruh arsip.</p>
                 </div>
               ) : (
                 <>
-                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 md:block">
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
@@ -1776,6 +1704,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
               )}
             </TabsContent>
           </Tabs>
+        </CardContent>
       </TUSectionCard>
 
       {/* ── Double Confirm Delete Dialog ───────────────────────────────────── */}
