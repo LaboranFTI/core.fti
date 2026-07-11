@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 // date-fns format/locale no longer needed – using Intl.DateTimeFormat with explicit timezone
-import { ActiveStudentRequest, ObservationRequest, CounselingRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
+import { ActiveStudentRequest, ObservationRequest, CounselingRequest, SuRekRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
 import { ValidationQrCode } from './ValidationQrCode';
@@ -15,6 +15,13 @@ import { Tabs, TabsContent } from '../../components/ui/tabs';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
 import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
+import { ArchiveStatusBadge } from './archive/ArchiveStatusBadge';
+import { DetailRow } from './archive/DetailRow';
+import {
+  countArchiveStatuses,
+  filterArchiveRequests,
+  StatusFilter
+} from './archive/archiveFilters';
 import {
   createEmptyLetterBackgrounds,
   createEmptyLetterLayouts,
@@ -57,11 +64,8 @@ type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }
   | { type: 'observation'; item: ObservationRequest }
   | { type: 'counseling'; item: CounselingRequest }
-  | { type: 'su-rek'; item: any }
+  | { type: 'su-rek'; item: SuRekRequest }
   | null;
-
-type ArchiveStatus = ActiveStudentRequest['status'];
-type StatusFilter = 'all' | ArchiveStatus;
 
 interface LetterArchivePanelProps {
   refreshKey?: number;
@@ -74,20 +78,11 @@ const statusFilterOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'sent', label: 'Terkirim' }
 ];
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-gray-700 py-3 last:border-b-0 last:pb-0">
-      <span className="text-sm text-slate-500 dark:text-gray-400">{label}</span>
-      <span className="text-right text-sm font-medium text-slate-800 dark:text-white">{value}</span>
-    </div>
-  );
-}
-
 export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) {
   const [activeRequests, setActiveRequests] = useState<ActiveStudentRequest[]>([]);
   const [observationRequests, setObservationRequests] = useState<ObservationRequest[]>([]);
   const [counselingRequests, setCounselingRequests] = useState<CounselingRequest[]>([]);
-  const [suRekRequests, setSuRekRequests] = useState<any[]>([]);
+  const [suRekRequests, setSuRekRequests] = useState<SuRekRequest[]>([]);
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const [currentSemesterCode, setCurrentSemesterCode] = useState('');
@@ -114,19 +109,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [selectedSuRekIds, setSelectedSuRekIds] = useState<Set<string>>(new Set());
   // Edit observation state
   const [editTarget, setEditTarget] = useState<any | null>(null);
-
-  const getStatusBadge = (status: ArchiveStatus) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"><Clock3 className="mr-1 h-3 w-3" /> Menunggu</Badge>;
-      case 'verified':
-        return <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300"><CheckCircle className="mr-1 h-3 w-3" /> Terverifikasi</Badge>;
-      case 'sent':
-        return <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"><Mail className="mr-1 h-3 w-3" /> Terkirim</Badge>;
-      default:
-        return <Badge variant="outline" className="dark:border-gray-700 dark:text-gray-300">{status}</Badge>;
-    }
-  };
 
   const fetchArchiveData = async ({
     showLoader = false,
@@ -164,7 +146,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         observationRes.ok && observationJson.success && Array.isArray(observationJson.data) ? observationJson.data : [];
       const nextCounselingRequests: CounselingRequest[] =
         counselingRes.ok && counselingJson.success && Array.isArray(counselingJson.data) ? counselingJson.data : [];
-      const nextSuRekRequests: any[] =
+      const nextSuRekRequests: SuRekRequest[] =
         suRekRes.ok && suRekJson.success && Array.isArray(suRekJson.data) ? suRekJson.data : [];
 
       setActiveRequests(nextActiveRequests);
@@ -188,7 +170,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
           const updatedItem = nextCounselingRequests.find((item: CounselingRequest) => item.id === prev.item.id);
           return updatedItem ? { type: 'counseling', item: updatedItem } : null;
         } else if (prev.type === 'su-rek') {
-          const updatedItem = nextSuRekRequests.find((item: any) => item.id === prev.item.id);
+          const updatedItem = nextSuRekRequests.find((item) => item.id === prev.item.id);
           return updatedItem ? { type: 'su-rek', item: updatedItem } : null;
         }
 
@@ -250,7 +232,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             ? observationRequests.find((item: ObservationRequest) => item.id === id)
             : type === 'counseling'
               ? counselingRequests.find((item: CounselingRequest) => item.id === id)
-              : suRekRequests.find((item: any) => item.id === id);
+              : suRekRequests.find((item) => item.id === id);
       const res = await tuApi.sendLetterEmail(type, id);
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -598,81 +580,32 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     }
   };
 
-  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const {
+    filteredActiveRequests,
+    filteredObservationRequests,
+    filteredCounselingRequests,
+    filteredSuRekRequests
+  } = filterArchiveRequests({
+    activeRequests,
+    observationRequests,
+    counselingRequests,
+    suRekRequests,
+    searchQuery,
+    statusFilter,
+    formatDate: formatArchiveDate
+  });
 
-  const matchesStatus = (status: ArchiveStatus) => statusFilter === 'all' || status === statusFilter;
-  const matchesQuery = (fields: Array<string | undefined>) =>
-    normalizedQuery === '' ||
-    fields.some((field) => (field || '').toLowerCase().includes(normalizedQuery));
-
-  const filteredActiveRequests = activeRequests.filter((item: ActiveStudentRequest) =>
-    matchesStatus(item.status) &&
-    matchesQuery([
-      item.name,
-      item.nim,
-      item.email,
-      item.letterNumber,
-      item.studyProgramName,
-      item.faculty,
-      formatArchiveDate(item.createdAt)
-    ])
-  );
-
-  const filteredObservationRequests = observationRequests.filter((item: ObservationRequest) =>
-    matchesStatus(item.status) &&
-    matchesQuery([
-      item.name,
-      item.nim,
-      item.email,
-      item.recipientName,
-      item.company,
-      item.courseName,
-      item.lecturerName,
-      item.letterNumber,
-      formatArchiveDate(item.createdAt)
-    ])
-  );
-
-  const filteredCounselingRequests = counselingRequests.filter((item: CounselingRequest) =>
-    matchesStatus(item.status) &&
-    matchesQuery([
-      item.name,
-      item.nim,
-      item.email,
-      item.subject,
-      item.recipientName,
-      item.referralUnit,
-      item.studyProgramName,
-      item.letterNumber,
-      formatArchiveDate(item.createdAt)
-    ])
-  );
-
-  const filteredSuRekRequests = suRekRequests.filter((item: any) =>
-    matchesStatus(item.status) &&
-    matchesQuery([
-      item.name,
-      item.nim,
-      item.email,
-      item.recipientName,
-      item.berdasarkanNo,
-      item.perihal,
-      item.lampiran,
-      item.letterNumber,
-      formatArchiveDate(item.createdAt)
-    ])
-  );
-
-  const totalArchiveCount = activeRequests.length + observationRequests.length + counselingRequests.length + suRekRequests.length;
-  const pendingCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
-    (item: any) => item.status === 'pending'
-  ).length;
-  const verifiedCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
-    (item: any) => item.status === 'verified'
-  ).length;
-  const sentCount = [...activeRequests, ...observationRequests, ...counselingRequests, ...suRekRequests].filter(
-    (item: any) => item.status === 'sent'
-  ).length;
+  const {
+    totalArchiveCount,
+    pendingCount,
+    verifiedCount,
+    sentCount
+  } = countArchiveStatuses({
+    activeRequests,
+    observationRequests,
+    counselingRequests,
+    suRekRequests
+  });
 
   const emailUx = (
     <>
@@ -735,7 +668,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <Badge variant="outline" className="border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300">
                     {isObservation ? 'Surat Observasi' : isCounseling ? 'Surat Konseling' : isSuRek ? 'Rekomendasi Afirmasi' : 'Surat Aktif Kuliah'}
                   </Badge>
-                  {getStatusBadge(item.status)}
+                  <ArchiveStatusBadge status={item.status} />
                 </div>
                 <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
                   {isObservation ? 'Detail Arsip Surat Observasi' : isCounseling ? 'Detail Arsip Surat Konseling' : isSuRek ? 'Detail Arsip Surat Rekomendasi' : 'Detail Arsip Surat Aktif Kuliah'}
@@ -1180,7 +1113,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             </TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{item.studyProgramName || '-'}</TableCell>
                             <TableCell className="text-sm text-slate-500 dark:text-gray-400">{item.letterNumber || 'Belum dibuat'}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                            <TableCell><ArchiveStatusBadge status={item.status} /></TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'active', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
@@ -1205,7 +1138,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             <p className="font-semibold text-slate-900 dark:text-white">{item.name}</p>
                             <p className="text-sm text-slate-500 dark:text-gray-400">{item.nim}</p>
                           </div>
-                          {getStatusBadge(item.status)}
+                          <ArchiveStatusBadge status={item.status} />
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
                           <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
@@ -1297,7 +1230,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             </TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{item.company || '-'}</TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{item.students.length} mahasiswa</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                            <TableCell><ArchiveStatusBadge status={item.status} /></TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'observation', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
@@ -1325,7 +1258,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             <p className="font-semibold text-slate-900 dark:text-white">{item.recipientName || 'Tujuan belum diisi'}</p>
                             <p className="text-sm text-slate-500 dark:text-gray-400">{item.company || 'Instansi belum diisi'}</p>
                           </div>
-                          {getStatusBadge(item.status)}
+                          <ArchiveStatusBadge status={item.status} />
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
                           <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
@@ -1428,7 +1361,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300 max-w-[220px] truncate">{item.referralUnit || '-'}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                            <TableCell><ArchiveStatusBadge status={item.status} /></TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'counseling', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
@@ -1456,7 +1389,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             <p className="font-semibold text-slate-900 dark:text-white">{item.name}</p>
                             <p className="text-sm text-slate-500 dark:text-gray-400">{item.nim}</p>
                           </div>
-                          {getStatusBadge(item.status)}
+                          <ArchiveStatusBadge status={item.status} />
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
                           <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
@@ -1534,7 +1467,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredSuRekRequests.map((item: any) => (
+                        {filteredSuRekRequests.map((item) => (
                           <TableRow key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-gray-800/50 ${selectedSuRekIds.has(item.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
                             <TableCell>
                               <input type="checkbox" className="rounded border-slate-300 accent-blue-600 cursor-pointer"
@@ -1550,7 +1483,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                             </TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300">{item.nim}</TableCell>
                             <TableCell className="text-sm text-slate-600 dark:text-gray-300 max-w-[200px] truncate">{item.perihal || '-'}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                            <TableCell><ArchiveStatusBadge status={item.status} /></TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setSelectedLetter({ type: 'su-rek', item })} className="dark:border-gray-700 dark:hover:bg-gray-800">
@@ -1571,14 +1504,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   </div>
 
                   <div className="space-y-3 md:hidden">
-                    {filteredSuRekRequests.map((item: any) => (
+                    {filteredSuRekRequests.map((item) => (
                       <div key={item.id} className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-semibold text-slate-900 dark:text-white">{item.name}</p>
                             <p className="text-sm text-slate-500 dark:text-gray-400">{item.nim}</p>
                           </div>
-                          {getStatusBadge(item.status)}
+                          <ArchiveStatusBadge status={item.status} />
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
                           <div className="rounded-xl bg-slate-50 dark:bg-gray-900/50 p-3">
