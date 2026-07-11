@@ -1,7 +1,7 @@
+import { Circle } from '@phosphor-icons/react';
 import * as React from "react"
 import { RadioGroup as BaseRadioGroup } from "@base-ui/react/radio-group"
 import { Radio as BaseRadio } from "@base-ui/react/radio"
-import { Circle } from "lucide-react"
 
 import { cn } from '../../lib/utils'
 

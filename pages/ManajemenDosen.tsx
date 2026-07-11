@@ -1,5 +1,14 @@
+import {
+  WarningCircle as AlertCircle,
+  DownloadSimple as Download,
+  PencilSimpleLine as Edit2,
+  FileXls as FileSpreadsheet,
+  SpinnerGap as Loader2,
+  Plus,
+  Trash as Trash2,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, X, AlertCircle, Loader2, Download, FileSpreadsheet } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { useLecturers, Lecturer } from '../hooks/useLecturers';
 import { useStudyPrograms } from '../hooks/useStudyPrograms';

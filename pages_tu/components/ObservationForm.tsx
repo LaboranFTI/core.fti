@@ -1,3 +1,14 @@
+import {
+  Buildings as Building2,
+  FileText,
+  GraduationCap,
+  SpinnerGap as Loader2,
+  EnvelopeSimple as Mail,
+  Plus,
+  Printer,
+  Trash as Trash2,
+  Users
+} from '@phosphor-icons/react';
 import React, { useState, useCallback } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { ObservationData } from '../types';
@@ -7,7 +18,6 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { api } from '../../services/api';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
-import { Plus, Trash2, Printer, Building2, GraduationCap, Users, Loader2, FileText, Mail } from 'lucide-react';
 import SearchableSelect, { SelectOption } from '../../components/SearchableSelect';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import { useLecturers } from '../../hooks/useLecturers';

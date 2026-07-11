@@ -1,3 +1,21 @@
+import {
+  ArrowLeft,
+  CalendarDots as CalendarDays,
+  CheckCircle,
+  Clock as Clock3,
+  DownloadSimple as Download,
+  Eye,
+  FileMagnifyingGlass as FileSearch,
+  FileText,
+  SpinnerGap as Loader2,
+  EnvelopeSimple as Mail,
+  ChatText as MessageSquare,
+  QrCode,
+  ArrowCounterClockwise as RefreshCcw,
+  MagnifyingGlass as Search,
+  ShieldCheck,
+  Trash as Trash2
+} from '@phosphor-icons/react';
 import React, { useEffect, useState } from 'react';
 import { ResearchRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { LetterPreview } from './LetterPreview';
@@ -13,24 +31,6 @@ import { Tabs, TabsContent } from '../../components/ui/tabs';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
 import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
-import {
-  ArrowLeft,
-  CalendarDays,
-  CheckCircle,
-  Clock3,
-  Eye,
-  FileSearch,
-  FileText,
-  Mail,
-  Loader2,
-  RefreshCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Download,
-  QrCode,
-  MessageSquare
-} from 'lucide-react';
 
 type FinalTaskLetterType = 'research' | 'interview' | 'permission';
 

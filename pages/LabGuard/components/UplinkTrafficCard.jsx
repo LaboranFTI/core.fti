@@ -1,4 +1,4 @@
-import { Activity } from 'lucide-react';
+import { Pulse as Activity } from '@phosphor-icons/react';
 import { labGuardInsetSurface, labGuardMutedText, labGuardText } from '../constants';
 import { formatRateMbps } from '../utils';
 import LabGuardCard from './LabGuardCard';

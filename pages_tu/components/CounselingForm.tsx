@@ -1,10 +1,18 @@
+import {
+  CheckCircle as CheckCircle2,
+  FileText,
+  SpinnerGap as Loader2,
+  MagnifyingGlass as Search,
+  PaperPlaneTilt as Send,
+  X,
+  XCircle
+} from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { CheckCircle2, FileText, Loader2, Search, Send, X, XCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import { findStudyProgramByNim } from './activeStudentUtils';

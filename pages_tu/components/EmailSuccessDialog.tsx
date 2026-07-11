@@ -1,5 +1,5 @@
+import { CheckCircle as CheckCircle2, EnvelopeSimple as Mail, ShieldWarning as ShieldAlert } from '@phosphor-icons/react';
 import React from 'react';
-import { CheckCircle2, Mail, ShieldAlert } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 
 interface EmailSuccessDialogProps {

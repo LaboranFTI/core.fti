@@ -48,7 +48,7 @@ export default defineConfig(({ mode }) => {
                 return 'vendor-react';
               }
 
-              if (/[\\/]node_modules[\\/](lucide-react|recharts)[\\/]/.test(id)) {
+              if (/[\\/]node_modules[\\/](recharts)[\\/]/.test(id)) {
                 return 'vendor-ui';
               }
 
@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
       },
       // Optimize dependencies
       optimizeDeps: {
-        include: ['react', 'react-dom', 'lucide-react', 'recharts'],
+        include: ['react', 'react-dom', 'recharts'],
       },
     };
 });

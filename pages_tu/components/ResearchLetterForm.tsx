@@ -1,14 +1,14 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
 import {
-  Building2,
+  Buildings as Building2,
   FileText,
   GraduationCap,
   Plus,
-  Trash2,
-  UserRound,
+  Trash as Trash2,
+  UserCircle as UserRound,
   Users
-} from 'lucide-react';
+} from '@phosphor-icons/react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';

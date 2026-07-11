@@ -1,19 +1,19 @@
+import {
+  Buildings as Building2,
+  CalendarDots as CalendarDays,
+  Check,
+  CaretDown as ChevronDown,
+  FileText,
+  SpinnerGap as Loader2,
+  Plus,
+  MagnifyingGlass as Search,
+  Trash as Trash2,
+  User,
+  Wrench,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useRef, useEffect } from "react";
 import { Room, Booking, Role } from "../types";
-import {
-  Plus,
-  Trash2,
-  Loader2,
-  Check,
-  FileText,
-  User,
-  ChevronDown,
-  Search,
-  X,
-  CalendarDays,
-  Building2,
-  Wrench,
-} from "lucide-react";
 import { api } from "../services/api";
 
 interface ScheduleEntry {

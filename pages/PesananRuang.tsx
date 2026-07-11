@@ -1,30 +1,30 @@
+import {
+  WarningCircle as AlertCircle,
+  Warning as AlertTriangle,
+  CalendarBlank as Calendar,
+  CheckCircle,
+  CaretDown as ChevronDown,
+  Clock,
+  DownloadSimple as Download,
+  PencilSimpleLine as Edit,
+  FileXls as FileSpreadsheet,
+  FileText,
+  Stack as Layers,
+  SpinnerGap as Loader2,
+  MapPin,
+  Phone,
+  Plus,
+  FloppyDisk as Save,
+  ShareNetwork as Share2,
+  Shield,
+  Trash as Trash2,
+  User,
+  Wrench,
+  X,
+  XCircle
+} from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Booking, BookingStatus, Room, Role } from "../types";
-import {
-  CheckCircle,
-  XCircle,
-  Calendar,
-  Clock,
-  MapPin,
-  User,
-  AlertCircle,
-  FileText,
-  Download,
-  X,
-  Phone,
-  Shield,
-  Loader2,
-  Wrench,
-  Edit,
-  Save,
-  Share2,
-  FileSpreadsheet,
-  AlertTriangle,
-  Trash2,
-  Plus,
-  ChevronDown,
-  Layers,
-} from "lucide-react";
 import { api } from "../services/api";
 import BookingForm from "../components/BookingForm";
 import { useGoogleCalendar } from "../hooks/useGoogleCalendar";

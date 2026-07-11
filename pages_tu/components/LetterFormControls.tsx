@@ -1,5 +1,5 @@
+import { CaretDown as ChevronDown, DownloadSimple as Download, FileText, SpinnerGap as Loader2, EnvelopeSimple as Mail, QrCode } from '@phosphor-icons/react';
 import React from 'react';
-import { ChevronDown, Download, FileText, Loader2, Mail, QrCode } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { CardDescription, CardTitle } from '../../components/ui/card';
 import {

@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from "react";
 import {
-  Mail,
-  Lock,
-  User,
   ArrowLeft,
-  Eye,
-  EyeOff,
-  Loader2,
-  Moon,
-  Sun,
   Check,
-  RefreshCw,
-} from "lucide-react";
+  Eye,
+  EyeSlash as EyeOff,
+  SpinnerGap as Loader2,
+  Lock,
+  EnvelopeSimple as Mail,
+  Moon,
+  ArrowClockwise as RefreshCw,
+  Sun,
+  User
+} from '@phosphor-icons/react';
+import React, { useState, useEffect } from "react";
 import { Role } from "../types";
 import fti from "../src/assets/Gedung.jpg";
 import nocLogo from "../src/assets/NOC.svg";

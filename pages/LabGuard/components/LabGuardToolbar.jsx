@@ -1,4 +1,4 @@
-import { CheckCircle2, Search, XCircle } from 'lucide-react';
+import { CheckCircle as CheckCircle2, MagnifyingGlass as Search, XCircle } from '@phosphor-icons/react';
 import { labGuardInput, labGuardMutedText, labGuardText } from '../constants';
 
 export default function LabGuardToolbar({

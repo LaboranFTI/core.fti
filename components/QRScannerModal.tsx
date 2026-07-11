@@ -1,5 +1,5 @@
+import { WarningCircle as AlertCircle, Camera, SpinnerGap as Loader2, QrCode, X } from '@phosphor-icons/react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, QrCode, Loader2, AlertCircle, Camera } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 interface QRScannerModalProps {

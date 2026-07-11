@@ -1,7 +1,19 @@
 
+import {
+  CalendarBlank as Calendar,
+  CalendarDots as CalendarDays,
+  Clock,
+  DownloadSimple as Download,
+  Info,
+  Stack as Layers,
+  MapPin,
+  ShareNetwork as Share2,
+  User,
+  Wrench,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Booking, BookingStatus, Room } from '../types';
-import { Calendar, Clock, MapPin, User, Share2, Download, X, Wrench, Info, CalendarDays, Layers } from 'lucide-react';
 import { api } from '../services/api';
 import * as htmlToImage from 'html-to-image';
 import nocLogo from "../src/assets/noc.png";

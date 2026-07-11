@@ -1,3 +1,30 @@
+import {
+  ArrowLeft,
+  Medal as Award,
+  Buildings as Building2,
+  CalendarDots as CalendarDays,
+  CheckCircle,
+  Clock as Clock3,
+  DownloadSimple as Download,
+  ArrowSquareOut as ExternalLink,
+  Eye,
+  FileMagnifyingGlass as FileSearch,
+  FileText,
+  GraduationCap,
+  SpinnerGap as Loader2,
+  EnvelopeSimple as Mail,
+  PencilSimpleLine as Pencil,
+  Plus,
+  Printer,
+  QrCode,
+  ArrowCounterClockwise as RefreshCcw,
+  MagnifyingGlass as Search,
+  PaperPlaneTilt as Send,
+  ShieldCheck,
+  Trash as Trash2,
+  Users,
+  X
+} from '@phosphor-icons/react';
 import React, { useEffect, useState } from 'react';
 // date-fns format/locale no longer needed – using Intl.DateTimeFormat with explicit timezone
 import { ActiveStudentRequest, ObservationRequest, CounselingRequest, SuRekRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
@@ -32,33 +59,6 @@ import {
 } from '../lib/letterSettings';
 import { formatArchiveDate } from '../lib/archiveFormatting';
 import { getArchiveApiType, getArchiveTitle, tuApi } from '../services/tuApi';
-import {
-  ArrowLeft,
-  Award,
-  Building2,
-  CalendarDays,
-  CheckCircle,
-  Clock3,
-  Eye,
-  FileSearch,
-  FileText,
-  GraduationCap,
-  Mail,
-  Loader2,
-  Pencil,
-  Plus,
-  Printer,
-  RefreshCcw,
-  Search,
-  Send,
-  ShieldCheck,
-  Trash2,
-  Users,
-  X,
-  Download,
-  ExternalLink,
-  QrCode
-} from 'lucide-react';
 
 type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }

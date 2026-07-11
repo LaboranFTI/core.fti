@@ -1,18 +1,18 @@
+import {
+  Warning as AlertTriangle,
+  Medal as Award,
+  CalendarBlank as Calendar,
+  Check,
+  Copy,
+  DownloadSimple as Download,
+  FileText,
+  Hash,
+  SpinnerGap as Loader2,
+  ShieldCheck,
+  Users
+} from '@phosphor-icons/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { 
-  AlertTriangle, 
-  Download, 
-  FileText, 
-  Loader2, 
-  ShieldCheck, 
-  Users, 
-  Copy, 
-  Check, 
-  Award,
-  Calendar,
-  Hash
-} from 'lucide-react';
 import { api } from '../services/api';
 import { API_BASE_URL } from '../config';
 import { Button } from '../components/ui/button';

@@ -1,5 +1,5 @@
+import { Megaphone } from '@phosphor-icons/react';
 import React from 'react';
-import { Megaphone } from 'lucide-react';
 
 import { APP_FULL_NAME } from '../config';
 import { Notification, Role } from '../types';

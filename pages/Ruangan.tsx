@@ -1,6 +1,37 @@
+import {
+  ArrowsDownUp as ArrowUpDown,
+  CalendarBlank as Calendar,
+  Check,
+  CaretDown as ChevronDown,
+  CaretLeft as ChevronLeft,
+  CaretRight as ChevronRight,
+  Clock,
+  Cpu,
+  PencilSimpleLine as Edit2,
+  ArrowSquareOut as ExternalLink,
+  Eye,
+  FileText,
+  Funnel as Filter,
+  HardDrive,
+  Info,
+  Keyboard,
+  SpinnerGap as Loader2,
+  SignIn as LogIn,
+  MapPin,
+  Monitor,
+  Mouse,
+  Package,
+  Plus,
+  ArrowClockwise as RefreshCw,
+  Trash as Trash2,
+  UploadSimple as Upload,
+  User,
+  Users,
+  WifiHigh as Wifi,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { Room, Role, BookingStatus, Booking, Software } from '../types';
-import { MapPin, Users, Wifi, Edit2, Trash2, Calendar, Eye, Check, Plus, Upload, Loader2, ArrowUpDown, ExternalLink, FileText, User, LogIn, RefreshCw, Clock, ChevronRight, ChevronDown, X, Monitor, Cpu, HardDrive, Keyboard, Mouse, ChevronLeft, Package, Filter, Info } from 'lucide-react';
 import { api } from '../services/api';
 import SoftwareForm from '../components/SoftwareForm';
 import RoomForm from '../components/RoomForm';

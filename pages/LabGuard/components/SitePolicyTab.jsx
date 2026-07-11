@@ -1,4 +1,4 @@
-import { ChevronDown, Search } from 'lucide-react';
+import { CaretDown as ChevronDown, MagnifyingGlass as Search } from '@phosphor-icons/react';
 import {
   labGuardInsetSurface,
   labGuardInput,

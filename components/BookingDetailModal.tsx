@@ -1,25 +1,25 @@
+import {
+  Warning as AlertTriangle,
+  CalendarBlank as Calendar,
+  CheckCircle,
+  Clock,
+  DownloadSimple as Download,
+  PencilSimpleLine as Edit,
+  FileText,
+  SpinnerGap as Loader2,
+  MapPin,
+  Phone,
+  FloppyDisk as Save,
+  Shield,
+  Timer,
+  Trash as Trash2,
+  User,
+  Wrench,
+  X,
+  XCircle
+} from '@phosphor-icons/react';
 import React from "react";
 import { BookingStatus, Room } from "../types";
-import {
-  X,
-  User,
-  Shield,
-  Phone,
-  MapPin,
-  Calendar,
-  Clock,
-  Wrench,
-  Edit,
-  Save,
-  FileText,
-  Download,
-  AlertTriangle,
-  Trash2,
-  XCircle,
-  CheckCircle,
-  Loader2,
-  Timer,
-} from "lucide-react";
 import { formatDateID } from "../src/utils/formatters";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 

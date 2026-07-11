@@ -1,5 +1,15 @@
+import {
+  Check,
+  PencilSimpleLine as Edit,
+  Eye,
+  FileXls as FileSpreadsheet,
+  Plus,
+  Printer,
+  Trash as Trash2,
+  Users,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
-import { Plus, Printer, Edit, Trash2, X, Check, FileSpreadsheet, Users, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
 import { staffApi } from '../services/staffService';
 import { Room } from '../types';

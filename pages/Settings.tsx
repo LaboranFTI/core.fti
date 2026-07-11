@@ -1,5 +1,41 @@
+import {
+  Pulse as Activity,
+  WarningCircle as AlertCircle,
+  Warning as AlertTriangle,
+  CalendarBlank as Calendar,
+  Check,
+  CheckCircle,
+  CheckSquare,
+  CaretDown as ChevronDown,
+  CaretUp as ChevronUp,
+  Clock,
+  Database,
+  DownloadSimple as Download,
+  ArrowSquareOut as ExternalLink,
+  Eye,
+  EyeSlash as EyeOff,
+  FileText,
+  FileX as FileWarning,
+  Funnel as Filter,
+  Globe,
+  HardDrive,
+  Info,
+  SignIn as LogIn,
+  Megaphone,
+  Package,
+  Power,
+  ArrowClockwise as RefreshCw,
+  FloppyDisk as Save,
+  HardDrives as Server,
+  GearSix as SettingsIcon,
+  ShieldWarning as ShieldAlert,
+  Square,
+  Trash as Trash2,
+  UploadSimple as Upload,
+  Users,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Database, Server, Globe, Save, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ShieldAlert, Power, Megaphone, Download, Upload, FileText, FileWarning, ChevronDown, ChevronUp, X, Check, Filter, Trash2, AlertTriangle, Info, CheckSquare, Square, Activity, Users, Package, Calendar, HardDrive, Clock, ExternalLink, Settings as SettingsIcon, LogIn } from 'lucide-react';
 import { api } from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 import { APP_VERSION, APP_NAME, APP_FULL_NAME, INSTITUTION_NAME } from '../config';

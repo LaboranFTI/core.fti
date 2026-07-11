@@ -1,10 +1,24 @@
+import {
+  CaretRight as ChevronRight,
+  Cpu,
+  DownloadSimple as Download,
+  PencilSimpleLine as Edit2,
+  FileXls as FileSpreadsheet,
+  Funnel as Filter,
+  HardDrive,
+  Keyboard,
+  SpinnerGap as Loader2,
+  Monitor,
+  Mouse,
+  Package,
+  Plus,
+  FloppyDisk as Save,
+  MagnifyingGlass as Search,
+  Trash as Trash2,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
 import { Room, Role, RoomComputer, Software } from '../types';
-import { 
-  Monitor, Cpu, HardDrive, Keyboard, Mouse, Download, FileSpreadsheet,
-  Plus, Edit2, Trash2, Search, ChevronRight, X, Loader2,
-  Save, Package, Filter
-} from 'lucide-react';
 import { api } from '../services/api';
 import ExcelJS from 'exceljs';
 import ComputerForm from '../components/ComputerForm';

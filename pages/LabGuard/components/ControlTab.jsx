@@ -1,4 +1,4 @@
-import { Layers } from 'lucide-react';
+import { Stack as Layers } from '@phosphor-icons/react';
 import {
   labGuardInsetSurface,
   labGuardInput,

@@ -1,4 +1,4 @@
-import { CheckCircle, Clock3, Mail } from 'lucide-react';
+import { CheckCircle, Clock as Clock3, EnvelopeSimple as Mail } from '@phosphor-icons/react';
 import { Badge } from '../../../components/ui/badge';
 
 interface ArchiveStatusBadgeProps {

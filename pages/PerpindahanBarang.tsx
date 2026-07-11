@@ -1,7 +1,29 @@
 // Page: ItemMovements (Perpindahan Barang)
+import {
+  ArrowDownLeft,
+  ArrowsLeftRight as ArrowRightLeft,
+  ArrowUpRight,
+  Package as Box,
+  CalendarBlank as Calendar,
+  CaretLeft as ChevronLeft,
+  CaretRight as ChevronRight,
+  PencilSimpleLine as Edit,
+  Eye,
+  FileText,
+  Funnel as Filter,
+  Hand,
+  SpinnerGap as Loader2,
+  MapPin,
+  Plus,
+  QrCode,
+  ArrowCounterClockwise as RotateCcw,
+  FloppyDisk as Save,
+  MagnifyingGlass as Search,
+  Trash as Trash2,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef } from 'react';
 import { Role, ItemMovement, Equipment } from '../types';
-import { Search, Filter, Plus, X, ArrowRightLeft, Box, Calendar, MapPin, FileText, Eye, Save, RotateCcw, ArrowUpRight, ArrowDownLeft, Hand, ChevronLeft, ChevronRight, QrCode, Loader2, Trash2, Edit } from 'lucide-react';
 import { api } from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
 import ConfirmModal from '../components/ConfirmModal';

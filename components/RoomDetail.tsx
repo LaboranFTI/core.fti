@@ -1,6 +1,24 @@
+import {
+  CalendarBlank as Calendar,
+  Check,
+  CaretLeft as ChevronLeft,
+  CaretRight as ChevronRight,
+  Clock,
+  Cpu,
+  PencilSimpleLine as Edit2,
+  Eye,
+  HardDrive,
+  Keyboard,
+  MapPin,
+  Monitor,
+  Package,
+  ArrowClockwise as RefreshCw,
+  Trash as Trash2,
+  Users,
+  X
+} from '@phosphor-icons/react';
 import React from 'react';
 import { Room, RoomComputer, Software, LabStaff as StaffType } from '../types';
-import { ChevronLeft, Calendar, Monitor, Cpu, Package, Check, RefreshCw, Edit2, Trash2, X, MapPin, Users, Eye, HardDrive, Keyboard, ChevronRight, Clock } from 'lucide-react';
 const getConditionColor = (condition?: string) => {
   switch (condition) {
     case 'Baik': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';

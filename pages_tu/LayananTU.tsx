@@ -1,3 +1,19 @@
+import {
+  ArrowLeft,
+  Layout,
+  Archive as PhArchive,
+  Buildings as PhBuildings,
+  ChatCircleText as PhChatCircleText,
+  FileLock as PhFileLock,
+  FileMagnifyingGlass as PhFileMagnifyingGlass,
+  FileText as PhFileText,
+  GearSix as PhGearSix,
+  GraduationCap as PhGraduationCap,
+  Medal as PhMedal,
+  MicrophoneStage as PhMicrophoneStage,
+  ShieldCheck as PhShieldCheck,
+  Student as PhStudent
+} from '@phosphor-icons/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Role } from '../types';
 import { ActiveStudentForm } from './components/ActiveStudentForm';
@@ -12,7 +28,6 @@ import { LetterPreview } from './components/LetterPreview';
 import { PageTabs, PageTabItem } from '../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../components/ui/tabs';
 import PageHeader from '../components/PageHeader';
-import { Archive, ArrowLeft, Award, FileText, GraduationCap, Layout, PencilLine, ShieldCheck, Settings } from 'lucide-react';
 import { api } from '../services/api';
 import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
 import { cn } from '../lib/utils';
@@ -167,7 +182,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'aktif',
       title: 'Surat Aktif Kuliah',
       description: 'Form pengajuan surat keterangan status mahasiswa aktif untuk kebutuhan administrasi.',
-      icon: FileText,
+      icon: PhStudent,
       group: 'letter',
       category: 'tata-usaha'
     },
@@ -175,7 +190,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'konseling',
       title: 'Pengantar Konseling',
       description: 'Buat surat pengantar konseling untuk mahasiswa ke Pusat Layanan Konseling Fakultas Psikologi.',
-      icon: FileText,
+      icon: PhChatCircleText,
       group: 'letter',
       category: 'tata-usaha'
     },
@@ -185,7 +200,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       description: isMahasiswa
         ? 'Ajukan surat observasi untuk kegiatan mata kuliah ke instansi tujuan.'
         : 'Form surat ijin observasi untuk kegiatan mata kuliah ke instansi tujuan.',
-      icon: PencilLine,
+      icon: PhBuildings,
       group: 'letter',
       category: 'tata-usaha'
     },
@@ -193,7 +208,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'rekomendasi',
       title: 'Rekomendasi Afirmasi',
       description: 'Form permohonan surat rekomendasi untuk pendaftaran Beasiswa Afirmasi Cemerlang.',
-      icon: Award,
+      icon: PhMedal,
       group: 'letter',
       category: 'tata-usaha'
     },
@@ -201,7 +216,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'penelitian',
       title: 'Surat Penelitian',
       description: 'Buat surat rekomendasi penelitian dengan QR validasi dan pembimbing opsional.',
-      icon: GraduationCap,
+      icon: PhFileMagnifyingGlass,
       group: 'letter',
       category: 'tugas-akhir'
     },
@@ -209,7 +224,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'wawancara-ta',
       title: 'Permohonan Wawancara',
       description: 'Buat surat pengantar atau izin wawancara dengan QR validasi dan pembimbing opsional.',
-      icon: FileText,
+      icon: PhMicrophoneStage,
       group: 'letter',
       category: 'tugas-akhir'
     },
@@ -217,7 +232,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'perizinan-ta',
       title: 'Surat Perizinan',
       description: 'Buat surat permohonan izin tugas akhir dengan keperluan khusus pada bagian Hal.',
-      icon: FileText,
+      icon: PhFileLock,
       group: 'letter',
       category: 'tugas-akhir'
     }
@@ -227,14 +242,14 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       value: 'panel-admin',
       title: 'Kelola Permohonan',
       description: 'Buka panel validasi permohonan, pengaturan surat, dan proses pengiriman.',
-      icon: ShieldCheck,
+      icon: PhShieldCheck,
       group: 'admin'
     },
     {
       value: 'arsip-surat',
       title: 'Arsip Surat',
       description: 'Buka daftar surat tersimpan untuk cetak ulang atau kirim ulang ke email.',
-      icon: Archive,
+      icon: PhArchive,
       group: 'admin'
     }
   ];
@@ -243,8 +258,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     return !isMahasiswa || item.value === 'observasi';
   });
   const letterCategoryTabs: PageTabItem[] = [
-    { value: 'tata-usaha', label: 'Surat Tata Usaha', icon: FileText },
-    { value: 'tugas-akhir', label: 'Surat Tugas Akhir', icon: GraduationCap }
+    { value: 'tata-usaha', label: 'Surat Tata Usaha', icon: PhFileText },
+    { value: 'tugas-akhir', label: 'Surat Tugas Akhir', icon: PhGraduationCap }
   ];
   const availableLetterCategoryTabs = letterCategoryTabs.filter((item) =>
     availableServiceCards.some((card) => card.category === item.value)
@@ -405,11 +420,11 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   }, []);
 
   const adminMainTabs: PageTabItem[] = [
-    { value: 'surat', label: 'Surat', icon: FileText },
-    { value: 'permohonan', label: 'Kelola Permohonan', icon: ShieldCheck },
-    { value: 'arsip', label: 'Arsip Surat TU', icon: Archive },
-    { value: 'arsip-ta', label: 'Arsip Tugas Akhir', icon: GraduationCap },
-    { value: 'konfigurasi', label: 'Konfigurasi Surat', icon: Settings }
+    { value: 'surat', label: 'Surat', icon: PhFileText },
+    { value: 'permohonan', label: 'Kelola Permohonan', icon: PhShieldCheck },
+    { value: 'arsip', label: 'Arsip Surat TU', icon: PhArchive },
+    { value: 'arsip-ta', label: 'Arsip Tugas Akhir', icon: PhGraduationCap },
+    { value: 'konfigurasi', label: 'Konfigurasi Surat', icon: PhGearSix }
   ];
 
   const renderServiceCard = (item: LetterServiceCard) => {
@@ -569,7 +584,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
         return null;
     }
   };
-  const SelectedServiceIcon = selectedService?.icon || FileText;
+  const SelectedServiceIcon = selectedService?.icon || PhFileText;
   const isServiceMenuOpen = !selectedService;
   const handleLetterCategoryChange = (value: string) => {
     setActiveLetterCategory(value as LetterCategoryId);

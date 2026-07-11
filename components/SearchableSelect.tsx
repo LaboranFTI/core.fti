@@ -1,5 +1,5 @@
+import { CaretDown as ChevronDown, MagnifyingGlass as Search } from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown } from 'lucide-react';
 
 export interface SelectOption {
   value: string;

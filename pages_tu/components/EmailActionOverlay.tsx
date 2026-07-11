@@ -1,5 +1,5 @@
+import { SpinnerGap as Loader2, EnvelopeSimple as Mail } from '@phosphor-icons/react';
 import React from 'react';
-import { Loader2, Mail } from 'lucide-react';
 
 interface EmailActionOverlayProps {
   open: boolean;

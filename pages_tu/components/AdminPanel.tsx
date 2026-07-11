@@ -1,3 +1,21 @@
+import {
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  DownloadSimple as Download,
+  Eye,
+  FileText,
+  SpinnerGap as Loader2,
+  EnvelopeSimple as Mail,
+  PencilSimpleLine as Pencil,
+  Plus,
+  Printer,
+  FloppyDisk as Save,
+  GearSix as Settings,
+  Trash as Trash2,
+  UploadSimple as Upload,
+  X
+} from '@phosphor-icons/react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { ActiveStudentRequest, ObservationRequest, SuRekRequest, CounselingRequest, LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { Button } from '../../components/ui/button';
@@ -19,7 +37,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Textarea } from '../../components/ui/textarea';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download, Trash2, Plus, Pencil, X } from 'lucide-react';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
 import { EmailActionOverlay } from './EmailActionOverlay';

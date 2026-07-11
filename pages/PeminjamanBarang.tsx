@@ -1,6 +1,24 @@
+import {
+  Package as Box,
+  CalendarBlank as Calendar,
+  Check,
+  Clock,
+  CreditCard,
+  PencilSimpleLine as Edit,
+  Eye,
+  Funnel as Filter,
+  SpinnerGap as Loader2,
+  MapPin,
+  Plus,
+  QrCode,
+  FloppyDisk as Save,
+  MagnifyingGlass as Search,
+  Trash as Trash2,
+  User,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loan, Equipment, LabStaff, Role, ToastMessage } from '../types';
-import { Search, Filter, Plus, Check, X, Clock, Box, User, Save, Trash2, CreditCard, Eye, Calendar, QrCode, MapPin, Loader2, Edit } from 'lucide-react';
 import { inventoryApi } from '../services/inventoryService';
 import { loansApi } from '../services/loanService';
 import { staffApi } from '../services/staffService';

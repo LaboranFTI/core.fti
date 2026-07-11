@@ -1,10 +1,22 @@
+import {
+  CheckCircle as CheckCircle2,
+  DownloadSimple as Download,
+  FileText,
+  Key,
+  SpinnerGap as Loader2,
+  EnvelopeSimple as Mail,
+  Plus,
+  Printer,
+  MagnifyingGlass as Search,
+  PaperPlaneTilt as Send,
+  XCircle
+} from '@phosphor-icons/react';
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
-import { FileText, Send, CheckCircle2, Loader2, Search, XCircle, Download, Printer, Mail, Key, Plus } from 'lucide-react';
 import { api } from '../../services/api';
 import { API_BASE_URL } from '../../config';
 import { LetterFormHeader, LetterModeTabs } from './LetterFormControls';

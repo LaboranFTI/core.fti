@@ -1,6 +1,28 @@
+import {
+  WarningCircle as AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowsDownUp as ArrowUpDown,
+  Package as Box,
+  Camera,
+  Check,
+  CaretDown as ChevronDown,
+  DownloadSimple as Download,
+  PencilSimpleLine as Edit,
+  FileXls as FileSpreadsheet,
+  FileText,
+  Funnel as Filter,
+  SpinnerGap as Loader2,
+  MapPin,
+  Plus,
+  Printer,
+  QrCode,
+  MagnifyingGlass as Search,
+  Trash as Trash2,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
 import { Equipment, Role } from '../types';
-import { Search, Plus, Filter, Edit, Trash2, X, Check, AlertCircle, Box, FileSpreadsheet, Download, QrCode, Printer, FileText, ChevronDown, Camera, Loader2, ArrowUpDown, ArrowUp, ArrowDown, MapPin } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import QRCode from "react-qr-code";
 import { inventoryApi } from '../services/inventoryService';
@@ -817,7 +839,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
       <PageHeader
         title="Inventaris Barang"
         description={canManageInventory ? 'Kelola daftar aset dan barang FTI' : 'Lihat daftar aset dan barang FTI'}
-        className="print:hidden"
+        className="overflow-visible print:hidden"
         actions={canManageInventory ? (
         <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:items-center">
             <div className="relative lg:col-span-1">

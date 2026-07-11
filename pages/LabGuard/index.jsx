@@ -1,4 +1,4 @@
-import { AlertCircle, Activity, RefreshCcw, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { Pulse as Activity, WarningCircle as AlertCircle, ArrowCounterClockwise as RefreshCcw, GearSix as SettingsIcon, ShieldWarning as ShieldAlert } from '@phosphor-icons/react';
 import PageHeader from '../../components/PageHeader';
 import { Tabs } from '../../components/ui/tabs';
 import { PageTabs } from '../../components/ui/page-tabs';

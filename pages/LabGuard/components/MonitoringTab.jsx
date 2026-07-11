@@ -1,4 +1,4 @@
-import { Search, Unlock, Lock, WifiOff } from 'lucide-react';
+import { Lock, MagnifyingGlass as Search, LockOpen as Unlock, WifiSlash as WifiOff } from '@phosphor-icons/react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import {
   labGuardInsetSurface,

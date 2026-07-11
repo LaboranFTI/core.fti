@@ -1,6 +1,6 @@
+import { Check, CaretLeft as ChevronLeft, SpinnerGap as Loader2, UploadSimple as Upload } from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
 import { Room } from '../types';
-import { Loader2, Upload, Check, ChevronLeft } from 'lucide-react';
 import SearchableSelect, { SelectOption } from './SearchableSelect';
 import { Button, buttonVariants } from './ui/button';
 import { cn } from '../lib/utils';

@@ -1,6 +1,6 @@
+import { CheckCircle as CheckCircle2, UploadSimple as Upload } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
-import { Upload, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
 
 export function MobileUpload({ sessionId }: { sessionId: string }) {

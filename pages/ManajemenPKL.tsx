@@ -1,5 +1,18 @@
+import {
+  Check,
+  DownloadSimple as Download,
+  PencilSimpleLine as Edit,
+  Eye,
+  File,
+  FileText,
+  Plus,
+  Printer,
+  Trash as Trash2,
+  UploadSimple as Upload,
+  Users,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
-import { Plus, Printer, Download, Edit, Trash2, X, Check, FileText, Upload, Users, File, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
 import { pklApi } from '../services/pklService';
 import { staffApi } from '../services/staffService';

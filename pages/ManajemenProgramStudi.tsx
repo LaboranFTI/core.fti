@@ -1,5 +1,13 @@
+import {
+  WarningCircle as AlertCircle,
+  PencilSimpleLine as Edit2,
+  GraduationCap,
+  SpinnerGap as Loader2,
+  Plus,
+  Trash as Trash2,
+  X
+} from '@phosphor-icons/react';
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, Edit2, GraduationCap, Loader2, Plus, Trash2, X } from 'lucide-react';
 
 import ConfirmModal from '../components/ConfirmModal';
 import PageCard from '../components/PageCard';

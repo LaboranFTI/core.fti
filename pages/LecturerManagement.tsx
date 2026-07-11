@@ -1,5 +1,16 @@
+import {
+  WarningCircle as AlertCircle,
+  CaretLeft as ChevronLeft,
+  CaretRight as ChevronRight,
+  PencilSimpleLine as Edit2,
+  SpinnerGap as Loader2,
+  Plus,
+  MagnifyingGlass as Search,
+  Trash as Trash2,
+  Users,
+  X
+} from '@phosphor-icons/react';
 import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, X, AlertCircle, Loader2, Users, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useLecturers, Lecturer } from '../hooks/useLecturers';
 import { usePagination } from '../hooks/usePagination';
 import { api } from '../services/api';
