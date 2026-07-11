@@ -3,7 +3,7 @@ import { Equipment, Role } from '../types';
 import { Search, Plus, Filter, Edit, Trash2, X, Check, AlertCircle, Box, FileSpreadsheet, Download, QrCode, Printer, FileText, ChevronDown, Camera, Loader2, ArrowUpDown, ArrowUp, ArrowDown, MapPin } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import QRCode from "react-qr-code";
-import { api } from '../services/api';
+import { inventoryApi } from '../services/inventoryService';
 import QRScannerModal from '../components/QRScannerModal'; // Assuming this is a reusable component
 import ConfirmModal from '../components/ConfirmModal'; // Assuming this is a reusable component
 import { TableSkeleton } from '../components/Skeleton';
@@ -270,10 +270,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     setIsSaving(true);
     try {
       if (editingItem) {
-        const res = await api(`/api/inventory/${editingItem.id}`, {
-          method: 'PUT',
-          data: formData
-        });
+        const res = await inventoryApi.update(editingItem.id, formData);
         if (res.ok) {
           await fetchItems();
           setIsModalOpen(false);
@@ -288,10 +285,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
             setIsSaving(false);
             return;
         }
-        const res = await api('/api/inventory', {
-          method: 'POST',
-          data: formData
-        });
+        const res = await inventoryApi.create(formData);
         if (res.ok) {
           await fetchItems();
           setIsModalOpen(false);
@@ -476,10 +470,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
 
               for (const item of newItems) {
                   try {
-                      const res = await api('/api/inventory', {
-                          method: 'POST',
-                          data: item
-                      });
+                      const res = await inventoryApi.create(item);
                       if (res.ok) {
                           successCount++;
                       } else {
@@ -534,7 +525,7 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     if (deleteTargetId) {
       setIsDeleting(true);
       try {
-        await api(`/api/inventory/${deleteTargetId}`, { method: 'DELETE' });
+        await inventoryApi.delete(deleteTargetId);
         await fetchItems();
         setShowDeleteModal(false);
         setDeleteTargetId(null);

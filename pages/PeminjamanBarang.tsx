@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loan, Equipment, LabStaff, Role, ToastMessage } from '../types';
 import { Search, Filter, Plus, Check, X, Clock, Box, User, Save, Trash2, CreditCard, Eye, Calendar, QrCode, MapPin, Loader2, Edit } from 'lucide-react';
-import { api } from '../services/api';
+import { inventoryApi } from '../services/inventoryService';
+import { loansApi } from '../services/loanService';
+import { staffApi } from '../services/staffService';
 import QRScannerModal from '../components/QRScannerModal';
 import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
 import { formatDateID } from '../src/utils/formatters';
@@ -165,8 +167,8 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
   const fetchData = async () => {
     try {
       const [loansRes, eqRes] = await Promise.all([
-        api('/api/loans'),
-        api('/api/inventory')
+        loansApi.list(),
+        inventoryApi.list()
       ]);
       if (loansRes.ok) setLoans(await loansRes.json());
       if (eqRes.ok) {
@@ -178,7 +180,7 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
 
   const fetchStaff = async () => {
     try {
-      const staffRes = await api('/api/staff');
+      const staffRes = await staffApi.list();
       if (staffRes.ok) {
         const staffData = await staffRes.json();
         // Filter only active staff (status = 'Aktif')
@@ -252,16 +254,13 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
     try {
       // 1. Bulk Update Loan Status (Menggunakan endpoint yang benar di server.js)
       const loanIds = loans.map(l => l.id);
-      const resLoans = await api('/api/loans/return', {
-        method: 'PUT',
-        data: {
-          loanIds,
-          returnDate, 
-          returnTime, 
-          returnOfficer,
-          returnLocation,
-          condition
-        }
+      const resLoans = await loansApi.returnBulk({
+        loanIds,
+        returnDate,
+        returnTime,
+        returnOfficer,
+        returnLocation,
+        condition
       });
 
       if (!resLoans.ok) throw new Error(`Gagal memproses pengembalian`);
@@ -306,10 +305,7 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
     if (confirm(`Hapus riwayat peminjaman untuk ${groupLoans.length} barang ini? Data tidak dapat dikembalikan.`)) {
       setIsDeleting(true);
       try {
-        await api('/api/loans/group', {
-          method: 'DELETE',
-          data: { loanIds: groupLoans.map(l => l.id) }
-        });
+        await loansApi.deleteGroup(groupLoans.map(l => l.id));
         await fetchData();
         showToast("Data peminjaman dihapus.", "info");
         setSelectedGroup(null);
@@ -372,18 +368,15 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
 
     try {
       if (editingTransactionId) {
-        const res = await api(`/api/loans/group/${editingTransactionId}`, {
-          method: 'PUT',
-          data: {
-            equipmentIds: selectedIds,
-            borrowerName: formData.borrowerName,
-            nim: formData.nim,
-            guarantee: formData.guarantee,
-            borrowDate: formData.borrowDate,
-            borrowTime: formData.borrowTime,
-            borrowOfficer: formData.borrowOfficer,
-            location: formData.location
-          }
+        const res = await loansApi.updateGroup(editingTransactionId, {
+          equipmentIds: selectedIds,
+          borrowerName: formData.borrowerName,
+          nim: formData.nim,
+          guarantee: formData.guarantee,
+          borrowDate: formData.borrowDate,
+          borrowTime: formData.borrowTime,
+          borrowOfficer: formData.borrowOfficer,
+          location: formData.location
         });
         if (res.ok) {
           fetchData();
@@ -394,18 +387,15 @@ const PeminjamanBarang: React.FC<PeminjamanBarangProps> = ({ showToast }) => {
           return;
         }
       } else {
-        const res = await api('/api/loans', {
-          method: 'POST',
-          data: {
-            equipmentIds: selectedIds,
-            borrowerName: formData.borrowerName,
-            nim: formData.nim,
-            guarantee: formData.guarantee,
-            borrowDate: formData.borrowDate,
-            borrowTime: formData.borrowTime,
-            borrowOfficer: formData.borrowOfficer,
-            location: formData.location
-          }
+        const res = await loansApi.create({
+          equipmentIds: selectedIds,
+          borrowerName: formData.borrowerName,
+          nim: formData.nim,
+          guarantee: formData.guarantee,
+          borrowDate: formData.borrowDate,
+          borrowTime: formData.borrowTime,
+          borrowOfficer: formData.borrowOfficer,
+          location: formData.location
         });
         if (res.ok) {
           fetchData();

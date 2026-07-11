@@ -2,7 +2,6 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
-import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,6 +16,68 @@ import {
   getStudyProgramCodeFromNim,
   mapStudyProgramRow
 } from '../../utils/activeStudentLetter.js';
+import {
+  DEFAULT_COUNSELING_RECIPIENT_NAME,
+  DEFAULT_COUNSELING_REFERRAL_UNIT,
+  DEFAULT_COUNSELING_SUBJECT,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND,
+  DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND,
+  DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+  DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  INTERVIEW_LETTER_KIND,
+  LETTER_TYPE_TO_CLIENT_KEY,
+  LETTER_TYPE_TO_CODE,
+  OBSERVATION_ACCESS_CODE_ALPHABET,
+  OBSERVATION_ACCESS_CODE_PREFIX,
+  PERMISSION_ACCESS_CODE_PREFIX,
+  PERMISSION_LETTER_KIND,
+  QR_DOWNLOAD_TOKEN_TTL_HOURS,
+  RESEARCH_ACCESS_CODE_PREFIX,
+  RESEARCH_LETTER_KIND,
+  SHARED_LETTER_BACKGROUND_TYPE,
+  SUREK_ACCESS_CODE_PREFIX,
+  TU_ACCESS_ROLES,
+  TU_ADMIN_ROLES,
+  TU_SETTINGS_KEYS,
+  TU_SUBMIT_ROLES,
+  VALIDATION_TOKEN_BYTES
+} from './lib/constants.js';
+import {
+  applyOfficialLetterTypography,
+  buildLetterBackgroundsPayload,
+  buildLetterLayoutsPayload,
+  clampMarginMm,
+  createEmptyLetterBackgrounds,
+  createEmptyLetterLayouts,
+  DEFAULT_LETTER_LAYOUT_MM,
+  getSharedLetterBackground,
+  normalizeLetterLayout,
+  OFFICIAL_LETTER_TYPOGRAPHY_CSS
+} from './lib/letterLayout.js';
+import {
+  createObservationAccessCode,
+  createQrDownloadToken,
+  createResearchAccessCode,
+  createSuRekAccessCode,
+  createValidationToken,
+  getQrDownloadExpiry,
+  hashQrDownloadToken,
+  isValidEmailAddress,
+  normalizeObservationAccessCode,
+  normalizeResearchAccessCode,
+  normalizeSuRekAccessCode,
+  randomAccessCodeSegment
+} from './lib/tokens.js';
+import { escapeXml, maskDate, maskEmail, maskNim } from './lib/sanitize.js';
+import { createTuSettingsService } from './services/settings.service.js';
 
 
 
@@ -27,35 +88,6 @@ const QR_CENTER_LOGO_PATH = path.join(__dirname, '..', '..', '..', 'src', 'asset
 const uploadSessions = new Map();
 const qrDownloadSessions = new Map();
 
-const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
-const TU_ADMIN_ROLES = ['Admin', 'Admin TU'];
-const TU_SUBMIT_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
-const TU_SETTINGS_KEYS = [
-  'tu_dean_signature_base64',
-  'tu_faculty_stamp_base64',
-  'tu_current_semester_code',
-  'tu_counseling_subject',
-  'tu_counseling_recipient_name',
-  'tu_counseling_referral_unit',
-  'tu_research_assignment_type',
-  'tu_research_advisor_title',
-  'tu_research_advisor_title_first',
-  'tu_research_advisor_title_second',
-  'tu_interview_assignment_type',
-  'tu_interview_advisor_title',
-  'tu_interview_advisor_title_first',
-  'tu_interview_advisor_title_second',
-  'tu_permission_assignment_type',
-  'tu_permission_advisor_title',
-  'tu_permission_advisor_title_first',
-  'tu_permission_advisor_title_second',
-  'tu_su_rek_yang_terhormat',
-  'tu_su_rek_berdasarkan_no',
-  'tu_su_rek_perihal',
-  'tu_su_rek_lampiran',
-  'tu_su_rek_tembusan'
-];
-const QR_DOWNLOAD_TOKEN_TTL_HOURS = 24;
 const publicObservationAccessLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
@@ -70,181 +102,6 @@ const publicValidationLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Terlalu banyak request validasi. Silakan coba lagi beberapa menit lagi.' }
 });
-const LETTER_TYPE_TO_CLIENT_KEY = {
-  'active-student': 'activeStudent',
-  observation: 'observation',
-  counseling: 'counseling',
-  research: 'research',
-  'su-rek': 'suRek'
-};
-const SHARED_LETTER_BACKGROUND_TYPE = 'document';
-const LETTER_TYPE_TO_CODE = {
-  'active-student': 'S.Ket',
-  observation: 'FTI-OBS',
-  counseling: 'FTI',
-  research: 'FTI/Penelitian',
-  interview: 'FTI/Wawancara',
-  permission: 'FTI/Perizinan',
-  'su-rek': 'Su.Rek'
-};
-const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
-const DEFAULT_COUNSELING_RECIPIENT_NAME = [
-  'Pusat Layanan Konseling',
-  'Fakultas Psikologi',
-  'Universitas Kristen Satya Wacana',
-  'Salatiga'
-].join('\n');
-const DEFAULT_COUNSELING_REFERRAL_UNIT = 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.';
-const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
-const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
-const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
-const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
-const DEFAULT_INTERVIEW_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
-const DEFAULT_INTERVIEW_ADVISOR_TITLE = 'Dosen Pembimbing';
-const DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
-const DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
-const DEFAULT_PERMISSION_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
-const DEFAULT_PERMISSION_ADVISOR_TITLE = 'Dosen Pembimbing';
-const DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
-const DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
-const RESEARCH_LETTER_KIND = 'research';
-const INTERVIEW_LETTER_KIND = 'interview';
-const PERMISSION_LETTER_KIND = 'permission';
-const OBSERVATION_ACCESS_CODE_PREFIX = 'OBS';
-const RESEARCH_ACCESS_CODE_PREFIX = 'PEN';
-const PERMISSION_ACCESS_CODE_PREFIX = 'IZN';
-const SUREK_ACCESS_CODE_PREFIX = 'REK';
-const OBSERVATION_ACCESS_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VALIDATION_TOKEN_BYTES = 24;
-
-const createQrDownloadToken = () => crypto.randomBytes(32).toString('base64url');
-const hashQrDownloadToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
-const getQrDownloadExpiry = () => new Date(Date.now() + QR_DOWNLOAD_TOKEN_TTL_HOURS * 60 * 60 * 1000);
-const createValidationToken = () => crypto.randomBytes(VALIDATION_TOKEN_BYTES).toString('base64url');
-const randomAccessCodeSegment = () =>
-  Array.from({ length: 4 }, () => OBSERVATION_ACCESS_CODE_ALPHABET[crypto.randomInt(0, OBSERVATION_ACCESS_CODE_ALPHABET.length)]).join('');
-const createObservationAccessCode = () => `${OBSERVATION_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
-const normalizeObservationAccessCode = (value) => {
-  const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (compactCode.length !== 11 || !compactCode.startsWith(OBSERVATION_ACCESS_CODE_PREFIX)) {
-    return '';
-  }
-
-  const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
-  return /^OBS-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
-};
-const createResearchAccessCode = (letterKind = RESEARCH_LETTER_KIND) =>
-  `${letterKind === PERMISSION_LETTER_KIND ? PERMISSION_ACCESS_CODE_PREFIX : RESEARCH_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
-const normalizeResearchAccessCode = (value) => {
-  const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const isKnownPrefix = compactCode.startsWith(RESEARCH_ACCESS_CODE_PREFIX) || compactCode.startsWith(PERMISSION_ACCESS_CODE_PREFIX);
-  if (compactCode.length !== 11 || !isKnownPrefix) {
-    return '';
-  }
-
-  const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
-  return /^(PEN|IZN)-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
-};
-const createSuRekAccessCode = () => `${SUREK_ACCESS_CODE_PREFIX}-${randomAccessCodeSegment()}-${randomAccessCodeSegment()}`;
-const normalizeSuRekAccessCode = (value) => {
-  const compactCode = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (compactCode.length !== 11 || !compactCode.startsWith(SUREK_ACCESS_CODE_PREFIX)) {
-    return '';
-  }
-
-  const normalizedCode = `${compactCode.slice(0, 3)}-${compactCode.slice(3, 7)}-${compactCode.slice(7, 11)}`;
-  return /^REK-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(normalizedCode) ? normalizedCode : '';
-};
-const isValidEmailAddress = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
-
-const createEmptyLetterBackgrounds = () => ({
-  document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  research: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  suRek: { imageBase64: '', fileName: '', mimeType: 'image/png' }
-});
-
-const DEFAULT_LETTER_LAYOUT_MM = Object.freeze({
-  activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
-});
-const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
-        body {
-            font-family: Calibri, Arial, sans-serif;
-        }
-
-        .content,
-        .letter-meta,
-        .subject-meta,
-        .reference-meta,
-        .recipient-block,
-        .body-text,
-        .student-data,
-        .student-list,
-        .signature-content,
-        .signature-lines,
-        .carbon-copy-block {
-            font-family: Calibri, Arial, sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-        }
-
-        .content p,
-        .content td,
-        .content th,
-        .content li {
-            font-size: 11pt;
-            line-height: 1.5;
-        }
-
-        .title {
-            font-size: 12pt;
-            line-height: 1.5;
-        }
-
-        .validation-qr span {
-            font-size: 7.5pt;
-            line-height: 1.1;
-        }
-`;
-
-const createEmptyLetterLayouts = () => ({
-  activeStudent: { ...DEFAULT_LETTER_LAYOUT_MM.activeStudent },
-  observation: { ...DEFAULT_LETTER_LAYOUT_MM.observation },
-  counseling: { ...DEFAULT_LETTER_LAYOUT_MM.counseling },
-  research: { ...DEFAULT_LETTER_LAYOUT_MM.research },
-  suRek: { ...DEFAULT_LETTER_LAYOUT_MM.suRek }
-});
-
-const clampMarginMm = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(80, Math.max(0, Number(parsed.toFixed(2))));
-};
-
-const normalizeLetterLayout = (layout, fallback) => ({
-  marginTopMm: clampMarginMm(layout?.marginTopMm, fallback.marginTopMm),
-  marginRightMm: clampMarginMm(layout?.marginRightMm, fallback.marginRightMm),
-  marginBottomMm: clampMarginMm(layout?.marginBottomMm, fallback.marginBottomMm),
-  marginLeftMm: clampMarginMm(layout?.marginLeftMm, fallback.marginLeftMm)
-});
-
-const applyOfficialLetterTypography = (htmlContent) => {
-  if (!htmlContent || htmlContent.includes('OFFICIAL_LETTER_TYPOGRAPHY_CSS')) {
-    return htmlContent;
-  }
-
-  return htmlContent.replace(
-    /<\/style>/i,
-    `\n        /* OFFICIAL_LETTER_TYPOGRAPHY_CSS */\n${OFFICIAL_LETTER_TYPOGRAPHY_CSS}\n    </style>`
-  );
-};
-
 let tuInfrastructurePromise = null;
 let qrCenterLogoDataUrlPromise = null;
 
@@ -1107,14 +964,6 @@ const buildPublicAppBaseUrl = (req) => {
   return configuredBaseUrl.replace(/\/$/, '');
 };
 
-const escapeXml = (value) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-
 const getQrCenterLogoDataUrl = async () => {
   if (!qrCenterLogoDataUrlPromise) {
     qrCenterLogoDataUrlPromise = fs.readFile(QR_CENTER_LOGO_PATH)
@@ -1159,23 +1008,6 @@ const createQrSvgDataUrl = async (value) => {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${size}v${size}H0z"/><g fill="#000">${rects.join('')}</g>${logoMarkup}</svg>`;
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
-};
-
-const maskEmail = (email) => {
-  if (!email || typeof email !== 'string' || !email.includes('@')) return email;
-  const [local, domain] = email.split('@');
-  if (local.length <= 3) return `***@${domain}`;
-  return `${local.substring(0, 3)}***@${domain}`;
-};
-
-const maskNim = (nim) => {
-  if (!nim || typeof nim !== 'string' || nim.length < 5) return nim;
-  return `${nim.substring(0, 4)}****`;
-};
-
-const maskDate = (dateStr) => {
-  if (!dateStr || typeof dateStr !== 'string') return dateStr;
-  return '***DISENSOR***';
 };
 
 const formatProgramLevelShort = (level) => {
@@ -1298,85 +1130,6 @@ const buildLetterValidationPayload = (type, row, req) => {
       : null,
     carbonCopies: row.carbon_copies || []
   };
-};
-
-const buildLetterBackgroundsPayload = (rows) => {
-  const backgrounds = createEmptyLetterBackgrounds();
-  let sharedBackground = null;
-
-  for (const row of rows) {
-    const asset = {
-      imageBase64: row.image_base64 || '',
-      fileName: row.file_name || '',
-      mimeType: row.mime_type || 'image/png'
-    };
-
-    if (row.letter_type === SHARED_LETTER_BACKGROUND_TYPE) {
-      sharedBackground = asset;
-      continue;
-    }
-
-    const clientKey = LETTER_TYPE_TO_CLIENT_KEY[row.letter_type];
-    if (!clientKey) continue;
-
-    backgrounds[clientKey] = asset;
-  }
-
-  sharedBackground =
-    sharedBackground ||
-    (backgrounds.activeStudent.imageBase64 ? backgrounds.activeStudent : null) ||
-    (backgrounds.observation.imageBase64 ? backgrounds.observation : null) ||
-    (backgrounds.counseling.imageBase64 ? backgrounds.counseling : null) ||
-    (backgrounds.research.imageBase64 ? backgrounds.research : null) ||
-    (backgrounds.suRek.imageBase64 ? backgrounds.suRek : null) ||
-    backgrounds.document;
-
-  backgrounds.document = sharedBackground;
-  backgrounds.activeStudent = sharedBackground;
-  backgrounds.observation = sharedBackground;
-  backgrounds.counseling = sharedBackground;
-  backgrounds.research = sharedBackground;
-  backgrounds.suRek = sharedBackground;
-
-  return backgrounds;
-};
-
-const getSharedLetterBackground = (letterBackgrounds) => {
-  if (!letterBackgrounds || typeof letterBackgrounds !== 'object') {
-    return createEmptyLetterBackgrounds().document;
-  }
-
-  return letterBackgrounds.document?.imageBase64
-    ? letterBackgrounds.document
-    : letterBackgrounds.activeStudent?.imageBase64
-      ? letterBackgrounds.activeStudent
-      : letterBackgrounds.observation?.imageBase64
-        ? letterBackgrounds.observation
-        : letterBackgrounds.counseling?.imageBase64
-          ? letterBackgrounds.counseling
-          : letterBackgrounds.research?.imageBase64
-            ? letterBackgrounds.research
-            : letterBackgrounds.suRek?.imageBase64
-              ? letterBackgrounds.suRek
-              : createEmptyLetterBackgrounds().document;
-};
-
-const buildLetterLayoutsPayload = (rows) => {
-  const layouts = createEmptyLetterLayouts();
-
-  for (const row of rows) {
-    const clientKey = LETTER_TYPE_TO_CLIENT_KEY[row.letter_type];
-    if (!clientKey) continue;
-
-    layouts[clientKey] = normalizeLetterLayout({
-      marginTopMm: row.margin_top_mm,
-      marginRightMm: row.margin_right_mm,
-      marginBottomMm: row.margin_bottom_mm,
-      marginLeftMm: row.margin_left_mm
-    }, DEFAULT_LETTER_LAYOUT_MM[clientKey]);
-  }
-
-  return layouts;
 };
 
 const normalizeObservationStudents = (students) => {
@@ -1644,120 +1397,20 @@ const reserveLetterNumber = async (client, type, date) => {
   return { nextSequence, letterNumber };
 };
 
-const upsertSystemSetting = async (client, key, value) => {
-  await client.query(
-    `INSERT INTO system_settings (key, value) VALUES ($1, $2)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-    [key, value]
-  );
-};
-
-const getTuSettingsPayload = async () => {
-  await ensureTuInfrastructure();
-  const [settingsResult, assetResult, layoutResult] = await Promise.all([
-    pool.query(`SELECT key, value FROM system_settings WHERE key = ANY($1)`, [TU_SETTINGS_KEYS]),
-    pool.query(`SELECT letter_type, file_name, mime_type, image_base64 FROM tu_letter_backgrounds`),
-    pool.query(`SELECT letter_type, margin_top_mm, margin_right_mm, margin_bottom_mm, margin_left_mm FROM tu_letter_layouts`)
-  ]);
-
-  const settings = settingsResult.rows.reduce((acc, row) => {
-    acc[row.key] = row.value;
-    return acc;
-  }, {});
-
-  return {
-    signatureBase64: settings.tu_dean_signature_base64 || '',
-    stampBase64: settings.tu_faculty_stamp_base64 || '',
-    currentSemesterCode: settings.tu_current_semester_code || '',
-    counselingSubject: settings.tu_counseling_subject || DEFAULT_COUNSELING_SUBJECT,
-    counselingRecipientName: settings.tu_counseling_recipient_name || DEFAULT_COUNSELING_RECIPIENT_NAME,
-    counselingReferralUnit: settings.tu_counseling_referral_unit || DEFAULT_COUNSELING_REFERRAL_UNIT,
-    researchAssignmentType: settings.tu_research_assignment_type || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
-    researchAdvisorTitle: settings.tu_research_advisor_title || DEFAULT_RESEARCH_ADVISOR_TITLE,
-    researchAdvisorTitleFirst: settings.tu_research_advisor_title_first || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
-    researchAdvisorTitleSecond: settings.tu_research_advisor_title_second || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
-    interviewAssignmentType: settings.tu_interview_assignment_type || DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
-    interviewAdvisorTitle: settings.tu_interview_advisor_title || DEFAULT_INTERVIEW_ADVISOR_TITLE,
-    interviewAdvisorTitleFirst: settings.tu_interview_advisor_title_first || DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
-    interviewAdvisorTitleSecond: settings.tu_interview_advisor_title_second || DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND,
-    permissionAssignmentType: settings.tu_permission_assignment_type || DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
-    permissionAdvisorTitle: settings.tu_permission_advisor_title || DEFAULT_PERMISSION_ADVISOR_TITLE,
-    permissionAdvisorTitleFirst: settings.tu_permission_advisor_title_first || DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
-    permissionAdvisorTitleSecond: settings.tu_permission_advisor_title_second || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND,
-    suRekYangTerhormat: settings.tu_su_rek_yang_terhormat || 'Wakil Rektor Bidang Kerjasama dan Kealumnian\nUniversitas Kristen Satya Wacana\ndi tempat',
-    suRekBerdasarkanNo: settings.tu_su_rek_berdasarkan_no || '008/WR-KK/02/2025',
-    suRekPerihal: settings.tu_su_rek_perihal || 'Beasiswa Afirmasi Cemerlang, ACPOS dan ACPA',
-    suRekLampiran: settings.tu_su_rek_lampiran || '1 bendel',
-    suRekTembusan: (() => { try { return JSON.parse(settings.tu_su_rek_tembusan || '[]'); } catch { return []; } })(),
-    letterBackgrounds: buildLetterBackgroundsPayload(assetResult.rows),
-    letterLayouts: buildLetterLayoutsPayload(layoutResult.rows)
-  };
-};
-
-const saveLetterBackgrounds = async (client, letterBackgrounds) => {
-  await ensureTuInfrastructure();
-  if (!letterBackgrounds || typeof letterBackgrounds !== 'object') return;
-
-  const asset = getSharedLetterBackground(letterBackgrounds);
-
-  if (asset.imageBase64) {
-    await client.query(
-      `INSERT INTO tu_letter_backgrounds (letter_type, file_name, mime_type, image_base64)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (letter_type)
-       DO UPDATE SET
-         file_name = EXCLUDED.file_name,
-         mime_type = EXCLUDED.mime_type,
-         image_base64 = EXCLUDED.image_base64,
-         updated_at = CURRENT_TIMESTAMP`,
-      [SHARED_LETTER_BACKGROUND_TYPE, asset.fileName || '', asset.mimeType || 'image/png', asset.imageBase64]
-    );
-  } else {
-    await client.query(
-      `DELETE FROM tu_letter_backgrounds WHERE letter_type = $1`,
-      [SHARED_LETTER_BACKGROUND_TYPE]
-    );
-  }
-
-  await client.query(
-    `DELETE FROM tu_letter_backgrounds WHERE letter_type = ANY($1::text[])`,
-    [Object.keys(LETTER_TYPE_TO_CLIENT_KEY)]
-  );
-};
-
-const saveLetterLayouts = async (client, letterLayouts) => {
-  await ensureTuInfrastructure();
-
-  for (const [letterType, clientKey] of Object.entries(LETTER_TYPE_TO_CLIENT_KEY)) {
-    const fallback = DEFAULT_LETTER_LAYOUT_MM[clientKey];
-    const layout = normalizeLetterLayout(letterLayouts?.[clientKey], fallback);
-
-    await client.query(
-      `INSERT INTO tu_letter_layouts (
-         letter_type,
-         margin_top_mm,
-         margin_right_mm,
-         margin_bottom_mm,
-         margin_left_mm
-       )
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (letter_type)
-      DO UPDATE SET
-         margin_top_mm = EXCLUDED.margin_top_mm,
-         margin_right_mm = EXCLUDED.margin_right_mm,
-         margin_bottom_mm = EXCLUDED.margin_bottom_mm,
-         margin_left_mm = EXCLUDED.margin_left_mm,
-         updated_at = CURRENT_TIMESTAMP`,
-      [
-        letterType,
-        layout.marginTopMm,
-        layout.marginRightMm,
-        layout.marginBottomMm,
-        layout.marginLeftMm
-      ]
-    );
-  }
-};
+const {
+  upsertSystemSetting,
+  getTuSettingsPayload,
+  saveLetterBackgrounds,
+  saveLetterLayouts
+} = createTuSettingsService({
+  pool,
+  ensureTuInfrastructure,
+  buildLetterBackgroundsPayload,
+  buildLetterLayoutsPayload,
+  getSharedLetterBackground,
+  normalizeLetterLayout,
+  defaultLetterLayoutMm: DEFAULT_LETTER_LAYOUT_MM
+});
 
 // Helper: Generate PDF Buffer menggunakan Puppeteer
 const generatePdfBuffer = async (htmlContent) => {
@@ -2044,7 +1697,6 @@ const letterConfig = {
     template: 'suratWawancaraV2.html',
     subject: 'Surat Izin Wawancara',
     pdfFilename: 'Surat_Izin_Wawancara',
-    assetKey: 'research',
     emailBody: `
       <p>Surat Izin Wawancara telah diproses oleh Tata Usaha FTI UKSW.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
@@ -2101,7 +1753,6 @@ const letterConfig = {
     template: 'suratPerizinanV2.html',
     subject: 'Surat Perizinan',
     pdfFilename: 'Surat_Perizinan',
-    assetKey: 'research',
     emailBody: `
       <p>Surat Perizinan telah diproses oleh Tata Usaha FTI UKSW.</p>
       <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>

@@ -4,7 +4,6 @@ import { ActiveStudentRequest, ObservationRequest, CounselingRequest, TULetterBa
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
 import { ValidationQrCode } from './ValidationQrCode';
-import { api } from '../../services/api';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
@@ -16,6 +15,16 @@ import { Tabs, TabsContent } from '../../components/ui/tabs';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
 import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
+import {
+  createEmptyLetterBackgrounds,
+  createEmptyLetterLayouts,
+  formatSemesterLabel,
+  getSemesterMeta,
+  normalizeLetterBackgrounds,
+  normalizeLetterLayouts
+} from '../lib/letterSettings';
+import { formatArchiveDate } from '../lib/archiveFormatting';
+import { getArchiveApiType, getArchiveTitle, tuApi } from '../services/tuApi';
 import {
   ArrowLeft,
   Award,
@@ -44,44 +53,6 @@ import {
   QrCode
 } from 'lucide-react';
 
-const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
-  document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  suRek: { imageBase64: '', fileName: '', mimeType: 'image/png' }
-});
-
-const createEmptyLetterLayouts = (): TULetterLayouts => ({
-  activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
-});
-
-const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
-  const empty = createEmptyLetterBackgrounds();
-  const sharedBackground = backgrounds?.document?.imageBase64
-    ? backgrounds.document
-    : backgrounds?.activeStudent?.imageBase64
-      ? backgrounds.activeStudent
-    : backgrounds?.observation?.imageBase64
-      ? backgrounds.observation
-      : backgrounds?.counseling?.imageBase64
-        ? backgrounds.counseling
-        : backgrounds?.suRek?.imageBase64
-          ? backgrounds.suRek
-          : empty.document;
-
-  return {
-    document: { ...empty.document, ...sharedBackground },
-    activeStudent: { ...empty.activeStudent, ...sharedBackground },
-    observation: { ...empty.observation, ...sharedBackground },
-    counseling: { ...empty.counseling, ...sharedBackground },
-    suRek: { ...empty.suRek, ...sharedBackground }
-  };
-};
-
 type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }
   | { type: 'observation'; item: ObservationRequest }
@@ -102,22 +73,6 @@ const statusFilterOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'verified', label: 'Terverifikasi' },
   { value: 'sent', label: 'Terkirim' }
 ];
-
-function formatArchiveDate(value?: string) {
-  if (!value) return '-';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jakarta'
-  }).format(date);
-}
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -160,26 +115,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   // Edit observation state
   const [editTarget, setEditTarget] = useState<any | null>(null);
 
-  const formatSemesterLabel = (semesterCode: string) => {
-    if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
-
-    const year = parseInt(semesterCode.slice(0, 4), 10);
-    const type = semesterCode.slice(4);
-    if (type === '1') return `Ganjil ${year}/${year + 1}`;
-    if (type === '2') return `Genap ${year - 1}/${year}`;
-    return `Antara ${year - 1}/${year}`;
-  };
-
-  const getSemesterMeta = (semesterCode: string) => {
-    if (!/^\d{4}[123]$/.test(semesterCode)) {
-      return { semesterName: undefined, academicYear: undefined };
-    }
-
-    const label = formatSemesterLabel(semesterCode);
-    const [semesterName, academicYear] = label.split(' ');
-    return { semesterName, academicYear };
-  };
-
   const getStatusBadge = (status: ArchiveStatus) => {
     switch (status) {
       case 'pending':
@@ -208,11 +143,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
     try {
       const [activeRes, observationRes, counselingRes, suRekRes, settingsRes] = await Promise.all([
-        api('/api/active-student'),
-        api('/api/observation-requests'),
-        api('/api/counseling-requests'),
-        api('/api/su-rek-requests'),
-        api('/api/tu/settings')
+        tuApi.getActiveStudentRequests(),
+        tuApi.getObservationRequests(),
+        tuApi.getCounselingRequests(),
+        tuApi.getSuRekRequests(),
+        tuApi.getSettings()
       ]);
 
       const [activeJson, observationJson, counselingJson, suRekJson, settingsJson] = await Promise.all([
@@ -239,7 +174,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
       if (settingsRes.ok) {
         setLetterBackgrounds(normalizeLetterBackgrounds(settingsJson.letterBackgrounds));
-        setLetterLayouts(settingsJson.letterLayouts || createEmptyLetterLayouts());
+        setLetterLayouts(normalizeLetterLayouts(settingsJson.letterLayouts || createEmptyLetterLayouts()));
         setCurrentSemesterCode(settingsJson.currentSemesterCode || '');
       }
 
@@ -279,14 +214,14 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     // Fetch dean name
     (async () => {
       try {
-        const res = await api('/api/lecturers/by-jabatan/Dekan');
+        const res = await tuApi.getDeanLecturers();
         const json = await res.json();
         if (json.found && json.data.length > 0) {
           setDeanName(json.data[0].nama);
           return;
         }
 
-        const viceRes = await api('/api/lecturers/by-jabatan/Wakil Dekan');
+        const viceRes = await tuApi.getViceDeanLecturers();
         const viceJson = await viceRes.json();
         if (viceJson.found && viceJson.data.length > 0) {
           setDeanName(viceJson.data[0].nama);
@@ -303,18 +238,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     return () => clearInterval(interval);
   }, [refreshKey]);
 
-  const getArchiveApiType = (type: 'active' | 'observation' | 'counseling' | 'su-rek') => {
-    if (type === 'active') return 'active-student';
-    return type;
-  };
-
-  const getArchiveTitle = (type: 'active' | 'observation' | 'counseling' | 'su-rek') => {
-    if (type === 'active') return 'Surat aktif kuliah';
-    if (type === 'observation') return 'Surat observasi';
-    if (type === 'counseling') return 'Surat konseling';
-    return 'Surat rekomendasi';
-  };
-
   const handleSendEmail = async (type: 'active-student' | 'observation' | 'counseling' | 'su-rek', id: string) => {
     setIsProcessing(true);
     setIsSendingEmail(true);
@@ -328,7 +251,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             : type === 'counseling'
               ? counselingRequests.find((item: CounselingRequest) => item.id === id)
               : suRekRequests.find((item: any) => item.id === id);
-      const res = await api(`/api/tu/requests/${type}/${id}/send-email`, { method: 'POST' });
+      const res = await tuApi.sendLetterEmail(type, id);
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(json?.error || 'Gagal mengirim email surat.');
@@ -364,9 +287,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     setIsProcessing(true);
     setFeedback(null);
     try {
-      const res = await api(`/api/tu/requests/${apiType}/${item.id}/download`, {
-        method: 'GET'
-      });
+      const res = await tuApi.downloadLetter(apiType, item.id);
       if (!res.ok) throw new Error('Gagal mendownload PDF');
 
       const blob = await res.blob();
@@ -453,10 +374,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     setFeedback(null);
     try {
       const isCounselingTarget = selectedLetter?.type === 'counseling';
-      const res = await api(isCounselingTarget ? `/api/counseling-requests/${id}/verify` : `/api/observation-requests/${id}/verify`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const res = isCounselingTarget
+        ? await tuApi.verifyCounseling(id)
+        : await tuApi.verifyObservation(id);
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(json?.error || `Gagal memverifikasi ${isCounselingTarget ? 'surat konseling' : 'surat observasi'}.`);
@@ -508,9 +428,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     setIsProcessing(true);
     setFeedback(null);
     try {
-      const res = await api(`/api/tu/requests/${apiType}/${selectedLetter.item.id}/validation-token`, {
-        method: 'POST'
-      });
+      const res = await tuApi.ensureValidationToken(apiType, selectedLetter.item.id);
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
         throw new Error(json?.error || 'Gagal membuat link validasi surat.');
@@ -584,7 +502,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     try {
       if (deleteTarget) {
         const apiType = getArchiveApiType(deleteTarget.type);
-        const res = await api(`/api/tu/requests/${apiType}/${deleteTarget.id}`, { method: 'DELETE' });
+        const res = await tuApi.deleteLetter(apiType, deleteTarget.id);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
         if (selectedLetter?.item.id === deleteTarget.id) setSelectedLetter(null);
         setFeedback({ type: 'success', message: `${deleteTarget.label} berhasil dihapus.` });
@@ -592,11 +510,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
         const type = batchDeleteTargets[0]?.type;
         const apiType = type ? getArchiveApiType(type) : 'active-student';
         const ids = batchDeleteTargets.map(t => t.id);
-        const res = await api(`/api/tu/requests/${apiType}/batch-delete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids })
-        });
+        const res = await tuApi.batchDeleteLetters(apiType, ids);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
         if (type === 'active') setSelectedActiveIds(new Set());
         else if (type === 'observation') setSelectedObsIds(new Set());
@@ -626,11 +540,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     if (!editTarget) return;
     setIsProcessing(true);
     try {
-      const res = await api(`/api/tu/requests/observation/${editTarget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      const res = await tuApi.updateObservation(editTarget.id, data as Record<string, unknown>);
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan.');
       setEditTarget(null);
@@ -647,16 +557,12 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     if (!editTarget) return;
     setIsProcessing(true);
     try {
-      const res = await api(`/api/tu/requests/su-rek/${editTarget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientName: data.recipientName,
-          berdasarkanNo: data.berdasarkanNo,
-          perihal: data.perihal,
-          lampiran: data.lampiran,
-          carbonCopies: data.carbonCopies
-        })
+      const res = await tuApi.updateSuRek(editTarget.id, {
+        recipientName: data.recipientName,
+        berdasarkanNo: data.berdasarkanNo,
+        perihal: data.perihal,
+        lampiran: data.lampiran,
+        carbonCopies: data.carbonCopies
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan.');
@@ -674,15 +580,11 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     if (!editTarget) return;
     setIsProcessing(true);
     try {
-      const res = await api(`/api/tu/requests/counseling/${editTarget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: data.subject,
-          recipientName: data.recipientName,
-          referralUnit: data.referralUnit,
-          carbonCopies: data.carbonCopies
-        })
+      const res = await tuApi.updateCounseling(editTarget.id, {
+        subject: data.subject,
+        recipientName: data.recipientName,
+        referralUnit: data.referralUnit,
+        carbonCopies: data.carbonCopies
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan perubahan.');

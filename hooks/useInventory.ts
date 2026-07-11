@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { api } from '../services/api';
+import { inventoryApi } from '../services/inventoryService';
 import { Equipment } from '../types';
 
 interface UseInventoryOptions {
@@ -17,7 +17,7 @@ export const useInventory = (options?: UseInventoryOptions) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api('/api/inventory');
+      const response = await inventoryApi.list();
 
       if (!response.ok) {
         throw new Error('Gagal mengambil data inventaris');

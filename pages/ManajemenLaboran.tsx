@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Printer, Edit, Trash2, X, Check, FileSpreadsheet, Users, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
-import { api } from '../services/api';
+import { staffApi } from '../services/staffService';
 import { Room } from '../types';
 import ConfirmModal from '../components/ConfirmModal';
 import SearchBar from '../components/SearchBar';
@@ -85,7 +85,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
 
   const fetchRooms = async () => {
     try {
-      const res = await api('/api/rooms?exclude_image=true');
+      const res = await staffApi.listRoomsForAssignment();
       if (res.ok) {
         setRooms(await res.json());
       }
@@ -96,7 +96,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
 
   const fetchStaff = async () => {
     try {
-      const res = await api('/api/staff');
+      const res = await staffApi.list();
       if (res.ok) {
         const data = await res.json();
         // Mapping data dari DB (staff) ke Frontend (LabStaff)
@@ -261,10 +261,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
     try {
       if (editingStaff) {
         // Update
-        const res = await api(`/api/staff/${editingStaff.id}`, {
-          method: 'PUT',
-          data: buildStaffPayload()
-        });
+        const res = await staffApi.update(editingStaff.id, buildStaffPayload());
         
         if (res.ok) {
           await fetchStaff();
@@ -273,10 +270,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
         }
       } else {
         // Create
-        const res = await api('/api/staff', {
-          method: 'POST',
-          data: buildStaffPayload()
-        });
+        const res = await staffApi.create(buildStaffPayload());
 
         if (res.ok) {
           await res.json();
@@ -300,7 +294,7 @@ const LaboranManagement: React.FC<LaboranManagementProps> = ({ onNavigate, showT
     if (!deleteTargetId) return;
     setIsDeleting(true);
     try {
-      await api(`/api/staff/${deleteTargetId}`, { method: 'DELETE' });
+      await staffApi.delete(deleteTargetId);
       setStaffList(prev => prev.filter(s => s.id !== deleteTargetId));
       showToast("Data laboran berhasil dihapus.", "success");
     } catch (error) {

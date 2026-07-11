@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Printer, Download, Edit, Trash2, X, Check, FileText, Upload, Users, File, Eye } from 'lucide-react';
 import nocLogo from "../src/assets/noc.png";
-import { api } from '../services/api';
+import { pklApi } from '../services/pklService';
+import { staffApi } from '../services/staffService';
 import { PKLStudent } from '../types';
 import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
 import { formatDateID } from '../src/utils/formatters';
@@ -64,7 +65,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
 
   const fetchPKL = async () => {
     try {
-      const res = await api('/api/pkl');
+      const res = await pklApi.list();
       if (res.ok) {
         const data = await res.json();
         setPklList(data);
@@ -77,7 +78,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
 
   const fetchStaff = async () => {
     try {
-      const res = await api('/api/staff');
+      const res = await staffApi.list();
       if (res.ok) {
         const data = await res.json();
         // Filter hanya staff dengan jabatan Teknisi
@@ -198,10 +199,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
 
     try {
       if (editingPKL) {
-        const res = await api(`/api/pkl/${editingPKL.id}`, {
-          method: 'PUT',
-          data: pklData
-        });
+        const res = await pklApi.update(editingPKL.id, pklData);
         if (res.ok) {
           showToast("Data PKL berhasil diperbarui", 'success');
           fetchPKL();
@@ -211,10 +209,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
           showToast("Gagal memperbarui data PKL", 'error');
         }
       } else {
-        const res = await api('/api/pkl', {
-          method: 'POST',
-          data: { students: [pklData] }
-        });
+        const res = await pklApi.create([pklData]);
         if (res.ok) {
           showToast("Data PKL berhasil ditambahkan", 'success');
           fetchPKL();
@@ -254,10 +249,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
     }));
 
     try {
-      const res = await api('/api/pkl', {
-        method: 'POST',
-        data: { students }
-      });
+      const res = await pklApi.create(students);
       if (res.ok) {
         const result = await res.json();
         showToast(result.message || `${students.length} data PKL berhasil ditambahkan`, 'success');
@@ -283,7 +275,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
 
     setIsDeleting(true);
     try {
-      const res = await api(`/api/pkl/${deleteTargetId}`, { method: 'DELETE' });
+      const res = await pklApi.delete(deleteTargetId);
       if (res.ok) {
         showToast("Data PKL berhasil dihapus", 'success');
         fetchPKL();
@@ -302,7 +294,7 @@ const PKLManagement: React.FC<PKLManagementProps> = ({ showToast }) => {
   const handleViewSurat = async (id: string) => {
     try {
       showToast("Sedang memuat file...", "info");
-      const res = await api(`/api/pkl/${id}/document`);
+      const res = await pklApi.downloadDocument(id);
       if (res.ok) {
         const data = await res.json();
         const fetchRes = await fetch(data.file);

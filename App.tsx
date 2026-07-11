@@ -1,573 +1,79 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { Role, Notification, ToastMessage } from './types';
+import React, { Suspense } from 'react';
 import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import { GoogleAuthProvider } from './src/context/GoogleAuthContext';
-import { api } from './services/api';
 import { BrowserRouter as Router, useNavigate, useLocation } from 'react-router-dom';
 import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
 import AppRoutes from './src/router/AppRoutes';
-import { clearCacheAndReload } from './src/router/lazyWithReload';
 import { Maintenance, MobileUpload } from './src/router/lazyPages';
+import { useAuthSession } from './src/app/useAuthSession';
+import { useNotifications } from './src/app/useNotifications';
+import { useShellState } from './src/app/useShellState';
+import { useSystemStatus } from './src/app/useSystemStatus';
+import { useThemeMode } from './src/app/useThemeMode';
+import { useToastMessages } from './src/app/useToastMessages';
+import { useVersionChecker } from './src/app/useVersionChecker';
+import { canBypassMaintenance, getDefaultRouteForRole, isRoleMatch } from './src/app/roles';
+import { getStorageItem } from './src/app/storage';
+import { Role } from './types';
 
 const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Helper fungsi untuk membaca storage (Prioritaskan Session, fallback ke Local)
-  const getStorageItem = (key: string) => sessionStorage.getItem(key) || localStorage.getItem(key);
-  const hasRememberedSession = () => Boolean(localStorage.getItem('refreshToken') && localStorage.getItem('deviceId'));
-  const isRoleMatch = (role: Role | string, target: Role) => role.toString().toUpperCase() === target.toString().toUpperCase();
-  const isTuRole = (role: Role | string) => isRoleMatch(role, Role.USER_TU) || isRoleMatch(role, Role.ADMIN_TU);
-  const getDefaultRouteForRole = (role: Role | string) => {
-    if (isTuRole(role)) return '/layanan-tu';
-    if (isRoleMatch(role, Role.MAHASISWA)) return '/ruangan';
-    return '/dashboard';
-  };
+  const { toasts, showToast, removeToast } = useToastMessages();
+  const { isLoading, setIsLoading, isMaintenanceMode, announcement } = useSystemStatus();
+  const { isDarkMode, toggleDarkMode } = useThemeMode();
+  const {
+    isSidebarOpen,
+    setIsSidebarOpen,
+    isSidebarCollapsed,
+    toggleSidebarCollapse,
+    isMobileTopBarVisible,
+    handleMainScroll
+  } = useShellState();
+  const {
+    isAuthenticated,
+    currentRole,
+    userName,
+    userEmail,
+    handleLogin,
+    handleLogout
+  } = useAuthSession({ navigate, setIsLoading, showToast });
+  const {
+    notifications,
+    addNotification,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    clearAllNotifications
+  } = useNotifications(isAuthenticated, showToast);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() => getStorageItem('isAuthenticated') === 'true' || hasRememberedSession());
-  const [currentRole, setCurrentRole] = useState<Role>(() => (getStorageItem('currentRole') as Role) || Role.MAHASISWA);
+  useVersionChecker(isAuthenticated, showToast);
+
   const currentPage = location.pathname.substring(1) || getDefaultRouteForRole(currentRole).replace('/', '');
-  const [userName, setUserName] = useState<string>(() => getStorageItem('userName') || 'User');
-  const [userEmail, setUserEmail] = useState<string>(() => getStorageItem('userEmail') || '');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('isSidebarCollapsed');
-    return saved === 'true';
-  });
-
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('isDarkMode');
-    if (saved !== null) {
-      return saved === 'true';
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-  
-  // Loading State
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-  const [announcement, setAnnouncement] = useState<{active: boolean, message: string, type: string} | null>(null);
-  const [isMobileTopBarVisible, setIsMobileTopBarVisible] = useState(true);
-  const lastMainScrollTop = useRef(0);
-
-  // Notifications & Toast State
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const hasSidebarNavigation = !isRoleMatch(currentRole, Role.USER_TU);
   const pageLabel = getNavigationLabel(currentPage);
 
-  // Simulate Initial System Load
-  useEffect(() => {
-    // Cek status maintenance dari server
-    const checkSystemStatus = async () => {
-      try {
-        const [resMaint, resAnnounce] = await Promise.all([
-          api('/api/settings/maintenance'),
-          api('/api/settings/announcement')
-        ]);
-        if (resMaint.ok) {
-          setIsMaintenanceMode((await resMaint.json()).enabled);
-        }
-        if (resAnnounce.ok) {
-          setAnnouncement(await resAnnounce.json());
-        }
-      } catch (e) {
-        // Non-blocking: lanjutkan meskipun gagal
-        setIsMaintenanceMode(false);
-      }
-    };
-    checkSystemStatus();
-
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500); // Reduced from 2000ms to 1500ms for faster initial render
-
-    // 2. Polling Pengecekan Versi Baru (Cek setiap 15 menit)
-    let lastEtag = '';
-    const checkVersion = async () => {
-      if (!isAuthenticated) return;
-      try {
-        // Gunakan method HEAD agar hemat bandwidth (hanya mengambil HTTP Headers, bukan isi HTML)
-        const res = await fetch('/', { method: 'HEAD', cache: 'no-cache' });
-        const currentEtag = res.headers.get('etag') || res.headers.get('last-modified');
-        
-        if (lastEtag && currentEtag && lastEtag !== currentEtag) {
-          // Tampilkan Toast Peringatan jika ETag/Waktu Modifikasi berubah
-          showToast(
-            <div>
-              <p className="mb-2">Versi baru aplikasi tersedia. Harap muat ulang halaman.</p>
-              <button 
-                onClick={clearCacheAndReload} 
-                className="bg-black/10 hover:bg-black/20 text-current px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
-              >
-                Refresh Sekarang
-              </button>
-            </div>, 
-            "warning", 
-            true
-          );
-        }
-        if (currentEtag) lastEtag = currentEtag;
-      } catch (e) {
-        // Abaikan jika network error / offline
-      }
-    };
-    
-    checkVersion();
-    const versionInterval = setInterval(checkVersion, 15 * 60 * 1000);
-
-    // 3. Pengecekan ekstra saat tab browser kembali aktif (Fokus di HP/Mobile)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkVersion();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(versionInterval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Changed dependency to empty array - only run once on mount
-
-  // Efek khusus untuk mengambil notifikasi agar sinkron dengan state login
-  useEffect(() => {
-    let notifInterval: NodeJS.Timeout;
-
-    const fetchNotifications = async () => {
-      if (!isAuthenticated) return;
-      try {
-        const res = await api('/api/notifications');
-        if (res.ok) setNotifications(await res.json());
-      } catch (e) {
-        // Silent fail for notifications
-      }
-    };
-
-    if (isAuthenticated) {
-      fetchNotifications();
-      notifInterval = setInterval(fetchNotifications, 10000); // Polling setiap 10 detik
-    }
-
-    return () => {
-      if (notifInterval) clearInterval(notifInterval);
-    };
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('isDarkMode', String(isDarkMode));
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
-  const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {
-    if (window.innerWidth >= 768) {
-      if (!isMobileTopBarVisible) setIsMobileTopBarVisible(true);
-      return;
-    }
-
-    const nextScrollTop = e.currentTarget.scrollTop;
-    const delta = nextScrollTop - lastMainScrollTop.current;
-
-    if (nextScrollTop <= 24) {
-      setIsMobileTopBarVisible(true);
-    } else if (delta > 10) {
-      setIsMobileTopBarVisible(false);
-    } else if (delta < -10) {
-      setIsMobileTopBarVisible(true);
-    }
-
-    lastMainScrollTop.current = nextScrollTop;
-  };
-
-  const toggleSidebarCollapse = () => {
-    const newState = !isSidebarCollapsed;
-    setIsSidebarCollapsed(newState);
-    localStorage.setItem('isSidebarCollapsed', String(newState));
-  };
-
-  const restoreSessionFromRefresh = async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-    const deviceId = localStorage.getItem('deviceId');
-
-    if (!refreshToken || !deviceId) {
-      return false;
-    }
-
-    try {
-      const res = await api('/api/auth/refresh', {
-        method: 'POST',
-        data: { refreshToken, deviceId }
-      });
-
-      if (!res.ok) {
-        return false;
-      }
-
-      const data = await res.json();
-      if (!data.success || !data.token) {
-        return false;
-      }
-
-      localStorage.setItem('authToken', data.token);
-      localStorage.setItem('isAuthenticated', 'true');
-
-      if (data.refreshToken) {
-        localStorage.setItem('refreshToken', data.refreshToken);
-      }
-
-      if (data.user) {
-        const restoredRole = data.user.role as Role;
-        const restoredName = data.user.name || 'User';
-        const restoredEmail = data.user.email || '';
-
-        localStorage.setItem('currentRole', restoredRole);
-        localStorage.setItem('userName', restoredName);
-        localStorage.setItem('userEmail', restoredEmail);
-        setCurrentRole(restoredRole);
-        setUserName(restoredName);
-        setUserEmail(restoredEmail);
-      }
-
-      setIsAuthenticated(true);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const handleLogin = (role: Role, userNameFromLogin?: string, rememberMe: boolean = false, emailFromLogin?: string) => {
-    setIsLoading(true);
-    setCurrentRole(role);
-    
-    // Use userName from parameter if provided, otherwise get from localStorage
-    // This fixes the race condition where localStorage wasn't set yet
-    const userName = userNameFromLogin || getStorageItem('userName') || 'User';
-    const email = emailFromLogin || getStorageItem('userEmail') || '';
-    setUserName(userName);
-    setUserEmail(email);
-    
-    setIsAuthenticated(true);
-    const targetPage = getDefaultRouteForRole(role);
-    navigate(targetPage);
-    showToast('Selamat datang kembali!', 'success');
-    
-    // Tentukan penyimpanan berdasarkan pilihan user
-    const storage = rememberMe ? localStorage : sessionStorage;
-    storage.setItem('isAuthenticated', 'true');
-    storage.setItem('currentRole', role);
-    storage.setItem('userName', userName);
-    storage.setItem('userEmail', email);
-    setIsLoading(false);
-  };
-
-  const clearAllStorage = () => {
-    const keys = ['isAuthenticated', 'currentRole', 'userName', 'userEmail', 'authToken', 'userId', 'refreshToken'];
-    keys.forEach(key => {
-      localStorage.removeItem(key);
-    });
-    localStorage.removeItem('lastActivity');
-    
-    // Secara langsung menghapus seluruh data yang ada di sessionStorage
-    sessionStorage.clear();
-  };
-
-  const handleLogout = async () => {
-    setIsLoading(true);
-    const refreshToken = getStorageItem('refreshToken');
-    const deviceId = localStorage.getItem('deviceId');
-    try {
-      await api('/api/logout', {
-        method: 'POST',
-        data: { refreshToken, deviceId }
-      });
-    } catch (error) {
-      // Continue client-side logout
-    } finally {
-      setIsAuthenticated(false);
-      setCurrentRole(Role.MAHASISWA);
-      setUserName('User');
-      setUserEmail('');
-      clearAllStorage();
-      navigate('/login');
-      setIsLoading(false);
-    }
-  };
-
-  // Helper: Add Notification
-  const addNotification = (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error') => {
-    const newNotif: Notification = {
-      id: Date.now().toString(),
-      title,
-      message,
-      type,
-      timestamp: 'Baru saja',
-      isRead: false,
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-  };
-
-  const markNotificationAsRead = async (id: string) => {
-    try {
-      const res = await api(`/api/notifications/${id}/read`, { method: 'PUT' });
-      if (!res.ok) throw new Error('Failed to mark notification as read');
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    } catch (e) { console.error(e); }
-  };
-
-  const markAllNotificationsAsRead = async () => {
-    try {
-      // Optimistic update di UI
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      // Hit endpoint (asumsi backend mendukung)
-      const res = await api(`/api/notifications/read-all`, { method: 'PUT' });
-      if (!res.ok) throw new Error('Failed to mark all notifications as read');
-    } catch (e) { console.error("Gagal mark all read", e); }
-  };
-
-  const clearAllNotifications = async () => {
-    try {
-      const res = await api('/api/notifications', { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to clear notifications');
-      setNotifications([]);
-      showToast('Semua notifikasi berhasil dihapus.', 'success');
-    } catch (e) { console.error("Gagal hapus notifikasi", e); }
-  };
-
-  // Helper: Show Toast
-  const showToast = (message: string | React.ReactNode, type: 'success' | 'error' | 'info' | 'warning' = 'info', sticky: boolean = false) => {
-    const newToast: any = {
-       id: Date.now().toString() + Math.random().toString(),
-       message,
-       type,
-       sticky
-    };
-    setToasts(prev => [...prev, newToast]);
-  };
-
-  const removeToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
-
-  // Verifikasi Sesi ke Backend saat pertama kali dimuat
-  useEffect(() => {
-    const verifySession = async () => {
-      if (!isAuthenticated) return;
-      
-      let token = getStorageItem('authToken');
-      if (!token) {
-        const restored = await restoreSessionFromRefresh();
-        if (!restored) {
-          handleLogout();
-          return;
-        }
-        token = getStorageItem('authToken');
-      }
-
-      if (!token) {
-        handleLogout();
-        return;
-      }
-      
-      try {
-        const res = await api('/api/auth/verify');
-        if (!res.ok) {
-          // Jika token expired atau user tidak valid (status 401/403)
-          showToast('Sesi Anda tidak valid atau telah berakhir. Silakan login kembali.', 'warning', true);
-          handleLogout();
-        } else {
-          const data = await res.json();
-          if (data.success && data.user) {
-            const storage = sessionStorage.getItem('authToken') ? sessionStorage : localStorage;
-            // Sinkronkan data jika ada perubahan role/nama dari database admin
-            if (data.user.role !== currentRole) {
-              setCurrentRole(data.user.role);
-              storage.setItem('currentRole', data.user.role);
-            }
-            if (data.user.name !== userName) {
-              setUserName(data.user.name);
-              storage.setItem('userName', data.user.name);
-            }
-            if (data.user.email && data.user.email !== userEmail) {
-              setUserEmail(data.user.email);
-              storage.setItem('userEmail', data.user.email);
-            }
-          }
-        }
-      } catch (error) {
-        // Silent: Don't force logout on network issues
-      }
-    };
-
-    verifySession();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // --- SESSION TIMEOUT (AUTO LOGOUT) ---
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (localStorage.getItem('refreshToken')) return;
-
-    const TIMEOUT_MS = 60 * 60 * 1000; // 60 Menit
-    
-    // Catat aktivitas di storage agar dibaca oleh semua tab
-    localStorage.setItem('lastActivity', Date.now().toString());
-    let intervalId: NodeJS.Timeout;
-    let lastSyncTime = Date.now();
-
-    const updateActivity = () => {
-      const now = Date.now();
-      
-      // THROTTLING: Hanya tulis ke localStorage maksimal 1 kali setiap 5 detik
-      // Mencegah disk I/O dan CPU Overhead yang berlebihan
-      if (now - lastSyncTime > 5000) {
-        localStorage.setItem('lastActivity', now.toString());
-        lastSyncTime = now;
-      }
-    };
-
-    const checkInactivity = () => {
-      const lastActivityStr = localStorage.getItem('lastActivity');
-      const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : Date.now();
-
-      if (Date.now() - lastActivity >= TIMEOUT_MS) {
-        showToast("Sesi Anda berakhir karena tidak aktif selama 1 jam.", "warning");
-        handleLogout();
-      }
-    };
-
-    // Cek inaktivitas setiap 1 menit (jauh lebih ringan di CPU dibanding me-reset setTimeout setiap mousemove)
-    intervalId = setInterval(checkInactivity, 60000);
-
-    // Daftar event aktivitas user yang akan mereset timer
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    
-    // Pasang event listener dengan opsi passive: true agar frame rendering scroll tetap mulus
-    events.forEach(event => window.addEventListener(event, updateActivity, { passive: true }));
-
-    // Bersihkan saat unmount atau logout
-    return () => {
-      clearInterval(intervalId);
-      events.forEach(event => window.removeEventListener(event, updateActivity));
-    };
-  }, [isAuthenticated]);
-
-  // --- SILENT REFRESH TOKEN (Tiap 15 Menit) ---
-  useEffect(() => {
-    // Hanya jalankan jika user sedang dalam state login
-    if (!isAuthenticated) return;
-
-    const refreshAuthToken = async () => {
-      const refreshToken = getStorageItem('refreshToken');
-      const deviceId = localStorage.getItem('deviceId');
-
-      // Jika tidak ada data refresh token / device ID, abaikan
-      if (!refreshToken || !deviceId) return;
-
-      try {
-        const res = await api('/api/auth/refresh', {
-          method: 'POST',
-          data: { refreshToken, deviceId }
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.token) {
-            // Timpa token lama dengan yang baru di storage yang sedang aktif
-            const storage = sessionStorage.getItem('authToken') ? sessionStorage : localStorage;
-            storage.setItem('authToken', data.token);
-          }
-        } else if (res.status === 401 || res.status === 403) {
-          // Jika refresh token ditolak (misal: dicabut dari perangkat lain / expired)
-          showToast("Sesi tidak valid atau telah dicabut. Silakan login kembali.", "warning", true);
-          handleLogout();
-        }
-      } catch (error) {
-        console.error('Gagal melakukan silent refresh token:', error);
-      }
-    };
-
-    const REFRESH_INTERVAL = 15 * 60 * 1000; // 15 menit dalam milidetik
-    const intervalId = setInterval(refreshAuthToken, REFRESH_INTERVAL);
-
-    // Bersihkan interval ketika komponen dilepas (unmount) atau user logout
-    return () => clearInterval(intervalId);
-  }, [isAuthenticated]);
-
-  // --- CROSS-TAB LOGOUT SYNC ---
-  useEffect(() => {
-    const syncLogout = (e: StorageEvent) => {
-      // Jika auth status dihapus dari localStorage (karena tab lain menekan tombol logout)
-      if (e.key === 'isAuthenticated' && e.newValue !== 'true') {
-        setIsAuthenticated(false);
-        setCurrentRole(Role.MAHASISWA);
-        setUserName('User');
-        setUserEmail('');
-        sessionStorage.clear(); // Bersihkan juga memori sessionStorage pada tab ini
-        navigate('/login');
-        showToast('Anda telah logout dari tab lain.', 'info');
-      }
-    };
-
-    window.addEventListener('storage', syncLogout);
-    return () => window.removeEventListener('storage', syncLogout);
-  }, [navigate]);
-
-  // --- INTERCEPTOR UNAUTHORIZED LISTENER ---
-  useEffect(() => {
-    const handleUnauthorized = () => {
-      if (isAuthenticated) {
-        handleLogout();
-      }
-    };
-
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
-  // Render Global Loader
   if (isLoading) {
     return <LoadingScreen />;
   }
 
-  // Render Mobile QR Upload (Bypass login & app layout)
   const queryParams = new URLSearchParams(location.search);
   const uploadSessionId = queryParams.get('uploadSession');
   if (uploadSessionId) {
     return (
-      <Suspense fallback={<LoadingScreen />}><MobileUpload sessionId={uploadSessionId} /></Suspense>
+      <Suspense fallback={<LoadingScreen />}>
+        <MobileUpload sessionId={uploadSessionId} />
+      </Suspense>
     );
   }
 
-  // Render Maintenance Screen (Hanya untuk User biasa. Admin/Laboran/Supervisor/Admin TU tetap bisa akses)
-  const canBypassMaintenance =
-    isRoleMatch(currentRole, Role.ADMIN) ||
-    isRoleMatch(currentRole, Role.LABORAN) ||
-    currentRole.toString().toUpperCase() === ('Supervisor' as Role).toString().toUpperCase() ||
-    isRoleMatch(currentRole, Role.ADMIN_TU);
-  
   const isPublicLetterValidationRoute = location.pathname.startsWith('/tu/validasi-surat/');
-
-  if (isMaintenanceMode && !canBypassMaintenance && !isPublicLetterValidationRoute) {
-    // Izinkan akses ke path /login agar admin yang sedang logout tetap bisa masuk
-    if (location.pathname !== '/login') {
-      return (
-        <Suspense fallback={<LoadingScreen />}>
-          <Maintenance />
-        </Suspense>
-      );
-    }
+  if (isMaintenanceMode && !canBypassMaintenance(currentRole) && !isPublicLetterValidationRoute && location.pathname !== '/login') {
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <Maintenance />
+      </Suspense>
+    );
   }
 
   const handleNavigate = (page: string) => {
@@ -620,14 +126,12 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
-  return (
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <GoogleAuthProvider>
-        <AppContent />
-      </GoogleAuthProvider>
-    </Router>
-  );
-};
+const App: React.FC = () => (
+  <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <GoogleAuthProvider>
+      <AppContent />
+    </GoogleAuthProvider>
+  </Router>
+);
 
 export default App;

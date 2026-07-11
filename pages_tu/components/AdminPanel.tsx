@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ActiveStudentRequest, ObservationRequest, SuRekRequest, CounselingRequest, LetterAsset, LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
+import { ActiveStudentRequest, ObservationRequest, SuRekRequest, CounselingRequest, LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -22,174 +22,36 @@ import { id } from 'date-fns/locale';
 import { CheckCircle, Printer, Mail, Eye, FileText, Clock, Upload, ArrowLeft, Settings, Save, Loader2, Download, Trash2, Plus, Pencil, X } from 'lucide-react';
 import { ActiveStudentLetter } from './ActiveStudentLetter';
 import { LetterPreview } from './LetterPreview';
-import { api } from '../../services/api';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
-
-const createEmptyLetterAsset = (): LetterAsset => ({
-  imageBase64: '',
-  fileName: '',
-  mimeType: 'image/png'
-});
-
-const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
-  document: createEmptyLetterAsset(),
-  activeStudent: createEmptyLetterAsset(),
-  observation: createEmptyLetterAsset(),
-  counseling: createEmptyLetterAsset(),
-  research: createEmptyLetterAsset(),
-  suRek: createEmptyLetterAsset()
-});
-
-type LetterLayoutKey = 'activeStudent' | 'observation' | 'counseling' | 'research' | 'interview' | 'permission' | 'suRek';
-
-const DEFAULT_LETTER_LAYOUTS: Record<LetterLayoutKey, LetterLayout> = {
-  activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  interview: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  permission: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
-};
-
-const PREVIEW_LETTER_TYPE_CODES: Record<Exclude<LetterLayoutKey, 'suRek'>, string> = {
-  activeStudent: 'S.Ket',
-  observation: 'FTI-OBS',
-  counseling: 'FTI',
-  research: 'FTI/Penelitian',
-  interview: 'FTI/Wawancara',
-  permission: 'FTI/Perizinan'
-};
-const DEFAULT_COUNSELING_SUBJECT = 'Pengantar Konseling';
-const DEFAULT_COUNSELING_RECIPIENT_NAME = [
-  'Pusat Layanan Konseling',
-  'Fakultas Psikologi',
-  'Universitas Kristen Satya Wacana',
-  'Salatiga'
-].join('\n');
-const DEFAULT_COUNSELING_REFERRAL_UNIT = 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.';
-const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
-const DEFAULT_RESEARCH_ADVISOR_TITLE = 'Dosen Pembimbing';
-const DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
-const DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
-const DEFAULT_INTERVIEW_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
-const DEFAULT_INTERVIEW_ADVISOR_TITLE = 'Dosen Pembimbing';
-const DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
-const DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
-const DEFAULT_PERMISSION_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
-const DEFAULT_PERMISSION_ADVISOR_TITLE = 'Dosen Pembimbing';
-const DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST = 'Dosen Pembimbing I';
-const DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND = 'Dosen Pembimbing II';
-
-const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number, date = new Date()) => {
-  const paddedSequence = String(sequence).padStart(3, '0');
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
-
-  if (key === 'suRek') {
-    return `${paddedSequence}/FTI/Su.Rek/${month}/${year}`;
-  }
-  if (key === 'counseling') {
-    return `${paddedSequence}/FTI/${month}/${year}`;
-  }
-
-  return `${paddedSequence}/${PREVIEW_LETTER_TYPE_CODES[key]}/${String(month).padStart(2, '0')}/${year}`;
-};
-
-const getDefaultLetterLayout = (key: LetterLayoutKey): LetterLayout => ({
-  ...DEFAULT_LETTER_LAYOUTS[key]
-});
-
-const createEmptyLetterLayouts = (): TULetterLayouts => ({
-  activeStudent: getDefaultLetterLayout('activeStudent'),
-  observation: getDefaultLetterLayout('observation'),
-  counseling: getDefaultLetterLayout('counseling'),
-  research: getDefaultLetterLayout('research'),
-  interview: getDefaultLetterLayout('interview'),
-  permission: getDefaultLetterLayout('permission'),
-  suRek: getDefaultLetterLayout('suRek')
-});
-
-const normalizeLetterLayouts = (layouts?: Partial<TULetterLayouts>): TULetterLayouts => {
-  return {
-    activeStudent: { ...getDefaultLetterLayout('activeStudent'), ...layouts?.activeStudent },
-    observation: { ...getDefaultLetterLayout('observation'), ...layouts?.observation },
-    counseling: { ...getDefaultLetterLayout('counseling'), ...layouts?.counseling },
-    research: { ...getDefaultLetterLayout('research'), ...layouts?.research },
-    interview: { ...getDefaultLetterLayout('interview'), ...layouts?.interview },
-    permission: { ...getDefaultLetterLayout('permission'), ...layouts?.permission },
-    suRek: { ...getDefaultLetterLayout('suRek'), ...layouts?.suRek }
-  };
-};
-
-const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
-  const empty = createEmptyLetterBackgrounds();
-  const sharedBackground = backgrounds?.document?.imageBase64
-    ? backgrounds.document
-    : backgrounds?.activeStudent?.imageBase64
-      ? backgrounds.activeStudent
-    : backgrounds?.observation?.imageBase64
-      ? backgrounds.observation
-      : backgrounds?.counseling?.imageBase64
-        ? backgrounds.counseling
-        : backgrounds?.research?.imageBase64
-          ? backgrounds.research
-          : backgrounds?.suRek?.imageBase64
-            ? backgrounds.suRek
-            : empty.document;
-
-  return {
-    document: { ...empty.document, ...sharedBackground },
-    activeStudent: { ...empty.activeStudent, ...sharedBackground },
-    observation: { ...empty.observation, ...sharedBackground },
-    counseling: { ...empty.counseling, ...sharedBackground },
-    research: { ...empty.research, ...sharedBackground },
-    suRek: { ...empty.suRek, ...sharedBackground }
-  };
-};
-
-const letterLayoutSections: Array<{
-  key: LetterLayoutKey;
-  title: string;
-  description: string;
-}> = [
-  {
-    key: 'activeStudent',
-    title: 'Surat Aktif Kuliah',
-    description: 'Atur batas area tulisan untuk template surat aktif kuliah.'
-  },
-  {
-    key: 'observation',
-    title: 'Surat Observasi',
-    description: 'Atur batas area tulisan untuk template surat observasi.'
-  },
-  {
-    key: 'counseling',
-    title: 'Surat Konseling',
-    description: 'Atur batas area tulisan untuk template surat pengantar konseling.'
-  },
-  {
-    key: 'research',
-    title: 'Surat Penelitian',
-    description: 'Atur batas area tulisan untuk template surat rekomendasi penelitian.'
-  },
-  {
-    key: 'interview',
-    title: 'Surat Wawancara',
-    description: 'Atur batas area tulisan untuk template surat izin wawancara.'
-  },
-  {
-    key: 'permission',
-    title: 'Surat Perizinan',
-    description: 'Atur batas area tulisan untuk template surat perizinan tugas akhir.'
-  },
-  {
-    key: 'suRek',
-    title: 'Surat Rekomendasi',
-    description: 'Atur batas area tulisan untuk template surat rekomendasi.'
-  }
-];
+import {
+  createEmptyLetterBackgrounds,
+  createEmptyLetterLayouts,
+  DEFAULT_COUNSELING_RECIPIENT_NAME,
+  DEFAULT_COUNSELING_REFERRAL_UNIT,
+  DEFAULT_COUNSELING_SUBJECT,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND,
+  DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND,
+  DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+  DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  formatSemesterLabel,
+  getDefaultLetterLayout,
+  getSemesterMeta,
+  LetterLayoutKey,
+  letterLayoutSections,
+  normalizeLetterBackgrounds,
+  normalizeLetterLayouts
+} from '../lib/letterSettings';
+import { getDummyDataForPreview } from '../lib/letterPreviewData';
+import { tuApi, TuApiRequestType } from '../services/tuApi';
 
 interface AdminPanelProps {
   onSettingsSaved?: () => Promise<void> | void;
@@ -212,157 +74,6 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [confirmPhase, setConfirmPhase] = useState<1 | 2 | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const [selectedLayoutConfigKey, setSelectedLayoutConfigKey] = useState<LetterLayoutKey>('activeStudent');
-
-  const getDummyDataForPreview = (key: LetterLayoutKey) => {
-    const previewDate = new Date();
-    const previewBaseUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
-    const firmandez = {
-      name: 'Firmandez Febrian Afandy',
-      nim: '682022013',
-      email: '682022013@student.uksw.edu',
-      birthPlace: 'Salatiga',
-      birthDate: '2024-02-13',
-      birthPlaceAndDate: 'Salatiga, 13 Februari 2024',
-      studyProgramLevel: 'S1',
-      studyProgramName: 'Sistem Informasi'
-    };
-    const nauval = {
-      name: 'Nauval Caesaro Premana',
-      nim: '682021062',
-      email: '682021062@student.uksw.edu',
-      studyProgramLevel: 'S1',
-      studyProgramName: 'Sistem Informasi'
-    };
-
-    if (key === 'activeStudent') {
-      return {
-        ...firmandez,
-        faculty: 'Teknologi Informasi',
-        university: 'Universitas Kristen Satya Wacana',
-        letterNumber: formatPreviewLetterNumber('activeStudent', 1, previewDate),
-        validationToken: 'dummy-token-active',
-        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-active`,
-        letterDate: previewDate.toISOString()
-      };
-    }
-    if (key === 'observation') {
-      return {
-        recipientName: 'Manajer SDM',
-        companyName: 'PT Teknologi Maju',
-        companyAddress: 'Jl. Jenderal Sudirman No. 123, Jakarta',
-        courseName: 'Analisis dan Perancangan Sistem Informasi',
-        lecturerName: 'Dr. Jane Smith',
-        headOfProgramName: 'Dr. Albert Wesker',
-        studyProgramName: 'Sistem Informasi',
-        studyProgramLevel: 'S1',
-        students: [
-          { name: firmandez.name, nim: firmandez.nim },
-          { name: nauval.name, nim: nauval.nim }
-        ],
-        letterNumber: formatPreviewLetterNumber('observation', 2, previewDate),
-        validationToken: 'dummy-token-obs',
-        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-obs`,
-        letterDate: previewDate.toISOString()
-      };
-    }
-    if (key === 'counseling') {
-      return {
-        ...firmandez,
-        email: firmandez.email,
-        subject: tempCounselingSubject || DEFAULT_COUNSELING_SUBJECT,
-        recipientName: tempCounselingRecipientName || DEFAULT_COUNSELING_RECIPIENT_NAME,
-        referralUnit: tempCounselingReferralUnit || DEFAULT_COUNSELING_REFERRAL_UNIT,
-        faculty: 'FTI',
-        studyProgramLevel: 'S1',
-        studyProgramName: 'Sistem Informasi',
-        letterNumber: formatPreviewLetterNumber('counseling', 4, previewDate),
-        validationToken: 'dummy-token-counseling',
-        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-counseling`,
-        letterDate: previewDate.toISOString()
-      };
-    }
-    if (key === 'research') {
-      return {
-        ...firmandez,
-        recipientName: 'Kepala Dinas Komunikasi dan Informatika',
-        recipientTitle: 'Kota Salatiga',
-        destinationPlace: 'Dinas Komunikasi dan Informatika Kota Salatiga',
-        destinationAddress: 'Jl. Letjen Sukowati No. 51, Salatiga',
-        researchPlace: 'Bidang Aplikasi Informatika',
-        assignmentType: tempResearchAssignmentType || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
-        researchTitle: 'Analisis Kualitas Layanan Sistem Informasi Akademik Berbasis Web',
-        contactPerson: firmandez.nim,
-        studyProgramLevel: 'S1',
-        studyProgramName: 'Sistem Informasi',
-        advisors: [
-          { name: 'Dr. Budi Santoso', title: tempResearchAdvisorTitleFirst || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST },
-          { name: 'Dr. Citra Lestari', title: tempResearchAdvisorTitleSecond || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND }
-        ],
-        letterNumber: formatPreviewLetterNumber('research', 5, previewDate),
-        validationToken: 'dummy-token-research',
-        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-research`,
-        letterDate: previewDate.toISOString()
-      };
-    }
-    if (key === 'interview') {
-      return {
-        ...firmandez,
-        recipientName: 'Pimpinan Redaksi Jawa Pos',
-        recipientTitle: 'Jawa Pos Radar Semarang',
-        destinationPlace: 'Kantor Jawa Pos Radar Semarang',
-        destinationAddress: 'Jl. Veteran No. 55, Semarang',
-        researchPlace: 'Divisi Pemberitaan',
-        assignmentType: tempInterviewAssignmentType || DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
-        researchTitle: 'Peran Jurnalisme Investigatif dalam Menyoroti Isu Transparansi Publik',
-        contactPerson: firmandez.nim,
-        studyProgramLevel: 'S1',
-        studyProgramName: 'Sistem Informasi',
-        advisors: [
-          { name: 'Dr. Budi Santoso', title: tempInterviewAdvisorTitleFirst || DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST },
-          { name: 'Dr. Citra Lestari', title: tempInterviewAdvisorTitleSecond || DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND }
-        ],
-        letterNumber: formatPreviewLetterNumber('interview', 6, previewDate),
-        validationToken: 'dummy-token-interview',
-        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-interview`,
-        letterDate: previewDate.toISOString()
-      };
-    }
-    if (key === 'permission') {
-      return {
-        ...firmandez,
-        recipientName: 'Kepala Sekolah SMA Negeri 1 Salatiga',
-        recipientTitle: 'Salatiga',
-        destinationPlace: 'SMA Negeri 1 Salatiga',
-        destinationAddress: 'Jl. Kemiri No. 1, Salatiga',
-        researchPlace: 'Laboratorium Komputer',
-        assignmentType: tempPermissionAssignmentType || DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
-        researchTitle: 'Implementasi Sistem Informasi Pendaftaran Siswa Baru Berbasis Cloud',
-        contactPerson: firmandez.nim,
-        studyProgramLevel: 'S1',
-        studyProgramName: 'Sistem Informasi',
-        advisors: [
-          { name: 'Dr. Budi Santoso', title: tempPermissionAdvisorTitleFirst || DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST },
-          { name: 'Dr. Citra Lestari', title: tempPermissionAdvisorTitleSecond || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND }
-        ],
-        letterNumber: formatPreviewLetterNumber('permission', 7, previewDate),
-        validationToken: 'dummy-token-permission',
-        validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-permission`,
-        letterDate: previewDate.toISOString()
-      };
-    }
-    return {
-      ...firmandez,
-      recipientName: tempSuRekYangTerhormat || 'Panitia Seleksi Beasiswa Afirmasi',
-      berdasarkanNo: tempSuRekBerdasarkanNo || '008/WR-KK/02/2026',
-      perihal: tempSuRekPerihal || 'Rekomendasi Pendaftaran Beasiswa Afirmasi Cemerlang',
-      lampiran: tempSuRekLampiran || '-',
-      carbonCopies: tempSuRekTembusan.length > 0 ? [...tempSuRekTembusan] : [],
-      letterNumber: formatPreviewLetterNumber('suRek', 3, previewDate),
-      validationToken: 'dummy-token-rek',
-      validationUrl: `${previewBaseUrl}/tu/validasi-surat/dummy-token-rek`,
-      letterDate: previewDate.toISOString()
-    };
-  };
 
   // State untuk pengaturan default
   const [currentSemesterCode, setCurrentSemesterCode] = useState<string>('');
@@ -408,39 +119,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const [isEnsuringValidationToken, setIsEnsuringValidationToken] = useState(false);
   const [validationTokenAttemptedId, setValidationTokenAttemptedId] = useState<string | null>(null);
 
-  const formatSemesterLabel = (semesterCode: string) => {
-    if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
-
-    const year = parseInt(semesterCode.slice(0, 4), 10);
-    const type = semesterCode.slice(4);
-
-    if (type === '1') return `Ganjil ${year}/${year + 1}`;
-    if (type === '2') return `Genap ${year - 1}/${year}`;
-    return `Antara ${year - 1}/${year}`;
-  };
-
-  const getSemesterMeta = (semesterCode: string) => {
-    if (!/^\d{4}[123]$/.test(semesterCode)) {
-      return { semesterName: undefined, academicYear: undefined };
-    }
-
-    const label = formatSemesterLabel(semesterCode);
-    const [semesterName, academicYear] = label.split(' ');
-    return { semesterName, academicYear };
-  };
-
   const fetchRequests = useCallback(async () => {
     try {
-      let endpoint = '/api/active-student';
-      if (activeRequestType === 'observation') {
-        endpoint = '/api/observation-requests';
-      } else if (activeRequestType === 'counseling') {
-        endpoint = '/api/counseling-requests';
-      } else if (activeRequestType === 'suRek') {
-        endpoint = '/api/su-rek-requests';
-      }
-
-      const res = await api(endpoint);
+      const res = await tuApi.getRequestsByAdminType(activeRequestType);
       const json = await res.json();
       if (json.success) {
         setRequests(json.data);
@@ -455,7 +136,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   const fetchTuSettings = async () => {
     setIsLoadingSettings(true);
     try {
-      const res = await api('/api/tu/settings');
+      const res = await tuApi.getSettings();
       const json = await res.json();
       if (res.ok) {
         setCurrentSemesterCode(json.currentSemesterCode || '');
@@ -508,14 +189,14 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
 
   const fetchDeanName = async () => {
     try {
-      const res = await api('/api/lecturers/by-jabatan/Dekan');
+      const res = await tuApi.getDeanLecturers();
       const json = await res.json();
       if (json.found && json.data.length > 0) {
         setDeanName(json.data[0].nama);
         return;
       }
 
-      const viceRes = await api('/api/lecturers/by-jabatan/Wakil Dekan');
+      const viceRes = await tuApi.getViceDeanLecturers();
       const viceJson = await viceRes.json();
       if (viceJson.found && viceJson.data.length > 0) {
         setDeanName(viceJson.data[0].nama);
@@ -525,7 +206,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     }
   };
 
-  const getRequestTypeSlug = (type = activeRequestType) => {
+  const getRequestTypeSlug = (type = activeRequestType): TuApiRequestType => {
     if (type === 'activeStudent') return 'active-student';
     if (type === 'observation') return 'observation';
     if (type === 'counseling') return 'counseling';
@@ -589,9 +270,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
 
       try {
         const typeSlug = getRequestTypeSlug();
-        const res = await api(`/api/tu/requests/${typeSlug}/${selectedRequest.id}/validation-token`, {
-          method: 'POST'
-        });
+      const res = await tuApi.ensureValidationToken(typeSlug, selectedRequest.id);
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.validationToken || isCancelled) return;
 
@@ -663,38 +342,25 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setIsProcessing(true);
     setPanelFeedback(null);
     try {
-      let endpoint = `/api/active-student/${reqId}/verify`;
-      if (activeRequestType === 'observation') {
-        endpoint = `/api/observation-requests/${reqId}/verify`;
-      } else if (activeRequestType === 'counseling') {
-        endpoint = `/api/counseling-requests/${reqId}/verify`;
-      } else if (activeRequestType === 'suRek') {
-        endpoint = `/api/su-rek-requests/${reqId}/verify`;
-      }
-
-      let bodyData = undefined;
+      let bodyData: Record<string, unknown> | undefined = undefined;
       if (activeRequestType === 'suRek' && selectedRequest) {
-        bodyData = JSON.stringify({
+        bodyData = {
           recipientName: selectedRequest.recipientName,
           berdasarkanNo: selectedRequest.berdasarkanNo,
           perihal: selectedRequest.perihal,
           lampiran: selectedRequest.lampiran,
           carbonCopies: selectedRequest.carbonCopies
-        });
+        };
       } else if (activeRequestType === 'counseling' && selectedRequest) {
-        bodyData = JSON.stringify({
+        bodyData = {
           subject: selectedRequest.subject,
           recipientName: selectedRequest.recipientName,
           referralUnit: selectedRequest.referralUnit,
           carbonCopies: selectedRequest.carbonCopies
-        });
+        };
       }
 
-      const res = await api(endpoint, { 
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: bodyData
-      });
+      const res = await tuApi.verifyAdminRequest(activeRequestType, reqId, bodyData);
       const json = await res.json().catch(() => null);
       if (res.ok) {
         const nextLetterNumber = json?.letterNumber || selectedRequest?.letterNumber || '';
@@ -733,36 +399,32 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setIsSavingSettings(true);
     setSettingsFeedback(null);
     try {
-      const res = await api('/api/tu/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          signatureBase64: tempSignature,
-          stampBase64: tempStamp,
-          currentSemesterCode: tempCurrentSemesterCode,
-          counselingSubject: tempCounselingSubject,
-          counselingRecipientName: tempCounselingRecipientName,
-          counselingReferralUnit: tempCounselingReferralUnit,
-          researchAssignmentType: tempResearchAssignmentType,
-          researchAdvisorTitle: tempResearchAdvisorTitle,
-          researchAdvisorTitleFirst: tempResearchAdvisorTitleFirst,
-          researchAdvisorTitleSecond: tempResearchAdvisorTitleSecond,
-          interviewAssignmentType: tempInterviewAssignmentType,
-          interviewAdvisorTitle: tempInterviewAdvisorTitle,
-          interviewAdvisorTitleFirst: tempInterviewAdvisorTitleFirst,
-          interviewAdvisorTitleSecond: tempInterviewAdvisorTitleSecond,
-          permissionAssignmentType: tempPermissionAssignmentType,
-          permissionAdvisorTitle: tempPermissionAdvisorTitle,
-          permissionAdvisorTitleFirst: tempPermissionAdvisorTitleFirst,
-          permissionAdvisorTitleSecond: tempPermissionAdvisorTitleSecond,
-          suRekYangTerhormat: tempSuRekYangTerhormat,
-          suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
-          suRekPerihal: tempSuRekPerihal,
-          suRekLampiran: tempSuRekLampiran,
-          suRekTembusan: tempSuRekTembusan,
-          letterBackgrounds: tempLetterBackgrounds,
-          letterLayouts: tempLetterLayouts
-        })
+      const res = await tuApi.saveSettings({
+        signatureBase64: tempSignature,
+        stampBase64: tempStamp,
+        currentSemesterCode: tempCurrentSemesterCode,
+        counselingSubject: tempCounselingSubject,
+        counselingRecipientName: tempCounselingRecipientName,
+        counselingReferralUnit: tempCounselingReferralUnit,
+        researchAssignmentType: tempResearchAssignmentType,
+        researchAdvisorTitle: tempResearchAdvisorTitle,
+        researchAdvisorTitleFirst: tempResearchAdvisorTitleFirst,
+        researchAdvisorTitleSecond: tempResearchAdvisorTitleSecond,
+        interviewAssignmentType: tempInterviewAssignmentType,
+        interviewAdvisorTitle: tempInterviewAdvisorTitle,
+        interviewAdvisorTitleFirst: tempInterviewAdvisorTitleFirst,
+        interviewAdvisorTitleSecond: tempInterviewAdvisorTitleSecond,
+        permissionAssignmentType: tempPermissionAssignmentType,
+        permissionAdvisorTitle: tempPermissionAdvisorTitle,
+        permissionAdvisorTitleFirst: tempPermissionAdvisorTitleFirst,
+        permissionAdvisorTitleSecond: tempPermissionAdvisorTitleSecond,
+        suRekYangTerhormat: tempSuRekYangTerhormat,
+        suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
+        suRekPerihal: tempSuRekPerihal,
+        suRekLampiran: tempSuRekLampiran,
+        suRekTembusan: tempSuRekTembusan,
+        letterBackgrounds: tempLetterBackgrounds,
+        letterLayouts: tempLetterLayouts
       });
       if (res.ok) {
         await fetchTuSettings(); // Re-fetch to confirm
@@ -785,7 +447,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setPanelFeedback(null);
     try {
       const typeSlug = getRequestTypeSlug();
-      const res = await api(`/api/tu/requests/${typeSlug}/${reqId}/send-email`, { method: 'POST' });
+      const res = await tuApi.sendLetterEmail(typeSlug, reqId);
       const json = await res.json().catch(() => null);
       if (res.ok) {
         await fetchRequests();
@@ -818,9 +480,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     setPanelFeedback(null);
     try {
       const typeSlug = getRequestTypeSlug();
-      const res = await api(`/api/tu/requests/${typeSlug}/${selectedRequest.id}/download`, {
-        method: 'GET'
-      });
+      const res = await tuApi.downloadLetter(typeSlug, selectedRequest.id);
       if (!res.ok) throw new Error('Gagal mendownload PDF');
 
       const blob = await res.blob();
@@ -928,16 +588,12 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
     try {
       const typeSlug = getRequestTypeSlug();
       if (deleteTarget) {
-        const res = await api(`/api/tu/requests/${typeSlug}/${deleteTarget.id}`, { method: 'DELETE' });
+        const res = await tuApi.deleteLetter(typeSlug, deleteTarget.id);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
         setPanelFeedback({ type: 'success', message: `Pengajuan ${deleteTarget.name} berhasil dihapus.` });
       } else {
         const ids = batchDeleteTargets.map(r => r.id);
-        const res = await api(`/api/tu/requests/${typeSlug}/batch-delete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids })
-        });
+        const res = await tuApi.batchDeleteLetters(typeSlug, ids);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
         setSelectedIds(new Set());
         setPanelFeedback({ type: 'success', message: `${batchDeleteTargets.length} pengajuan berhasil dihapus.` });
@@ -1349,7 +1005,26 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   }
 
   const selectedLayoutConfig = tempLetterLayouts[selectedLayoutConfigKey] || getDefaultLetterLayout(selectedLayoutConfigKey);
-  const selectedPreviewData = getDummyDataForPreview(selectedLayoutConfigKey);
+  const selectedPreviewData = getDummyDataForPreview(selectedLayoutConfigKey, {
+    previewBaseUrl: import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin,
+    counselingSubject: tempCounselingSubject,
+    counselingRecipientName: tempCounselingRecipientName,
+    counselingReferralUnit: tempCounselingReferralUnit,
+    researchAssignmentType: tempResearchAssignmentType,
+    researchAdvisorTitleFirst: tempResearchAdvisorTitleFirst,
+    researchAdvisorTitleSecond: tempResearchAdvisorTitleSecond,
+    interviewAssignmentType: tempInterviewAssignmentType,
+    interviewAdvisorTitleFirst: tempInterviewAdvisorTitleFirst,
+    interviewAdvisorTitleSecond: tempInterviewAdvisorTitleSecond,
+    permissionAssignmentType: tempPermissionAssignmentType,
+    permissionAdvisorTitleFirst: tempPermissionAdvisorTitleFirst,
+    permissionAdvisorTitleSecond: tempPermissionAdvisorTitleSecond,
+    suRekYangTerhormat: tempSuRekYangTerhormat,
+    suRekBerdasarkanNo: tempSuRekBerdasarkanNo,
+    suRekPerihal: tempSuRekPerihal,
+    suRekLampiran: tempSuRekLampiran,
+    suRekTembusan: tempSuRekTembusan
+  });
   const selectedPreviewType: 'active-student' | 'observation' | 'counseling' | 'research' | 'interview' | 'permission' | 'su-rek' =
     selectedLayoutConfigKey === 'activeStudent'
       ? 'active-student'
