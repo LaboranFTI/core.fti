@@ -57,7 +57,23 @@ const mapSuRekRow = (row) => ({
   accessCode: row.access_code,
   letterGeneratedAt: row.letter_generated_at,
   carbonCopies: row.carbon_copies || [],
-  createdAt: row.created_at
+  createdAt: row.created_at,
+  // Additional fields for generalized letter
+  destinationPlace: row.destination_place,
+  addressStreet: row.address_street,
+  addressKelurahan: row.address_kelurahan,
+  addressKecamatan: row.address_kecamatan,
+  addressCity: row.address_city,
+  addressProvince: row.address_province,
+  recipientTitle: row.recipient_title,
+  assignmentType: row.assignment_type,
+  permissionPurpose: row.permission_purpose,
+  includeResearchPlace: row.include_research_place,
+  researchPlace: row.research_place,
+  researchTitle: row.research_title,
+  advisors: row.advisors || [],
+  students: row.students || [],
+  variant: row.variant
 });
 
 const buildSuRekAccessPayload = (row) => ({

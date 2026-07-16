@@ -252,7 +252,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
 
   useEffect(() => {
     if (!selectedRequest) return;
-    const latestRequest = requests.find((request) => request.id === selectedRequest.id);
+    const latestRequest = requests?.find((request) => request?.id === selectedRequest.id);
     if (!latestRequest) return;
 
     const nextValidationToken = latestRequest.validationToken || selectedRequest.validationToken;
@@ -295,7 +295,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
           ? { ...prev, validationToken: json.validationToken, letterNumber: json.letterNumber || prev.letterNumber }
           : prev
         );
-        setRequests((prev: any[]) => prev.map((request) => request.id === selectedRequest.id
+        setRequests((prev: any[]) => (prev || []).map((request) => request?.id === selectedRequest.id
           ? { ...request, validationToken: json.validationToken, letterNumber: json.letterNumber || request.letterNumber }
           : request
         ));
@@ -382,7 +382,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
       if (res.ok) {
         const nextLetterNumber = json?.letterNumber || selectedRequest?.letterNumber || '';
         const nextValidationToken = json?.validationToken || selectedRequest?.validationToken || '';
-        setRequests((prev: any[]) => prev.map((request) => request.id === reqId
+        setRequests((prev: any[]) => (prev || []).map((request) => request?.id === reqId
           ? {
               ...request,
               status: 'verified',
@@ -474,7 +474,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         const requestEmail =
           selectedRequest?.id === reqId
             ? selectedRequest.email
-            : requests.find((request) => request.id === reqId)?.email || '';
+            : requests?.find((request) => request?.id === reqId)?.email || '';
         setPanelFeedback({ type: 'success', message: 'Surat berhasil dikirim. Jika belum masuk ke inbox, cek juga folder spam.' });
         setEmailSuccessState({
           email: requestEmail,
@@ -585,7 +585,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   };
 
   const handleBatchDeleteOpen = () => {
-    setBatchDeleteTargets(requests.filter(r => selectedIds.has(r.id)));
+    setBatchDeleteTargets(requests.filter(r => r && selectedIds.has(r.id)));
     setDeleteTarget(null);
     setConfirmPhase(1);
     setConfirmText('');
@@ -609,7 +609,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal menghapus.');
         setPanelFeedback({ type: 'success', message: `Pengajuan ${deleteTarget.name} berhasil dihapus.` });
       } else {
-        const ids = batchDeleteTargets.map(r => r.id);
+        const ids = batchDeleteTargets.filter(Boolean).map(r => r.id);
         const res = await tuApi.batchDeleteLetters(typeSlug, ids);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Gagal batch delete.');
         setSelectedIds(new Set());
@@ -628,7 +628,7 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
   };
 
   const toggleSelectAll = () => {
-    setSelectedIds(selectedIds.size === requests.length ? new Set() : new Set(requests.map(r => r.id)));
+    setSelectedIds(selectedIds.size === requests.length ? new Set() : new Set(requests.filter(Boolean).map(r => r.id)));
   };
 
   const getStatusBadge = (status: string) => {
@@ -1817,8 +1817,8 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requests.map((req) => (
-                    <TableRow key={req.id} className={selectedIds.has(req.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}>
+                  {requests.map((req, index) => !req ? null : (
+                    <TableRow key={req.id || index} className={selectedIds.has(req.id) ? 'bg-red-50/40 dark:bg-red-900/10' : ''}>
                       <TableCell>
                         <input
                           type="checkbox"
@@ -1889,9 +1889,9 @@ export function AdminPanel({ onSettingsSaved, mode = 'all' }: AdminPanelProps) {
               ) : (
                 <>
                   <p className="text-sm font-semibold text-red-700 dark:text-red-300">{batchDeleteTargets.length} pengajuan akan dihapus</p>
-                  {batchDeleteTargets.slice(0, 4).map(r => (
-                    <p key={r.id} className="text-xs text-slate-600 dark:text-slate-400">• {r.name} ({r.nim})</p>
-                  ))}
+                  {batchDeleteTargets.slice(0, 4).map((r, index) => r ? (
+                    <p key={r.id || index} className="text-xs text-slate-600 dark:text-slate-400">• {r.name} ({r.nim})</p>
+                  ) : null)}
                   {batchDeleteTargets.length > 4 && <p className="text-xs text-slate-400">...dan {batchDeleteTargets.length - 4} lainnya</p>}
                 </>
               )}
