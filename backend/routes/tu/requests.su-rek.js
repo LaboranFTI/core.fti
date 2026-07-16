@@ -13,9 +13,7 @@ import {
   ensureLetterValidationToken,
   buildLetterPdfBuffer,
   buildPublicValidationUrl,
-  transporter,
   sendSuRekAccessCodeEmail,
-  nodemailer,
   letterConfig,
   getRecommendationSigner,
   buildLetterHtml,
@@ -23,6 +21,8 @@ import {
   normalizeSuRekAccessCode,
   publicObservationAccessLimiter
 } from './core.js';
+
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
 
 const router = express.Router();
 
@@ -413,46 +413,43 @@ router.post('/tu/public/su-rek/send-email', publicObservationAccessLimiter, asyn
     requestData = await ensureLetterValidationToken(pool, 'su-rek', requestData);
     const pdfBuffer = await buildLetterPdfBuffer('su-rek', requestData, req);
     const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
-    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
-    const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
-    const info = await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to: requestData.email,
-      subject: `${config.subject} - ${requestData.name}`,
-      html: `
-        <div style="font-family: sans-serif; color: #333;">
-          <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
-          ${config.emailBody}
-          <p><strong>Kode akses surat:</strong> ${escapeXml(requestData.access_code)}</p>
-          <p><strong>Validasi surat:</strong> <a href="${validationUrl}">${validationUrl}</a></p>
-          <br/>
-          <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
+
+    const emailHtml = buildProfessionalEmail({
+      title: config.subject,
+      contentHtml: `
+        <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
+        ${config.emailBody}
+        <div style="margin: 24px 0; padding: 16px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <p style="margin-top: 0;"><strong>Kode akses surat:</strong> <br/><span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #1d4ed8;">${escapeXml(requestData.access_code)}</span></p>
+          <p style="margin-bottom: 0;"><strong>Validasi surat:</strong> <br/><a href="${validationUrl}" style="color: #1d4ed8; word-break: break-all;">${validationUrl}</a></p>
         </div>
-      `,
-      attachments: [
-        {
-          filename: `${(requestData.letter_number || config.pdfFilename).replace(/\//g, '_')}_${requestData.nim}.pdf`,
-          content: pdfBuffer,
-          contentType: 'application/pdf'
-        }
-      ]
+      `
     });
 
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log('[Mailer] Mock Email Preview (Public SuRek):', previewUrl);
-    } else {
-      console.log(`[Mailer] Surat rekomendasi terkirim ke ${requestData.email} | MessageID: ${info.messageId}`);
-    }
+    const attachments = getStandardEmailAttachments();
+    attachments.push({
+      filename: `${(requestData.letter_number || config.pdfFilename).replace(/\//g, '_')}_${requestData.nim}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf'
+    });
+
+    await sendMail({
+      to: requestData.email,
+      subject: `${config.subject} - ${requestData.name}`,
+      html: emailHtml,
+      attachments
+    });
+
+    console.log(`[Mailer] Surat rekomendasi terkirim ke ${requestData.email}`);
 
     await pool.query(`UPDATE su_rek_requests SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [requestData.id]);
 
     res.json({
-      success: true,
-      message: 'Surat rekomendasi berhasil dikirim ke email terdaftar.',
-      previewUrl: previewUrl || null,
-      validationUrl
-    });
+        success: true,
+        message: 'Surat rekomendasi berhasil dikirim ke email terdaftar.',
+        previewUrl: null,
+        validationUrl
+      });
   } catch (err) {
     console.error('Public su-rek send-email error:', err);
     res.status(500).json({ error: 'Gagal mengirim email surat rekomendasi.' });

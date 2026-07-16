@@ -1,6 +1,5 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -8,6 +7,7 @@ import { fileURLToPath } from 'url';
 import qrcode from 'qr.js';
 import { pool } from '../../config/database.js';
 import { verifyRole } from '../../middleware/auth.js';
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
 import {
   buildBirthPlaceAndDate,
   DEFAULT_FACULTY,
@@ -1161,7 +1161,7 @@ const normalizePermissionDefaults = (source = {}) => ({
   assignmentType: String(source.permissionAssignmentType || source.tu_permission_assignment_type || '').trim() || DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
   advisorTitle: String(source.permissionAdvisorTitle || source.tu_permission_advisor_title || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE,
   advisorTitleFirst: String(source.permissionAdvisorTitleFirst || source.tu_permission_advisor_title_first || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
-  advisorTitleSecond: String(source.permissionAdvisorTitleSecond || source.tu_permission_advisor_title_second || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND
+  advisorTitleSecond: String(source.permissionPermissionAdvisorTitleSecond || source.tu_permission_advisor_title_second || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND
 });
 
 const getResearchAdvisorTitle = (index, total, defaults = normalizeResearchDefaults()) => {
@@ -1426,83 +1426,34 @@ const generatePdfBuffer = async (htmlContent) => {
   return pdfBuffer;
 };
 
-let transporter;
-const initTransporter = async () => {
-  // Prioritaskan EMAIL_* (konfigurasi baru) → fallback ke SMTP_* (lama)
-  const emailHost = process.env.EMAIL_HOST || process.env.SMTP_HOST;
-  const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
-  const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
-  const emailPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587', 10);
-  const emailTls = process.env.EMAIL_TLS !== 'false'; // true by default
-
-  if (!emailHost || !emailUser || !emailPass) {
-    console.warn('[Mailer] ⚠ Konfigurasi EMAIL tidak lengkap di .env. Menggunakan Mock Server (Ethereal).');
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: { user: testAccount.user, pass: testAccount.pass }
-    });
-    return;
-  }
-
-  transporter = nodemailer.createTransport({
-    host: emailHost,
-    port: emailPort,
-    secure: emailPort === 465,   // port 465 = SSL, 587 = STARTTLS
-    requireTLS: emailPort !== 465 && emailTls,
-    name: process.env.EMAIL_HOSTNAME || emailHost, // Fix HELO/EHLO A Record warning
-    auth: { user: emailUser, pass: emailPass }
-  });
-  console.log(`[Mailer] Transporter siap → ${emailHost}:${emailPort} (user: ${emailUser})`);
-};
-initTransporter().catch(err => {
-  console.error('[Mailer] Gagal menginisialisasi transporter email:', err);
-});
-
 const sendSuRekAccessCodeEmail = async (requestData, req) => {
-  const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME || 'TU FTI UKSW';
-  const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
   const accessCode = requestData.access_code || requestData.accessCode || '';
   const serviceUrl = `${buildPublicAppBaseUrl(req)}/layanan-tu`;
 
-  const info = await transporter.sendMail({
-    from: `"${fromName}" <${fromEmail}>`,
+  const contentHtml = `
+    <h2>Permohonan Surat Rekomendasi Diterima</h2>
+    <p>Halo, <strong>${escapeXml(requestData.name)}</strong>.</p>
+    <p>Permohonan Surat Rekomendasi Afirmasi Cemerlang Anda telah masuk ke sistem Tata Usaha FTI UKSW.</p>
+    <p>Gunakan kode akses berikut untuk mengecek status permohonan dan mengunduh surat setelah diverifikasi:</p>
+    <div style="margin: 24px 0; padding: 20px; border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 8px; text-align: center;">
+      <div style="font-size: 13px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Kode Akses</div>
+      <div style="font-size: 28px; font-weight: 700; letter-spacing: 0.15em; color: #1d4ed8; font-family: Consolas, monospace;">${escapeXml(accessCode)}</div>
+    </div>
+    <p>Buka halaman layanan TU lalu masukkan kode akses tersebut:</p>
+    <p><a href="${serviceUrl}" style="color: #1d4ed8; font-weight: bold; text-decoration: none;">&rarr; Buka Layanan TU</a></p>
+  `;
+
+  await sendMail({
     to: requestData.email,
     subject: `Kode Akses Surat Rekomendasi - ${requestData.name}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-        <h2 style="margin: 0 0 12px;">Permohonan Surat Rekomendasi Diterima</h2>
-        <p>Halo, <strong>${escapeXml(requestData.name)}</strong>.</p>
-        <p>Permohonan Surat Rekomendasi Afirmasi Cemerlang Anda telah masuk ke sistem Tata Usaha FTI UKSW.</p>
-        <p>Gunakan kode akses berikut untuk mengecek status permohonan dan mengunduh surat setelah diverifikasi:</p>
-        <div style="margin: 18px 0; padding: 14px 18px; border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px; text-align: center;">
-          <div style="font-size: 12px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em;">Kode Akses</div>
-          <div style="font-size: 24px; font-weight: 700; letter-spacing: 0.12em; color: #1d4ed8; font-family: Consolas, monospace;">${escapeXml(accessCode)}</div>
-        </div>
-        <p>Buka halaman layanan TU lalu masukkan kode akses tersebut:</p>
-        <p><a href="${serviceUrl}" style="color: #1d4ed8;">${serviceUrl}</a></p>
-        <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
-      </div>
-    `,
-    text: [
-      `Halo, ${requestData.name}.`,
-      'Permohonan Surat Rekomendasi Afirmasi Cemerlang Anda telah masuk ke sistem Tata Usaha FTI UKSW.',
-      `Kode akses: ${accessCode}`,
-      `Buka halaman layanan TU: ${serviceUrl}`,
-      'Salam, Bagian Tata Usaha FTI UKSW'
-    ].join('\n\n')
+    html: buildProfessionalEmail({
+      title: 'Permohonan Diterima',
+      contentHtml
+    }),
+    attachments: getStandardEmailAttachments()
   });
 
-  const previewUrl = nodemailer.getTestMessageUrl(info);
-  if (previewUrl) {
-    console.log('[Mailer] Mock Email Preview (SuRek access code):', previewUrl);
-  } else {
-    console.log(`[Mailer] Kode akses SuRek terkirim ke ${requestData.email} | MessageID: ${info.messageId}`);
-  }
-
-  return { messageId: info.messageId, previewUrl };
+  return { success: true };
 };
 
 const letterConfig = {
@@ -2402,9 +2353,7 @@ export {
   mapObservationRow,
   mapCounselingRow,
   mapResearchRow,
-  transporter,
   sendSuRekAccessCodeEmail,
-  nodemailer,
   upsertObservationRequest,
   ensureObservationAccessCode
 };

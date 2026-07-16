@@ -15,8 +15,6 @@ import {
   ensureLetterNumber,
   ensureLetterValidationToken,
   buildPublicValidationUrl,
-  transporter,
-  nodemailer,
   letterConfig,
   buildLetterPdfBuffer,
   normalizeObservationStudents,
@@ -24,6 +22,8 @@ import {
   ensureObservationAccessCode,
   normalizeObservationAccessCode
 } from './core.js';
+
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
 
 const router = express.Router();
 
@@ -504,38 +504,32 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     const safeCompanyName = (resolvedCompanyName || 'TanpaNama').replace(/[\/\\?%*:|"<>]/g, '_');
     const pdfFilename = `SuratObservasi_${safeCompanyName}_${requestData.letter_number?.replace(/\//g, '_') || requestData.nim}.pdf`;
 
-    const fromName = process.env.EMAIL_FROM_NAME || process.env.SENDER_NAME;
-    const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER;
-
     const validationUrl = buildPublicValidationUrl(req, requestData.validation_token);
-    const info = await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to: targetEmail,
-      subject: `${config.subject} - ${resolvedCompanyName || 'Observasi'}`,
-      text: `Halo, ${resolvedName} (${resolvedNim})\n\nPermohonan Surat Pengantar Observasi Anda telah disetujui dan diproses oleh Tata Usaha. Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.\n\nValidasi surat: ${validationUrl}\nKode akses surat: ${requestData.access_code}\nSimpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.\n\nSalam,\nBagian Tata Usaha\nFakultas Teknologi Informasi UKSW`,
-      html: `
-        <div style="font-family: sans-serif; color: #333;">
+      
+      const emailHtml = buildProfessionalEmail({
+        title: `${config.subject}`,
+        contentHtml: `
           <h2>Halo, ${resolvedName} (${resolvedNim})</h2>
           ${config.emailBody}
-          <p><strong>Validasi surat:</strong> <a href="${validationUrl}">${validationUrl}</a></p>
-          <p><strong>Kode akses surat:</strong> ${requestData.access_code}</p>
+          <div style="margin: 24px 0; padding: 16px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <p style="margin-top: 0;"><strong>Validasi surat:</strong> <br/><a href="${validationUrl}" style="color: #1d4ed8; word-break: break-all;">${validationUrl}</a></p>
+            <p style="margin-bottom: 0;"><strong>Kode akses surat:</strong> <br/><span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #1d4ed8;">${requestData.access_code}</span></p>
+          </div>
           <p>Simpan kode ini untuk membuka atau mengunduh ulang surat melalui layanan self-service.</p>
-          <br/>
-          <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
-        </div>
-      `,
-      attachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
-      list: {
-        unsubscribe: {
-          url: `mailto:${fromEmail}?subject=unsubscribe`,
-          comment: 'Unsubscribe'
-        }
-      }
-    });
+        `
+      });
 
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) console.log('[Mailer] Mock Email Preview (Ethereal):', previewUrl);
-    else console.log(`[Mailer] ✅ Surat observasi terkirim ke ${targetEmail}`);
+      const attachments = getStandardEmailAttachments();
+      attachments.push({ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' });
+
+      await sendMail({
+        to: targetEmail,
+        subject: `${config.subject} - ${resolvedCompanyName || 'Observasi'}`,
+        html: emailHtml,
+        attachments
+      });
+
+    console.log(`[Mailer] 📧 Surat observasi terkirim ke ${targetEmail}`);
 
     res.json({
       success: true,

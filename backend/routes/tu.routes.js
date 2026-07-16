@@ -1,5 +1,4 @@
 import express from 'express';
-import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -12,6 +11,8 @@ import {
   getStudyProgramCodeFromNim,
   mapStudyProgramRow
 } from '../utils/activeStudentLetter.js';
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../utils/mailer.js';
+import { escapeXml } from './tu/lib/sanitize.js';
 
 const router = express.Router();
 
@@ -504,40 +505,6 @@ router.post('/tu/settings', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
 
 // --- SISTEM PENGIRIMAN EMAIL GENERIC ---
 
-const SENDER_NAME = process.env.SENDER_NAME || "Layanan Surat FTI";
-const SENDER_EMAIL = process.env.SMTP_USER;
-
-// Konfigurasi Transporter Nodemailer (Dengan Mock Support untuk Development)
-let transporter;
-const initTransporter = async () => {
-  if (process.env.NODE_ENV === 'development' || !process.env.SMTP_HOST) {
-    console.log('🛠️ Menginisialisasi Mock Email Server (Ethereal)...');
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
-  } else {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '465'),
-      secure: parseInt(process.env.SMTP_PORT || '465') === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-};
-initTransporter().catch(err => {
-  console.error('Gagal menginisialisasi transporter email:', err);
-});
-
 // Konfigurasi untuk setiap jenis surat
 const letterConfig = {
   'active-student': {
@@ -641,35 +608,27 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
     await browser.close();
 
     // 6. Konfigurasi Email
-    const mailOptions = {
-      from: `"${SENDER_NAME}" <${SENDER_EMAIL}>`,
+    const emailHtml = buildProfessionalEmail({
+      title: config.subject,
+      contentHtml: `
+        <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
+        ${config.emailBody}
+      `
+    });
+
+    const attachments = getStandardEmailAttachments();
+    attachments.push({
+      filename: `${(requestData.letter_number || config.pdfFilename).replace(/\//g, '_')}_${requestData.nim}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf'
+    });
+
+    await sendMail({
       to: requestData.email,
       subject: `${config.subject} - ${requestData.name}`,
-      html: `
-        <div style="font-family: sans-serif; color: #333;">
-          <h2>Halo, ${requestData.name} (${requestData.nim})</h2>
-          ${config.emailBody}
-          <br/>
-          <p>Salam,<br/><strong>Bagian Tata Usaha<br/>Fakultas Teknologi Informasi UKSW</strong></p>
-        </div>
-      `,
-      // 7. Melampirkan Buffer PDF ke Nodemailer
-      attachments: [
-        {
-          filename: `${(requestData.letter_number || config.pdfFilename).replace(/\//g, '_')}_${requestData.nim}.pdf`,
-          content: pdfBuffer,
-          contentType: 'application/pdf'
-        }
-      ]
-    };
-
-    // 8. Kirim Email
-    const info = await transporter.sendMail(mailOptions);
-
-    if (process.env.NODE_ENV === 'development' || !process.env.SMTP_HOST) {
-      console.log('📧 Mock Email berhasil ditangkap oleh Ethereal!');
-      console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-    }
+      html: emailHtml,
+      attachments
+    });
 
     // 9. Update status di tabel yang sesuai
     await pool.query(`UPDATE ${config.table} SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
