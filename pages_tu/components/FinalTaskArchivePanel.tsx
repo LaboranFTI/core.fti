@@ -235,7 +235,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       if (!res.ok) throw new Error(resJson.error || 'Gagal mengirim email.');
       const updatedItem = resJson.data;
       
-      const updateList = (prev: ResearchRequest[]) => prev.map(r => r.id === updatedItem.id ? updatedItem : r);
+      const updateList = (prev: ResearchRequest[]) => prev.map(r => r?.id === updatedItem.id ? updatedItem : r);
       if (type === 'research') setResearchRequests(updateList);
       else if (type === 'interview') setInterviewRequests(updateList);
       else if (type === 'permission') setPermissionRequests(updateList);
@@ -272,7 +272,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       
       const updatedItem = resJson.data;
       
-      const updateList = (prev: ResearchRequest[]) => prev.map(r => r.id === updatedItem.id ? updatedItem : r);
+      const updateList = (prev: ResearchRequest[]) => prev.map(r => r?.id === updatedItem.id ? updatedItem : r);
       if (type === 'research') setResearchRequests(updateList);
       else if (type === 'interview') setInterviewRequests(updateList);
       else if (type === 'permission') setPermissionRequests(updateList);
@@ -317,7 +317,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       
       const updatedItem = resJson.data;
       
-      const updateList = (prev: ResearchRequest[]) => prev.map(r => r.id === updatedItem.id ? updatedItem : r);
+      const updateList = (prev: ResearchRequest[]) => prev.map(r => r?.id === updatedItem.id ? updatedItem : r);
       if (rejectTarget.type === 'research') setResearchRequests(updateList);
       else if (rejectTarget.type === 'interview') setInterviewRequests(updateList);
       else if (rejectTarget.type === 'permission') setPermissionRequests(updateList);
@@ -362,7 +362,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
         : Array.from(selectedPermissionIds);
     const requests = type === 'research' ? researchRequests : type === 'interview' ? interviewRequests : permissionRequests;
     const targets = ids.map(id => {
-      const item = requests.find(r => r.id === id);
+      const item = requests.find(r => r?.id === id);
       return { id, type, label: item ? item.name : id };
     });
     if (targets.length === 0) return;
@@ -493,7 +493,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     if (selectedResearchIds.size === filteredResearchRequests.length && filteredResearchRequests.length > 0) {
       setSelectedResearchIds(new Set());
     } else {
-      setSelectedResearchIds(new Set(filteredResearchRequests.map(r => r.id)));
+      setSelectedResearchIds(new Set(filteredResearchRequests.filter(Boolean).map(r => r.id)));
     }
   };
 
@@ -501,7 +501,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     if (selectedInterviewIds.size === filteredInterviewRequests.length && filteredInterviewRequests.length > 0) {
       setSelectedInterviewIds(new Set());
     } else {
-      setSelectedInterviewIds(new Set(filteredInterviewRequests.map(r => r.id)));
+      setSelectedInterviewIds(new Set(filteredInterviewRequests.filter(Boolean).map(r => r.id)));
     }
   };
 
@@ -509,7 +509,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     if (selectedPermissionIds.size === filteredPermissionRequests.length && filteredPermissionRequests.length > 0) {
       setSelectedPermissionIds(new Set());
     } else {
-      setSelectedPermissionIds(new Set(filteredPermissionRequests.map(r => r.id)));
+      setSelectedPermissionIds(new Set(filteredPermissionRequests.filter(Boolean).map(r => r.id)));
     }
   };
 
@@ -804,7 +804,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredResearchRequests.map(item => (
+                      {filteredResearchRequests.filter(Boolean).map(item => (
                         <TableRow key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-800/50 dark:border-gray-700">
                           <TableCell>
                             <input
@@ -911,7 +911,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredInterviewRequests.map(item => (
+                      {filteredInterviewRequests.filter(Boolean).map(item => (
                         <TableRow key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-800/50 dark:border-gray-700">
                           <TableCell>
                             <input
@@ -1018,7 +1018,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredPermissionRequests.map(item => (
+                      {filteredPermissionRequests.filter(Boolean).map(item => (
                         <TableRow key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-gray-800/50 dark:border-gray-700">
                           <TableCell>
                             <input

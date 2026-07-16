@@ -112,12 +112,17 @@ export async function sendMail({ to, subject, html, text, cc, attachments = [] }
       // Sesuaikan format attachment dari Nodemailer ke Resend
       const resendAtt = {};
       if (att.filename) resendAtt.filename = att.filename;
-      if (att.content) resendAtt.content = att.content; // Resend menerima Buffer
+      
+      // Resend documentation says: "encode your image as Base64 when sending the raw content via the API"
+      if (att.content) {
+        resendAtt.content = Buffer.isBuffer(att.content) ? att.content.toString('base64') : att.content;
+      }
+      
       if (att.contentType) resendAtt.content_type = att.contentType;
+      
       if (att.cid) {
-        // According to RFC 2392, Content-ID must be enclosed in angle brackets.
-        // Nodemailer does this automatically, but Resend requires it manually.
-        resendAtt.content_id = `<${att.cid}>`;
+        // Resend SDK does NOT want angle brackets here, just the ID
+        resendAtt.content_id = att.cid;
         resendAtt.disposition = 'inline';
       }
       return resendAtt;
