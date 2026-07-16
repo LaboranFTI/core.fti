@@ -24,12 +24,11 @@ import { FinalTaskArchivePanel } from './components/FinalTaskArchivePanel';
 import { ObservationForm } from './components/ObservationForm';
 import { ResearchLetterForm } from './components/ResearchLetterForm';
 import { SuRekForm } from './components/SuRekForm';
-import { LetterPreview } from './components/LetterPreview';
 import { PageTabs, PageTabItem } from '../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../components/ui/tabs';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
-import { ObservationData, TULetterBackgrounds, TULetterLayouts } from './types';
+import { TULetterBackgrounds, TULetterLayouts } from './types';
 import { cn } from '../lib/utils';
 
 interface HalamanTUProps {
@@ -75,11 +74,6 @@ const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>):
   };
 };
 
-type ObservationFeedback = {
-  type: 'success' | 'error' | 'info';
-  message: string;
-} | null;
-
 type LetterCategoryId = 'tata-usaha' | 'tugas-akhir';
 type LetterServiceId =
   | 'aktif'
@@ -103,55 +97,6 @@ interface LetterServiceCard {
   status?: 'available' | 'soon';
 }
 
-const waitForNextPaint = () =>
-  new Promise<void>((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve());
-    });
-  });
-
-const sanitizeObservationData = (data: ObservationData): ObservationData => ({
-  ...data,
-  recipientName: data.recipientName.trim(),
-  companyName: data.companyName.trim(),
-  companyAddress: data.companyAddress.trim(),
-  courseName: data.courseName.trim(),
-  lecturerName: data.lecturerName.trim(),
-  headOfProgramName: data.headOfProgramName.trim(),
-  studyProgramId: data.studyProgramId,
-  studyProgramName: data.studyProgramName,
-  studyProgramLevel: data.studyProgramLevel,
-  students: data.students
-    .map((student) => ({
-      name: student.name.trim(),
-      nim: student.nim.trim()
-    }))
-    .filter((student) => student.name || student.nim)
-});
-
-const validateObservationData = (data: ObservationData) => {
-  if (!data.recipientName) return 'Nama penerima atau jabatan tujuan masih perlu diisi.';
-  if (!data.companyName) return 'Nama perusahaan atau instansi tujuan masih kosong.';
-  if (!data.companyAddress) return 'Alamat perusahaan tujuan masih perlu dilengkapi.';
-  if (!data.courseName) return 'Nama mata kuliah observasi belum diisi.';
-  if (!data.lecturerName) return 'Nama dosen pengampu masih kosong.';
-  if (data.students.length === 0) return 'Tambahkan minimal satu mahasiswa untuk surat observasi.';
-
-  const invalidStudent = data.students.find((student) => !student.name || !student.nim);
-  if (invalidStudent) return 'Setiap mahasiswa harus memiliki nama dan NIM sebelum surat diunduh.';
-
-  return null;
-};
-
-const buildObservationFileName = (data: ObservationData) => {
-  const companySlug = data.companyName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  const dateStamp = new Date().toISOString().slice(0, 10);
-
-  return `surat-observasi${companySlug ? `-${companySlug}` : ''}-${dateStamp}.pdf`;
-};
 
 const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   // Tentukan apakah user memiliki hak akses sebagai Tata Usaha / Admin
@@ -168,15 +113,9 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   };
   const [activeServiceId, setActiveServiceId] = useState<LetterServiceId | null>(null);
   const [activeLetterCategory, setActiveLetterCategory] = useState<LetterCategoryId>('tata-usaha');
-  const [showObservationPreview, setShowObservationPreview] = useState(false);
   const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
-  const capturePreviewRef = useRef<HTMLDivElement>(null);
-  const observationPreviewWasVisibleRef = useRef(false);
-  const [isPreparingObservationOutput, setIsPreparingObservationOutput] = useState(false);
-  const [observationFeedback, setObservationFeedback] = useState<ObservationFeedback>(null);
   const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
-  const lastSavedObservationSignatureRef = useRef<string | null>(null);
   const letterServiceCards: LetterServiceCard[] = [
     {
       value: 'aktif',
@@ -268,86 +207,6 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     ? availableServiceCards.find((item) => item.value === activeServiceId && item.status !== 'soon') || null
     : null;
 
-  // State untuk Preview Surat Observasi
-  const [obsData, setObsData] = useState<ObservationData>({
-    recipientName: '',
-    companyName: '',
-    companyAddress: '',
-    courseName: '',
-    lecturerName: '',
-    headOfProgramName: '',
-    studyProgramId: '',
-    studyProgramName: '',
-    studyProgramLevel: '',
-    students: []
-  });
-
-  const handlePrint = async () => {
-    const sanitizedData = sanitizeObservationData(obsData);
-    const validationMessage = validateObservationData(sanitizedData);
-
-    if (validationMessage) {
-      setObservationFeedback({ type: 'error', message: validationMessage });
-      return;
-    }
-
-    try {
-      const responseData = await persistObservationRequest(sanitizedData);
-      setObsData({
-        ...sanitizedData,
-        letterNumber: responseData?.letterNumber || obsData.letterNumber,
-        validationToken: responseData?.validationToken || obsData.validationToken,
-        accessCode: responseData?.accessCode || obsData.accessCode
-      });
-      observationPreviewWasVisibleRef.current = showObservationPreview;
-      setShowObservationPreview(true);
-      setIsPreparingObservationOutput(true);
-      setObservationFeedback({ type: 'info', message: 'Preview siap dicetak. Pastikan pengaturan printer memakai ukuran A4.' });
-      await waitForNextPaint();
-      window.print();
-    } catch (error) {
-      console.error('Failed to save observation request:', error);
-      setObservationFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menyimpan data surat observasi.' });
-      setIsPreparingObservationOutput(false);
-    }
-  };
-
-  const handleObservationDataChange = useCallback((data: ObservationData) => {
-    setObsData(data);
-    setObservationFeedback(null);
-    lastSavedObservationSignatureRef.current = null;
-  }, []);
-
-  const persistObservationRequest = useCallback(async (data: ObservationData) => {
-    const payloadSignature = JSON.stringify(data);
-    if (lastSavedObservationSignatureRef.current === payloadSignature) {
-      return null;
-    }
-
-    const response = await api('/api/observation-requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        recipientName: data.recipientName,
-        companyName: data.companyName,
-        company: data.companyName,
-        companyAddress: data.companyAddress,
-        courseName: data.courseName,
-        lecturerName: data.lecturerName,
-        headOfProgramName: data.headOfProgramName,
-        students: data.students
-      })
-    });
-
-    const json = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(json?.error || 'Gagal menyimpan data surat observasi.');
-    }
-
-    lastSavedObservationSignatureRef.current = payloadSignature;
-    setLetterArchiveRefreshKey((prev) => prev + 1);
-    return json;
-  }, []);
 
   const fetchLetterBackgrounds = useCallback(async () => {
     try {
@@ -390,11 +249,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
 
   }, [activeServiceId, isMahasiswa, isTUAdmin]);
 
-  useEffect(() => {
-    if (activeServiceId !== 'observasi') {
-      setShowObservationPreview(false);
-    }
-  }, [activeServiceId]);
+
 
   useEffect(() => {
     if (activeServiceId || availableLetterCategoryTabs.some((item) => item.value === activeLetterCategory)) {
@@ -407,17 +262,6 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     }
   }, [activeLetterCategory, activeServiceId, availableLetterCategoryTabs]);
 
-  useEffect(() => {
-    const handleAfterPrint = () => {
-      setIsPreparingObservationOutput(false);
-      if (!observationPreviewWasVisibleRef.current) {
-        setShowObservationPreview(false);
-      }
-    };
-
-    window.addEventListener('afterprint', handleAfterPrint);
-    return () => window.removeEventListener('afterprint', handleAfterPrint);
-  }, []);
 
   const adminMainTabs: PageTabItem[] = [
     { value: 'surat', label: 'Surat', icon: PhFileText },
@@ -501,81 +345,24 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     );
   };
 
-  const renderObservationService = () => {
-    const shouldRenderPreview = showObservationPreview || isPreparingObservationOutput;
-
-    return (
-      <>
-        <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between print:hidden">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-            <Layout className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-            Preview surat observasi opsional
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowObservationPreview((current) => !current)}
-            className={cn(
-              'inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500',
-              showObservationPreview
-                ? 'border-fti-blue-200 bg-fti-blue-50 text-fti-blue-700 hover:bg-fti-blue-100 dark:border-fti-blue-300/30 dark:bg-fti-blue-300/10 dark:text-fti-blue-200'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-fti-blue-200 hover:text-fti-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-200 dark:hover:border-fti-blue-300/30 dark:hover:text-fti-blue-200'
-            )}
-          >
-            {showObservationPreview ? 'Sembunyikan Preview' : 'Tampilkan Preview'}
-          </button>
-        </div>
-
-        <div className={cn('grid grid-cols-1 gap-6', shouldRenderPreview && 'xl:grid-cols-12')}>
-          <div className={cn('print:hidden', shouldRenderPreview && 'xl:col-span-5')}>
-            <ObservationForm
-              onDataChange={handleObservationDataChange}
-              onPrint={handlePrint}
-              feedback={observationFeedback}
-              readOnly={isMahasiswa}
-            />
-          </div>
-          {shouldRenderPreview && (
-            <div className="xl:col-span-7 print:block print:w-full print:absolute print:top-0 print:left-0 print:m-0 print:p-0">
-              <div className="flex justify-center overflow-auto rounded-lg border border-slate-200 bg-slate-200/50 p-4 dark:border-slate-800 dark:bg-slate-900/50 print:block print:overflow-visible print:border-0 print:bg-white print:p-0">
-                <LetterPreview
-                  data={obsData}
-                  backgroundImageBase64={letterBackgrounds.document.imageBase64}
-                  layout={letterLayouts.observation}
-                  showLayoutGuide={!isPreparingObservationOutput}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="pointer-events-none fixed -left-2500 top-0 opacity-100" aria-hidden="true">
-          <LetterPreview
-            ref={capturePreviewRef}
-            data={sanitizeObservationData(obsData)}
-            backgroundImageBase64={letterBackgrounds.document.imageBase64}
-            layout={letterLayouts.observation}
-            showLayoutGuide={false}
-          />
-        </div>
-      </>
-    );
-  };
-
   const renderActiveService = () => {
+    const handleReturnToMenu = () => setActiveServiceId(null);
+
     switch (activeServiceId) {
       case 'aktif':
-        return <ActiveStudentForm />;
+        return <ActiveStudentForm onReturnToMenu={handleReturnToMenu} />;
       case 'observasi':
-        return renderObservationService();
+        return <ObservationForm readOnly={isMahasiswa} onReturnToMenu={handleReturnToMenu} />;
       case 'penelitian':
-        return <ResearchLetterForm onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
+        return <ResearchLetterForm onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} onReturnToMenu={handleReturnToMenu} />;
       case 'wawancara-ta':
-        return <ResearchLetterForm variant="interview" onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
+        return <ResearchLetterForm variant="interview" onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} onReturnToMenu={handleReturnToMenu} />;
       case 'perizinan-ta':
-        return <ResearchLetterForm variant="permission" onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} />;
+        return <ResearchLetterForm variant="permission" onCompleted={() => setLetterArchiveRefreshKey((prev) => prev + 1)} onReturnToMenu={handleReturnToMenu} />;
       case 'konseling':
-        return <CounselingForm />;
+        return <CounselingForm onReturnToMenu={handleReturnToMenu} />;
       case 'rekomendasi':
-        return <SuRekForm />;
+        return <SuRekForm onReturnToMenu={handleReturnToMenu} />;
       case 'arsip-surat':
         return isTUAdmin ? <LetterArchivePanel refreshKey={letterArchiveRefreshKey} /> : null;
       case 'panel-admin':

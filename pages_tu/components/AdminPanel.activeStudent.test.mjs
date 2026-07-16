@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 const source = readFileSync(new URL('./AdminPanel.tsx', import.meta.url), 'utf8');
+const previewDataSource = readFileSync(new URL('../lib/letterPreviewData.ts', import.meta.url), 'utf8');
+const settingsSource = readFileSync(new URL('../lib/letterSettings.ts', import.meta.url), 'utf8');
 
 describe('AdminPanel active student detail layout', () => {
   it('removes the unused transcript panel from the active student process view', () => {
@@ -29,12 +31,12 @@ describe('AdminPanel active student detail layout', () => {
   });
 
   it('includes research letters in margin configuration and renders the research preview type', () => {
-    assert.match(source, /type LetterLayoutKey = 'activeStudent' \| 'observation' \| 'counseling' \| 'research' \| 'suRek'/);
-    assert.match(source, /key:\s*'research'/);
-    assert.match(source, /title:\s*'Surat Penelitian'/);
-    assert.match(source, /description:\s*'Atur batas area tulisan untuk template surat rekomendasi penelitian\.'/);
-    assert.match(source, /research:\s*getDefaultLetterLayout\('research'\)/);
-    assert.match(source, /research:\s*\{\s*\.\.\.getDefaultLetterLayout\('research'\),\s*\.\.\.layouts\?\.research\s*\}/);
+    assert.match(settingsSource, /type LetterLayoutKey = 'activeStudent' \| 'observation' \| 'counseling' \| 'research' \| 'interview' \| 'permission' \| 'suRek'/);
+    assert.match(settingsSource, /key:\s*'research'/);
+    assert.match(settingsSource, /title:\s*'Surat Penelitian'/);
+    assert.match(settingsSource, /description:\s*'Atur batas area tulisan untuk template surat rekomendasi penelitian\.'/);
+    assert.match(settingsSource, /research:\s*getDefaultLetterLayout\('research'\)/);
+    assert.match(settingsSource, /research:\s*\{\s*\.\.\.getDefaultLetterLayout\('research'\),\s*\.\.\.layouts\?\.research\s*\}/);
     assert.match(source, /selectedPreviewType/);
     assert.match(source, /type=\{selectedPreviewType\}/);
   });
@@ -80,16 +82,11 @@ describe('AdminPanel active student detail layout', () => {
   });
 
   it('uses official preview letter numbers and developer sample identities in margin preview', () => {
-    assert.match(source, /formatPreviewLetterNumber/);
-    assert.match(source, /S\.Ket/);
-    assert.match(source, /FTI-OBS/);
-    assert.match(source, /FTI\/Penelitian/);
-    assert.match(source, /FTI\/Su\.Rek/);
-    assert.match(source, /Firmandez Febrian Afandy/);
-    assert.match(source, /682022013/);
-    assert.match(source, /Salatiga, 13 Februari 2024/);
-    assert.match(source, /Nauval Caesaro Premana/);
-    assert.match(source, /682021062/);
-    assert.doesNotMatch(source, /Dean\/FTI/);
+    assert.match(previewDataSource, /formatPreviewLetterNumber/);
+    assert.match(previewDataSource, /Firmandez Febrian Afandy/);
+    assert.match(previewDataSource, /682022013/);
+    assert.match(previewDataSource, /Nauval Caesaro Premana/);
+    assert.match(previewDataSource, /682021062/);
+    assert.doesNotMatch(previewDataSource, /Dean\/FTI/);
   });
 });

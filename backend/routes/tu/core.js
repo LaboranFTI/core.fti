@@ -1950,8 +1950,8 @@ const buildLetterHtml = async (type, requestData, req) => {
       .map(cc => `<li style="list-style: none; margin: 0; padding: 0 0 0 2mm; text-indent: -2mm;">- ${cc.role || cc.jabatan || ''}${cc.name || cc.nama ? ` - ${cc.name || cc.nama}` : ''}</li>`)
       .join('\n');
     tembusanHtml = `
-      <div class="carbon-copy-block" style="margin-top: 8mm; font-size: 11pt; line-height: 1.5;">
-          <p style="margin: 0; font-weight: bold;">Tembusan Kepada Yth:</p>
+      <div class="carbon-copy-block" style="margin-top: 8mm; font-size: 11pt; line-height: 1.5; page-break-inside: avoid;">
+          <p style="margin: 0; font-weight: bold;">Tembusan</p>
           <ul style="margin: 1mm 0 0 0; padding: 0; list-style: none;">
               ${listItems}
           </ul>

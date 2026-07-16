@@ -14,6 +14,7 @@ import {
   Funnel as Filter,
   SpinnerGap as Loader2,
   MapPin,
+  Minus,
   Plus,
   Printer,
   QrCode,
@@ -125,6 +126,43 @@ interface InventoryProps {
   role: Role;
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }
+
+interface InventoryCheckboxProps {
+  checked: boolean;
+  indeterminate?: boolean;
+  ariaLabel: string;
+  className?: string;
+  onCheckedChange: (checked: boolean) => void;
+}
+
+const InventoryCheckbox: React.FC<InventoryCheckboxProps> = ({
+  checked,
+  indeterminate = false,
+  ariaLabel,
+  className,
+  onCheckedChange,
+}) => (
+  <button
+    type="button"
+    role="checkbox"
+    aria-checked={indeterminate ? 'mixed' : checked}
+    aria-label={ariaLabel}
+    onClick={() => onCheckedChange(!checked)}
+    className={cn(
+      'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900',
+      checked || indeterminate
+        ? 'border-fti-blue-600 bg-fti-blue-600 text-white dark:border-fti-blue-400 dark:bg-fti-blue-500'
+        : 'border-slate-300 bg-white text-transparent hover:border-fti-blue-400 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-fti-blue-400',
+      className
+    )}
+  >
+    {indeterminate ? (
+      <Minus weight="bold" className="h-3 w-3" />
+    ) : checked ? (
+      <Check weight="bold" className="h-3 w-3" />
+    ) : null}
+  </button>
+);
 
 const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
   const { items, isLoading, fetchItems } = useInventory();
@@ -249,9 +287,9 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     setSortConfig({ key, direction });
   };
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelectAll = (checked: boolean) => {
     if (!canManageInventory) return;
-    if (e.target.checked) {
+    if (checked) {
         const newItems = currentItems.map(i => i.id);
         setSelectedItems(prev => Array.from(new Set([...prev, ...newItems])));
     } else {
@@ -820,6 +858,10 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
     return Array.from(new Set(items.map(i => i.category)));
   }, [items]);
 
+  const allCurrentItemsSelected = currentItems.length > 0 && currentItems.every(i => selectedItems.includes(i.id));
+  const someCurrentItemsSelected = currentItems.some(i => selectedItems.includes(i.id));
+  const isCurrentSelectionIndeterminate = someCurrentItemsSelected && !allCurrentItemsSelected;
+
   const SortIcon = ({ columnKey }: { columnKey: keyof Equipment }) => {
     if (sortConfig?.key !== columnKey) return <ArrowUpDown className="w-3 h-3 ml-1 text-gray-400" />;
     return sortConfig.direction === 'asc'
@@ -927,17 +969,11 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                         <TableRow className="hover:bg-transparent">
                             {canManageInventory && (
                             <TableHead className="w-12 shrink-0 print:hidden">
-                                <input
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                                    onChange={handleSelectAll}
-                                    checked={currentItems.length > 0 && currentItems.every(i => selectedItems.includes(i.id))}
-                                    ref={input => {
-                                        if (input) {
-                                            const someSelected = currentItems.some(i => selectedItems.includes(i.id));
-                                            input.indeterminate = someSelected && !currentItems.every(i => selectedItems.includes(i.id));
-                                        }
-                                    }}
+                                <InventoryCheckbox
+                                    ariaLabel="Pilih semua barang di halaman ini"
+                                    checked={allCurrentItemsSelected}
+                                    indeterminate={isCurrentSelectionIndeterminate}
+                                    onCheckedChange={handleSelectAll}
                                 />
                             </TableHead>
                             )}
@@ -963,11 +999,11 @@ const Inventory: React.FC<InventoryProps> = ({ role, showToast }) => {
                             <TableRow key={item.id} className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => setViewDetailItem(item)}>
                                 {canManageInventory && (
                                 <TableCell className="w-12 shrink-0 print:hidden" onClick={(e) => e.stopPropagation()}>
-                                    <input
-                                        type="checkbox"
-                                        className="mx-auto h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                                    <InventoryCheckbox
+                                        ariaLabel={`Pilih ${item.name}`}
+                                        className="mx-auto"
                                         checked={selectedItems.includes(item.id)}
-                                        onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                                        onCheckedChange={(checked) => handleSelectItem(item.id, checked)}
                                     />
                                 </TableCell>
                                 )}

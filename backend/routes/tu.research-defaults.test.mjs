@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 const readTu = (name) => readFileSync(new URL(`./tu/${name}`, import.meta.url), 'utf8');
 const source = ['core.js', 'settings.js', 'validation.js', 'requests.active-student.js',
   'requests.counseling.js', 'requests.su-rek.js', 'requests.observation.js',
-  'requests.ta.js', 'index.js'].map(readTu).join('\n');
+  'requests.ta.js', 'index.js', 'lib/constants.js', 'services/settings.service.js'].map(readTu).join('\n');
 
 describe('TU research letter defaults', () => {
   it('stores research assignment and advisor labels in TU settings', () => {
@@ -27,7 +27,7 @@ describe('TU research letter defaults', () => {
   });
 
   it('supports permission letters as a separate final-task letter type', () => {
-    assert.match(source, /const PERMISSION_LETTER_KIND = 'permission'/);
+    assert.match(source, /export const PERMISSION_LETTER_KIND = 'permission'/);
     assert.match(source, /permission:\s*'FTI\/Perizinan'/);
     assert.match(source, /template:\s*'suratPerizinanV2\.html'/);
     assert.match(source, /permission_purpose:\s*String\(payload\.permissionPurpose/);

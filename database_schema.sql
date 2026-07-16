@@ -11,6 +11,17 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Extension untuk exclusion constraint anti-overlap jadwal ruangan.
+-- Jika role database tidak punya izin CREATE EXTENSION, schema tetap bisa dibuat,
+-- tetapi constraint anti-overlap perlu dipasang setelah extension diaktifkan.
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS btree_gist;
+EXCEPTION
+    WHEN insufficient_privilege THEN
+        RAISE NOTICE 'btree_gist extension not installed. Enable it with a privileged PostgreSQL user to enforce room overlap prevention.';
+END $$;
+
 -- Definisi Tipe Data ENUM untuk Status
 CREATE TYPE user_status_enum AS ENUM ('Aktif', 'Non-Aktif', 'Reset');
 CREATE TYPE booking_status_enum AS ENUM ('Pending', 'Disetujui', 'Ditolak', 'Dibatalkan');
@@ -179,6 +190,116 @@ CREATE TABLE booking_schedules (
     CONSTRAINT fk_schedule_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
 );
 
+-- Tabel Calendar Sources
+-- Menetapkan kalender internal CORE.FTI sebagai sumber utama, sementara integrasi lain bersifat legacy/opsional
+CREATE TABLE calendar_sources (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    provider VARCHAR(30) NOT NULL DEFAULT 'core',
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_calendar_sources_provider CHECK (provider IN ('core', 'google_legacy', 'ics_import'))
+);
+
+CREATE TRIGGER update_calendar_sources_updated_at BEFORE UPDATE ON calendar_sources FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+INSERT INTO calendar_sources (id, name, provider, is_primary, is_active, notes)
+VALUES ('CORE_CALENDAR', 'CORE.FTI Calendar', 'core', TRUE, TRUE, 'Primary internal calendar source of truth.');
+
+-- Tabel Calendar Events
+-- Header event kalender internal; occurrence konkret disimpan terpisah agar recurrence dan multi-jadwal booking tetap rapi
+CREATE TABLE calendar_events (
+    id VARCHAR(50) PRIMARY KEY,
+    source_id VARCHAR(50) NOT NULL DEFAULT 'CORE_CALENDAR',
+    room_id VARCHAR(50),
+    booking_id VARCHAR(50),
+    source_reference_type VARCHAR(50),
+    source_reference_id VARCHAR(100),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    location TEXT,
+    event_type VARCHAR(30) NOT NULL DEFAULT 'manual',
+    status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+    visibility VARCHAR(30) NOT NULL DEFAULT 'internal',
+    timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Jakarta',
+    recurrence_rule TEXT,
+    recurrence_until TIMESTAMPTZ,
+    created_by VARCHAR(50),
+    updated_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_calendar_event_source FOREIGN KEY (source_id) REFERENCES calendar_sources(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_calendar_event_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_calendar_event_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_calendar_event_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_calendar_event_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT chk_calendar_event_type CHECK (event_type IN ('booking', 'class_schedule', 'maintenance', 'manual', 'holiday')),
+    CONSTRAINT chk_calendar_event_status CHECK (status IN ('scheduled', 'tentative', 'cancelled')),
+    CONSTRAINT chk_calendar_event_visibility CHECK (visibility IN ('internal', 'public'))
+);
+
+CREATE TRIGGER update_calendar_events_updated_at BEFORE UPDATE ON calendar_events FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Tabel Calendar Occurrences
+-- Baris waktu konkret untuk query kalender, deteksi bentrok, dan tampilan bulan/minggu/hari
+CREATE TABLE calendar_occurrences (
+    id VARCHAR(50) PRIMARY KEY,
+    event_id VARCHAR(50) NOT NULL,
+    room_id VARCHAR(50),
+    booking_schedule_id INTEGER,
+    start_at TIMESTAMPTZ NOT NULL,
+    end_at TIMESTAMPTZ NOT NULL,
+    is_all_day BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_calendar_occurrence_event FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
+    CONSTRAINT fk_calendar_occurrence_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_calendar_occurrence_booking_schedule FOREIGN KEY (booking_schedule_id) REFERENCES booking_schedules(id) ON DELETE SET NULL,
+    CONSTRAINT chk_calendar_occurrence_status CHECK (status IN ('scheduled', 'tentative', 'cancelled')),
+    CONSTRAINT chk_calendar_occurrence_time CHECK (end_at > start_at)
+);
+
+CREATE TRIGGER update_calendar_occurrences_updated_at BEFORE UPDATE ON calendar_occurrences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'btree_gist') THEN
+        ALTER TABLE calendar_occurrences
+        ADD CONSTRAINT excl_calendar_occurrences_room_overlap
+        EXCLUDE USING gist (
+            room_id WITH =,
+            tstzrange(start_at, end_at, '[)') WITH &&
+        )
+        WHERE (room_id IS NOT NULL AND status IN ('scheduled', 'tentative'));
+    ELSE
+        RAISE NOTICE 'Skipping excl_calendar_occurrences_room_overlap because btree_gist is not installed.';
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN
+        NULL;
+END $$;
+
+-- Tabel Calendar Audit Logs
+-- Riwayat perubahan event/occurrence untuk akuntabilitas operasional
+CREATE TABLE calendar_audit_logs (
+    id VARCHAR(50) PRIMARY KEY,
+    event_id VARCHAR(50),
+    occurrence_id VARCHAR(50),
+    actor_user_id VARCHAR(50),
+    action VARCHAR(50) NOT NULL,
+    previous_data JSONB,
+    next_data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_calendar_audit_event FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE SET NULL,
+    CONSTRAINT fk_calendar_audit_occurrence FOREIGN KEY (occurrence_id) REFERENCES calendar_occurrences(id) ON DELETE SET NULL,
+    CONSTRAINT fk_calendar_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Tabel Equipment
 -- Data barang inventaris
 CREATE TABLE inventory (
@@ -270,6 +391,20 @@ CREATE TABLE notifications (
 
 -- Indexing untuk performa pencarian
 CREATE INDEX idx_booking_schedules_date ON booking_schedules(schedule_date);
+CREATE UNIQUE INDEX idx_calendar_sources_primary ON calendar_sources(is_primary) WHERE is_primary = TRUE;
+CREATE INDEX idx_calendar_events_source_id ON calendar_events(source_id);
+CREATE INDEX idx_calendar_events_room_id ON calendar_events(room_id);
+CREATE INDEX idx_calendar_events_booking_id ON calendar_events(booking_id);
+CREATE UNIQUE INDEX idx_calendar_events_booking_unique ON calendar_events(booking_id) WHERE booking_id IS NOT NULL AND status <> 'cancelled';
+CREATE UNIQUE INDEX idx_calendar_events_class_schedule_unique ON calendar_events(source_reference_id) WHERE source_reference_type = 'class_schedule' AND source_reference_id IS NOT NULL AND status <> 'cancelled';
+CREATE INDEX idx_calendar_events_status ON calendar_events(status);
+CREATE INDEX idx_calendar_occurrences_event_id ON calendar_occurrences(event_id);
+CREATE INDEX idx_calendar_occurrences_room_time ON calendar_occurrences(room_id, start_at, end_at);
+CREATE INDEX idx_calendar_occurrences_active_time ON calendar_occurrences(room_id, start_at, end_at) WHERE status IN ('scheduled', 'tentative');
+CREATE INDEX idx_calendar_occurrences_booking_schedule_id ON calendar_occurrences(booking_schedule_id);
+CREATE UNIQUE INDEX idx_calendar_occurrences_booking_schedule_unique ON calendar_occurrences(booking_schedule_id) WHERE booking_schedule_id IS NOT NULL AND status <> 'cancelled';
+CREATE INDEX idx_calendar_audit_event_id ON calendar_audit_logs(event_id);
+CREATE INDEX idx_calendar_audit_created_at ON calendar_audit_logs(created_at);
 CREATE INDEX idx_bookings_status ON bookings(status);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
@@ -357,6 +492,7 @@ CREATE TABLE class_schedules (
     semester VARCHAR(20) NOT NULL,          -- Semester (misal: Ganjil 2024/2025)
     academic_year VARCHAR(20) NOT NULL,     -- Tahun Akademik (2024/2025)
     room_id VARCHAR(50),
+    lecturer_id VARCHAR(50),
     lecturer_name VARCHAR(100),             -- Nama Dosen Pengampu
     start_date DATE,                        -- Tanggal Mulai Periode Semester
     end_date DATE,                          -- Tanggal Selesai Periode Semester
@@ -398,6 +534,47 @@ CREATE TRIGGER update_software_updated_at BEFORE UPDATE ON software FOR EACH ROW
 CREATE INDEX idx_software_room ON software(room_id);
 CREATE INDEX idx_software_category ON software(category);
 CREATE INDEX idx_software_name ON software(name);
+
+-- Tabel Konfigurasi Periode Semester
+-- Menentukan tanggal resmi tiap semester/tahun akademik untuk auto-fill jadwal kuliah
+CREATE TABLE semester_periods (
+    id VARCHAR(50) PRIMARY KEY,
+    semester VARCHAR(20) NOT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by VARCHAR(50),
+    updated_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_semester_period UNIQUE (semester, academic_year),
+    CONSTRAINT fk_semester_period_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_semester_period_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT chk_semester_period_semester CHECK (semester IN ('Ganjil', 'Antara', 'Genap')),
+    CONSTRAINT chk_semester_period_academic_year CHECK (academic_year ~ '^\d{4}/\d{4}$'),
+    CONSTRAINT chk_semester_period_dates CHECK (end_date >= start_date)
+);
+
+CREATE TRIGGER update_semester_periods_updated_at BEFORE UPDATE ON semester_periods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Relasi kebutuhan software per jadwal kuliah
+-- Dipakai untuk matakuliah yang berlangsung di Laboratorium Komputer
+CREATE TABLE class_schedule_software (
+    class_schedule_id VARCHAR(50) NOT NULL,
+    software_id VARCHAR(50) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (class_schedule_id, software_id),
+    CONSTRAINT fk_class_schedule_software_schedule FOREIGN KEY (class_schedule_id) REFERENCES class_schedules(id) ON DELETE CASCADE,
+    CONSTRAINT fk_class_schedule_software_software FOREIGN KEY (software_id) REFERENCES software(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_semester_periods_lookup ON semester_periods(semester, academic_year);
+CREATE INDEX idx_semester_periods_active ON semester_periods(is_active);
+CREATE INDEX idx_class_schedule_software_schedule ON class_schedule_software(class_schedule_id);
+CREATE INDEX idx_class_schedule_software_software ON class_schedule_software(software_id);
 
 -- Tabel Error Logs (Log Error Aplikasi)
 CREATE TABLE error_logs (

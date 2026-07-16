@@ -14,7 +14,7 @@ const signatureNameBlock = template.match(/\.signature-name\s*\{[\s\S]*?\}/)?.[0
 
 describe('suratAktifKuliah title styling', () => {
   it('keeps the email PDF title at the official size without underline', () => {
-    assert.match(titleBlock, /font-size:\s*12pt;/);
+    assert.match(titleBlock, /font-size:\s*14pt;/);
     assert.match(titleBlock, /font-weight:\s*bold;/);
     assert.doesNotMatch(titleBlock, /text-decoration:\s*underline;/);
   });

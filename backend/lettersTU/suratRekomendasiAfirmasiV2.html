@@ -24,18 +24,25 @@
 
         .page {
             position: relative;
-            width: 210mm;
-            height: 297mm;
-            overflow: hidden;
+            width: 100%;
             background: white;
         }
 
         .background-image {
-            position: absolute;
-            inset: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 100%;
+            height: 100vh;
             object-fit: fill;
+            z-index: 0;
+        }
+
+        .content-table {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            border-collapse: collapse;
         }
 
         .content {
@@ -156,10 +163,18 @@
         <img src="{{backgroundImage}}" alt="Background Surat" class="background-image">
         {{draftWatermark}}
 
-        <div class="content"
-            style="padding: {{marginTopMm}}mm {{marginRightMm}}mm {{marginBottomMm}}mm {{marginLeftMm}}mm;">
-            
-            <table class="letter-meta">
+        <table class="content-table">
+            <thead>
+                <tr>
+                    <td style="height: {{marginTopMm}}mm; padding: 0;"></td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 0 {{marginRightMm}}mm 0 {{marginLeftMm}}mm;">
+                        <div class="content">
+                            
+                            <table class="letter-meta">
                 <tr>
                     <td style="width: 22mm;">No</td>
                     <td style="width: 4mm;">:</td>
@@ -221,7 +236,16 @@
             </div>
 
             {{tembusanBlock}}
-        </div>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td style="height: {{marginBottomMm}}mm; padding: 0;"></td>
+                </tr>
+            </tfoot>
+        </table>
     </div>
 </body>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Role, Room } from '../types';
+import { Role, Room, Software } from '../types';
 import {
   ArrowClockwise as RefreshCw,
   BookOpen,
@@ -13,8 +13,6 @@ import {
   MapPin,
   PencilSimpleLine as Edit,
   Plus,
-  SignIn as LogIn,
-  SignOut as LogOut,
   SpinnerGap as Loader2,
   Trash,
   UsersThree as Users,
@@ -26,20 +24,12 @@ import { TableSkeleton } from '../components/Skeleton';
 import SearchableSelect, { SelectOption } from '../components/SearchableSelect';
 import SearchBar from '../components/SearchBar';
 import { useLecturers } from '../hooks/useLecturers';
-import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { cn } from '../lib/utils';
 import PageHeader from '../components/PageHeader';
 import PageCard from '../components/PageCard';
-
-declare global {
-  interface Window {
-    gapi: any;
-    google: any;
-  }
-}
 
 interface ClassSchedule {
   id: string;
@@ -53,10 +43,23 @@ interface ClassSchedule {
   academicYear: string;
   roomId: string;
   roomName: string;
+  roomCategory?: string;
   lecturerId?: string;
   lecturerName: string;
   startDate: string;
   endDate: string;
+  software?: Software[];
+  softwareIds?: string[];
+}
+
+interface SemesterPeriod {
+  id: string;
+  semester: string;
+  academicYear: string;
+  startDate: string;
+  endDate: string;
+  notes?: string;
+  isActive: boolean;
 }
 
 interface ConflictInfo {
@@ -100,8 +103,23 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     lecturerId: '',
     lecturerName: '',
     startDate: '', // Tanggal mulai periode semester
-    endDate: ''    // Tanggal selesai periode semester
+    endDate: '',   // Tanggal selesai periode semester
+    softwareIds: [] as string[]
   });
+
+  const [semesterPeriods, setSemesterPeriods] = useState<SemesterPeriod[]>([]);
+  const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
+  const [editingSemesterPeriod, setEditingSemesterPeriod] = useState<SemesterPeriod | null>(null);
+  const [semesterPeriodForm, setSemesterPeriodForm] = useState({
+    semester: 'Ganjil',
+    academicYear: '',
+    startDate: '',
+    endDate: '',
+    notes: '',
+    isActive: true
+  });
+  const [roomSoftware, setRoomSoftware] = useState<Software[]>([]);
+  const [semesterLabUsage, setSemesterLabUsage] = useState<ClassSchedule[]>([]);
 
   const [conflictModal, setConflictModal] = useState<{
     isOpen: boolean;
@@ -117,7 +135,8 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     pendingSchedules: any[];
     unmatchedRooms: Set<string>;
     unmatchedLecturers: Set<string>;
-  }>({ isOpen: false, pendingSchedules: [], unmatchedRooms: new Set(), unmatchedLecturers: new Set() });
+    unmatchedSoftware: Set<string>;
+  }>({ isOpen: false, pendingSchedules: [], unmatchedRooms: new Set(), unmatchedLecturers: new Set(), unmatchedSoftware: new Set() });
 
   const [bulkFormData, setBulkFormData] = useState({
     semester: 'Ganjil' as 'Ganjil' | 'Antara' | 'Genap',
@@ -133,18 +152,9 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     academicYear: string;
   }>({ isOpen: false, semester: 'Ganjil', academicYear: '' });
 
-  // Google Calendar API
-  const googleApi = useGoogleCalendar(role, showToast);
-
   const canManage = role.toString().toUpperCase() === 'ADMIN' ||
                     role.toString().toUpperCase() === 'LABORAN' ||
                     role.toString().toUpperCase() === 'SUPERVISOR';
-
-  const getCalendarId = (input: string) => {
-    if (!input) return null;
-    if (!input.startsWith('http')) return input;
-    try { return new URL(input).searchParams.get('src') || null; } catch (e) { return null; }
-  };
 
   // Days options
   const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -203,6 +213,90 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     subLabel: l.id
   }));
 
+  const findSemesterPeriod = (semester: string, academicYear: string) => {
+    return semesterPeriods.find(period =>
+      period.isActive &&
+      period.semester === semester &&
+      period.academicYear === academicYear
+    );
+  };
+
+  const applySemesterPeriodDates = <T extends { semester: string; academicYear: string; startDate: string; endDate: string }>(
+    data: T,
+    preserveExistingDates = false
+  ): T => {
+    const period = findSemesterPeriod(data.semester, data.academicYear);
+    if (!period) return data;
+    return {
+      ...data,
+      startDate: preserveExistingDates && data.startDate ? data.startDate : period.startDate,
+      endDate: preserveExistingDates && data.endDate ? data.endDate : period.endDate,
+    };
+  };
+
+  const setFormDataWithPeriod = (partial: Partial<typeof formData>, preserveExistingDates = false) => {
+    setFormData(prev => applySemesterPeriodDates({ ...prev, ...partial }, preserveExistingDates));
+  };
+
+  const setBulkFormDataWithPeriod = (partial: Partial<typeof bulkFormData>, preserveExistingDates = false) => {
+    setBulkFormData(prev => applySemesterPeriodDates({ ...prev, ...partial }, preserveExistingDates));
+  };
+
+  const selectedRoom = useMemo(() => rooms.find(room => room.id === formData.roomId) || null, [rooms, formData.roomId]);
+  const isSelectedRoomComputerLab = selectedRoom?.category === 'Laboratorium Komputer';
+
+  const normalizeImportText = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  const splitImportedSoftware = (value: string) => {
+    return value
+      .split(/[,;\n]/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  };
+
+  const resolveImportedSoftwareIds = (
+    softwareValue: string,
+    roomId: string,
+    roomName: string,
+    allSoftware: Software[],
+    unmatchedSoftware: Set<string>
+  ) => {
+    const requestedSoftware = splitImportedSoftware(softwareValue);
+    if (requestedSoftware.length === 0) return [];
+
+    const room = rooms.find(item => item.id === roomId);
+    if (!roomId || !room) {
+      unmatchedSoftware.add(`${roomName || 'Tanpa ruangan'}: ${requestedSoftware.join(', ')}`);
+      return [];
+    }
+    if (room.category !== 'Laboratorium Komputer') {
+      unmatchedSoftware.add(`${room.name}: software diabaikan karena bukan Laboratorium Komputer`);
+      return [];
+    }
+
+    const softwareForRoom = allSoftware.filter(software => software.roomId === roomId);
+    const matchedIds = new Set<string>();
+    for (const softwareName of requestedSoftware) {
+      const normalizedName = normalizeImportText(softwareName);
+      const match = softwareForRoom.find(software => {
+        const candidates = [
+          software.name,
+          software.version ? `${software.name} ${software.version}` : '',
+          software.version ? `${software.name} v${software.version}` : '',
+        ];
+        return candidates.some(candidate => normalizeImportText(candidate) === normalizedName);
+      });
+
+      if (match) {
+        matchedIds.add(match.id);
+      } else {
+        unmatchedSoftware.add(`${room.name}: ${softwareName}`);
+      }
+    }
+
+    return Array.from(matchedIds);
+  };
+
 
   const fetchSchedules = async () => {
     setIsLoading(true);
@@ -241,13 +335,80 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
     }
   };
 
+  const fetchSemesterPeriods = async () => {
+    try {
+      const res = await api('/api/semester-periods');
+      if (res.ok) {
+        const data = await res.json();
+        setSemesterPeriods(data);
+        setAcademicYears(prev => {
+          const periodYears = data.map((period: SemesterPeriod) => period.academicYear).filter(Boolean);
+          return Array.from(new Set([...prev, ...periodYears])).sort((a, b) => b.localeCompare(a));
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching semester periods:", error);
+    }
+  };
+
+  const fetchRoomSoftware = async (roomId: string) => {
+    if (!roomId) {
+      setRoomSoftware([]);
+      return;
+    }
+
+    try {
+      const res = await api(`/api/software?roomId=${encodeURIComponent(roomId)}`);
+      if (res.ok) {
+        setRoomSoftware(await res.json());
+      }
+    } catch (error) {
+      console.error("Error fetching room software:", error);
+      setRoomSoftware([]);
+    }
+  };
+
+  const fetchSemesterLabUsage = async () => {
+    if (!filterSemester || !filterAcademicYear) {
+      setSemesterLabUsage([]);
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        semester: filterSemester,
+        academicYear: filterAcademicYear,
+      });
+      const res = await api(`/api/semester-lab-usage?${params.toString()}`);
+      if (res.ok) {
+        setSemesterLabUsage(await res.json());
+      }
+    } catch (error) {
+      console.error("Error fetching semester lab usage:", error);
+      setSemesterLabUsage([]);
+    }
+  };
+
   useEffect(() => {
     fetchSchedules();
   }, [filterSemester, filterAcademicYear]);
 
   useEffect(() => {
     fetchRooms();
+    fetchSemesterPeriods();
   }, []);
+
+  useEffect(() => {
+    if (isModalOpen && isSelectedRoomComputerLab && formData.roomId) {
+      fetchRoomSoftware(formData.roomId);
+    } else {
+      setRoomSoftware([]);
+    }
+  }, [isModalOpen, isSelectedRoomComputerLab, formData.roomId]);
+
+  useEffect(() => {
+    fetchSemesterLabUsage();
+  }, [filterSemester, filterAcademicYear]);
 
   const filteredSchedules = useMemo(() => {
     return schedules.filter(schedule => {
@@ -264,7 +425,7 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
   const handleOpenModal = (schedule?: ClassSchedule) => {
     if (schedule) {
       setEditingSchedule(schedule);
-      setFormData({
+      setFormData(applySemesterPeriodDates({
         courseCode: schedule.courseCode,
         courseName: schedule.courseName,
         classGroup: schedule.classGroup || '-',
@@ -277,11 +438,12 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
         lecturerId: schedule.lecturerId || '',
         lecturerName: schedule.lecturerName || '',
         startDate: schedule.startDate || '',
-        endDate: schedule.endDate || ''
-      });
+        endDate: schedule.endDate || '',
+        softwareIds: schedule.softwareIds || schedule.software?.map(software => software.id) || []
+      }, true));
     } else {
       setEditingSchedule(null);
-      setFormData({
+      setFormData(applySemesterPeriodDates({
         courseCode: '',
         courseName: '',
         classGroup: '-',
@@ -294,8 +456,9 @@ const JadwalKuliah: React.FC<ClassScheduleManagementProps> = ({ role, showToast 
         lecturerId: '',
         lecturerName: '',
         startDate: '',
-        endDate: ''
-      });
+        endDate: '',
+        softwareIds: []
+      }, false));
     }
     setIsModalOpen(true);
   };
@@ -366,7 +529,12 @@ const handleDownloadTemplate = async () => {
       { header: 'Hari', key: 'Hari', width: 12 },
       { header: 'Jam', key: 'Jam', width: 18 }, // Format: 07:00:09:00 atau 07:00-09:00
       { header: 'Pengajar', key: 'Pengajar', width: 30 },
-      { header: 'Ruang', key: 'Ruang', width: 25 }
+      { header: 'Ruang', key: 'Ruang', width: 25 },
+      { header: 'Semester', key: 'Semester', width: 14 },
+      { header: 'Tahun Ajaran', key: 'Tahun Ajaran', width: 16 },
+      { header: 'Tanggal Mulai', key: 'Tanggal Mulai', width: 16 },
+      { header: 'Tanggal Selesai', key: 'Tanggal Selesai', width: 16 },
+      { header: 'Software', key: 'Software', width: 35 }
     ];
 
     worksheet.addRow({
@@ -375,7 +543,12 @@ const handleDownloadTemplate = async () => {
       Hari: "Senin",
       Jam: "07:00:09:00", // Legacy format: start:end atau start-end
       Pengajar: "John Doe, M.Kom",
-      Ruang: rooms[0]?.name || "FTI 227 (exact nama ruangan dari sistem)"
+      Ruang: rooms[0]?.name || "FTI 227 (exact nama ruangan dari sistem)",
+      Semester: "Ganjil",
+      'Tahun Ajaran': "2025/2026",
+      'Tanggal Mulai': "",
+      'Tanggal Selesai': "",
+      Software: "Visual Studio Code, PostgreSQL"
     });
 
     // Add note row for guidance
@@ -384,6 +557,11 @@ const handleDownloadTemplate = async () => {
       '',
       '',
       'Pastikan nama Ruang persis sama dengan di sistem (case-sensitive)',
+      '',
+      '',
+      'Software opsional dan hanya dipakai untuk ruangan Laboratorium Komputer; pisahkan dengan koma',
+      '',
+      'Tanggal boleh kosong jika konfigurasi semester aktif sudah dibuat',
       '',
       ''
     ]);
@@ -399,7 +577,12 @@ const handleDownloadTemplate = async () => {
   };
 
 
-  const performImport = async (newSchedules: any[], unmatchedRooms: Set<string>, unmatchedLecturers: Set<string>) => {
+  const performImport = async (
+    newSchedules: any[],
+    unmatchedRooms: Set<string>,
+    unmatchedLecturers: Set<string>,
+    unmatchedSoftware: Set<string>
+  ) => {
     setIsLoading(true);
     let successCount = 0;
     let errorCount = 0;
@@ -414,28 +597,6 @@ const handleDownloadTemplate = async () => {
               return Array.from(new Set([...prev, schedule.academicYear])).sort((a, b) => b.localeCompare(a));
             });
           }
-          const room = rooms.find(r => r.id === schedule.roomId);
-          if (room && room.googleCalendarUrl && schedule.startDate && schedule.endDate) {
-            const calendarId = getCalendarId(room.googleCalendarUrl);
-            if (calendarId && googleApi.isGapiInitialized && googleApi.calendarConnected) {
-              const dayMap: Record<string, number> = { 'Minggu': 0, 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6 };
-              const targetDay = dayMap[schedule.dayOfWeek] ?? 1;
-              const semesterStart = new Date(schedule.startDate);
-              let distance = targetDay - semesterStart.getDay();
-              if (distance < 0) distance += 7;
-              const firstClassDate = new Date(semesterStart);
-              firstClassDate.setDate(semesterStart.getDate() + distance);
-              const dateStr = firstClassDate.toISOString().split('T')[0];
-              const startDateTime = new Date(`${dateStr}T${schedule.startTime}:00`);
-              const endDateTime = new Date(`${dateStr}T${schedule.endTime}:00`);
-              const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-              const semesterEnd = new Date(schedule.endDate);
-              semesterEnd.setUTCHours(23, 59, 59, 999);
-              const untilStr = semesterEnd.toISOString().replace(/[-:.]/g, '').substring(0, 15) + 'Z';
-              const eventResource = { summary: `${schedule.courseCode} ${schedule.courseName}-${schedule.lecturerName || ''}`, location: room.name, description: `Mata Kuliah: ${schedule.courseName}\nKode: ${schedule.courseCode}\nDosen: ${schedule.lecturerName || '-'}\nSemester: ${schedule.semester} ${schedule.academicYear}\n\nDiinput via CORE.FTI`, start: { dateTime: startDateTime.toISOString(), timeZone: userTimeZone }, end: { dateTime: endDateTime.toISOString(), timeZone: userTimeZone }, recurrence: [`RRULE:FREQ=WEEKLY;UNTIL=${untilStr}`] };
-              await googleApi.createEvent(calendarId, eventResource);
-            }
-          }
         } else {
           errorCount++;
         }
@@ -445,10 +606,11 @@ const handleDownloadTemplate = async () => {
     }
 
     await fetchSchedules();
+    await fetchSemesterLabUsage();
     if (successCount > 0 && errorCount === 0) {
-      showToast(`Berhasil mengimport ${successCount} jadwal kelas.`, "success");
+      showToast(`Berhasil mengimport ${successCount} jadwal kelas ke CORE Calendar.`, "success");
     } else if (successCount > 0 && errorCount > 0) {
-      showToast(`Berhasil ${successCount} jadwal. Gagal ${errorCount} jadwal.`, "warning");
+      showToast(`Berhasil ${successCount} jadwal. Gagal ${errorCount} jadwal karena validasi atau konflik CORE Calendar.`, "warning");
     } else {
       showToast("Gagal mengimport data.", "error");
     }
@@ -462,6 +624,11 @@ const handleDownloadTemplate = async () => {
       setTimeout(() => {
         showToast(`Peringatan: Dosen pengampu (${Array.from(unmatchedLecturers).join(', ')}) tidak ditemukan, jadwal tetap diimport tanpa relasi dosen.`, "warning");
       }, 2000);
+    }
+    if (unmatchedSoftware.size > 0) {
+      setTimeout(() => {
+        showToast(`Peringatan: Beberapa software tidak cocok atau diabaikan (${Array.from(unmatchedSoftware).join('; ')}).`, "warning");
+      }, 3000);
     }
     setIsLoading(false);
   };
@@ -487,7 +654,18 @@ const handleDownloadTemplate = async () => {
         const newSchedules: any[] = [];
         const unmatchedLecturers = new Set<string>();
         const unmatchedRooms = new Set<string>();
+        const unmatchedSoftware = new Set<string>();
         const headers: {[key: number]: string} = {};
+        let allSoftware: Software[] = [];
+
+        try {
+          const softwareRes = await api('/api/software');
+          if (softwareRes.ok) {
+            allSoftware = await softwareRes.json();
+          }
+        } catch (error) {
+          console.error("Error fetching software for import:", error);
+        }
 
         worksheet.getRow(1).eachCell((cell, colNumber) => {
           headers[colNumber] = cell.value ? cell.value.toString() : '';
@@ -534,6 +712,7 @@ const handleDownloadTemplate = async () => {
           const academicYear = rowData['Tahun Ajaran'] || rowData['tahun ajaran'] || '';
           const startDate = rowData['Tanggal Mulai'] || rowData['tanggal mulai'] || '';
           const endDate = rowData['Tanggal Selesai'] || rowData['tanggal selesai'] || '';
+          const softwareValue = rowData['Software'] || rowData['software'] || '';
 
           if (courseCode && courseName) {
             // Parse Jam column
@@ -565,6 +744,7 @@ const handleDownloadTemplate = async () => {
                 unmatchedLecturers.add(String(lecturerName).trim());
               }
             }
+            const softwareIds = resolveImportedSoftwareIds(String(softwareValue || ''), matchedRoomId, String(roomName || ''), allSoftware, unmatchedSoftware);
 
             newSchedules.push({
               courseCode,
@@ -579,7 +759,8 @@ const handleDownloadTemplate = async () => {
               lecturerId: matchedLecturerId,
               lecturerName,
               startDate,
-              endDate
+              endDate,
+              softwareIds
             });
           }
         });
@@ -614,7 +795,8 @@ const handleDownloadTemplate = async () => {
                   isOpen: true,
                   pendingSchedules: newSchedules,
                   unmatchedRooms,
-                  unmatchedLecturers
+                  unmatchedLecturers,
+                  unmatchedSoftware
                 });
               },
               onCancel: () => {
@@ -627,7 +809,8 @@ const handleDownloadTemplate = async () => {
                 isOpen: true,
                 pendingSchedules: newSchedules,
                 unmatchedRooms,
-                unmatchedLecturers
+                unmatchedLecturers,
+                unmatchedSoftware
               });
           }
         } else {
@@ -658,128 +841,24 @@ const handleDownloadTemplate = async () => {
     }
 
     try {
-      if (editingSchedule) {
-        // Update
-        const res = await api(`/api/class-schedules/${editingSchedule.id}`, {
-          method: 'PUT',
-          data: formData
-        });
-        if (res.ok) {
-          showToast("Jadwal kelas berhasil diperbarui!", "success");
-          fetchSchedules();
+      const res = editingSchedule
+        ? await api(`/api/class-schedules/${editingSchedule.id}`, { method: 'PUT', data: formData })
+        : await api('/api/class-schedules', { method: 'POST', data: formData });
 
-          // Update integrasi Google Calendar
-          if (!googleApi.isGapiInitialized) {
-            showToast('Google API belum siap, jadwal tersimpan namun sinkronisasi Calendar gagal.', 'warning');
-          } else if (!googleApi.calendarConnected) {
-            googleApi.connectCalendar();
-            showToast('Mohon hubungkan Google Calendar untuk mensinkronkan perubahan ini ke Calendar.', 'info');
-          } else {
-            if (!formData.startDate || !formData.endDate) {
-              showToast('Tanggal periode mulai & selesai wajib diisi untuk sinkronisasi Calendar!', 'warning');
-            } else {
-              // 1. Hapus event lama dari ruangan lama
-              const oldRoom = rooms.find(r => r.id === editingSchedule.roomId);
-              if (oldRoom && oldRoom.googleCalendarUrl) {
-                const oldCalendarId = getCalendarId(oldRoom.googleCalendarUrl);
-                if (oldCalendarId) {
-                  try {
-                    const q = `${editingSchedule.courseCode} ${editingSchedule.courseName}-${editingSchedule.lecturerName || ''}`;
-                    const queryParams = new URLSearchParams({ calendarId: oldCalendarId, q });
-                    const resList = await api(`/api/calendar/events?${queryParams.toString()}`);
-                    if (resList.ok) {
-                      const dataList = await resList.json();
-                      if (dataList.items && dataList.items.length > 0) {
-                        await googleApi.deleteEvent(oldCalendarId, dataList.items[0].id);
-                      }
-                    }
-                  } catch (e) {
-                    console.error("Gagal hapus event lama di Google Calendar", e);
-                  }
-                }
-              }
-
-              // 2. Buat event baru di ruangan baru (atau ruangan yang sama tapi jam/hari berubah)
-              const newRoom = rooms.find(r => r.id === formData.roomId);
-              if (newRoom && newRoom.googleCalendarUrl) {
-                const newCalendarId = getCalendarId(newRoom.googleCalendarUrl);
-                if (newCalendarId) {
-                  try {
-                    const dayMap: Record<string, number> = { 'Minggu': 0, 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6 };
-                    const targetDay = dayMap[formData.dayOfWeek] ?? 1;
-                    const semesterStart = new Date(formData.startDate);
-                    let distance = targetDay - semesterStart.getDay();
-                    if (distance < 0) distance += 7;
-                    const firstClassDate = new Date(semesterStart);
-                    firstClassDate.setDate(semesterStart.getDate() + distance);
-                    const dateStr = firstClassDate.toISOString().split('T')[0];
-                    const startDateTime = new Date(`${dateStr}T${formData.startTime}:00`);
-                    const endDateTime = new Date(`${dateStr}T${formData.endTime}:00`);
-                    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-                    const semesterEnd = new Date(formData.endDate);
-                    semesterEnd.setUTCHours(23, 59, 59, 999);
-                    const untilStr = semesterEnd.toISOString().replace(/[-:.]/g, '').substring(0, 15) + 'Z';
-
-                    const eventResource = { summary: `${formData.courseCode} ${formData.courseName}-${formData.lecturerName || ''}`, location: newRoom.name, description: `Mata Kuliah: ${formData.courseName}\nKode: ${formData.courseCode}\nDosen: ${formData.lecturerName || '-'}\nSemester: ${formData.semester} ${formData.academicYear}\n\nDiinput via CORE.FTI`, start: { dateTime: startDateTime.toISOString(), timeZone: userTimeZone }, end: { dateTime: endDateTime.toISOString(), timeZone: userTimeZone }, recurrence: [`RRULE:FREQ=WEEKLY;UNTIL=${untilStr}`] };
-                    await googleApi.createEvent(newCalendarId, eventResource);
-                    showToast('Jadwal di Google Calendar telah disinkronkan.', 'info');
-                  } catch (e) {
-                    console.error("Gagal buat event baru di Google Calendar", e);
-                    showToast('Gagal membuat jadwal di Google Calendar ruangan.', 'error');
-                  }
-                }
-              }
-            }
-          }
-        }
-      } else {
-        // Create
-        const res = await api('/api/class-schedules', {
-          method: 'POST',
-          data: formData
-        });
-        if (res.ok) {
-          showToast("Jadwal kelas berhasil ditambahkan!", "success");
-          fetchSchedules();
-
-          // Tambah ke Google Calendar
-          const room = rooms.find(r => r.id === formData.roomId);
-          if (room && room.googleCalendarUrl) {
-            if (!formData.startDate || !formData.endDate) {
-              showToast('Tanggal periode mulai & selesai wajib diisi untuk sinkronisasi Calendar!', 'warning');
-            } else {
-              const calendarId = getCalendarId(room.googleCalendarUrl);
-              if (calendarId) {
-                if (!googleApi.isGapiInitialized) {
-                  showToast('Google API belum siap, gagal sinkronisasi ke Calendar.', 'warning');
-                } else if (!googleApi.calendarConnected) {
-                  googleApi.connectCalendar();
-                  showToast('Mohon hubungkan Google Calendar untuk sinkronisasi Calendar.', 'info');
-                } else {
-                  const dayMap: Record<string, number> = { 'Minggu': 0, 'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6 };
-                  const targetDay = dayMap[formData.dayOfWeek] ?? 1;
-                  const semesterStart = new Date(formData.startDate);
-                  let distance = targetDay - semesterStart.getDay();
-                  if (distance < 0) distance += 7;
-                  const firstClassDate = new Date(semesterStart);
-                  firstClassDate.setDate(semesterStart.getDate() + distance);
-                  const dateStr = firstClassDate.toISOString().split('T')[0];
-                  const startDateTime = new Date(`${dateStr}T${formData.startTime}:00`);
-                  const endDateTime = new Date(`${dateStr}T${formData.endTime}:00`);
-                  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                  const semesterEnd = new Date(formData.endDate);
-                  semesterEnd.setUTCHours(23, 59, 59, 999);
-                  const untilStr = semesterEnd.toISOString().replace(/[-:.]/g, '').substring(0, 15) + 'Z';
-                  const eventResource = { summary: `${formData.courseCode} ${formData.courseName}-${formData.lecturerName || ''}`, location: room.name, description: `Mata Kuliah: ${formData.courseName}\nKode: ${formData.courseCode}\nDosen: ${formData.lecturerName || '-'}\nSemester: ${formData.semester} ${formData.academicYear}\n\nDiinput via CORE.FTI`, start: { dateTime: startDateTime.toISOString(), timeZone: userTimeZone }, end: { dateTime: endDateTime.toISOString(), timeZone: userTimeZone }, recurrence: [`RRULE:FREQ=WEEKLY;UNTIL=${untilStr}`] };
-                  const success = await googleApi.createEvent(calendarId, eventResource);
-                  if (success) showToast('Berhasil disinkronkan ke Google Calendar ruangan!', 'success');
-                }
-              }
-            }
-          }
-        }
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        showToast(errorData.error || 'Gagal menyimpan jadwal kelas.', res.status === 409 ? 'warning' : 'error');
+        return;
       }
+
+      showToast(
+        editingSchedule
+          ? 'Jadwal kelas berhasil diperbarui dan disinkronkan ke CORE Calendar.'
+          : 'Jadwal kelas berhasil ditambahkan ke CORE Calendar.',
+        'success'
+      );
+      await fetchSchedules();
+      await fetchSemesterLabUsage();
       setIsModalOpen(false);
     } catch (error) {
       showToast("Gagal menyimpan jadwal kelas.", "error");
@@ -798,6 +877,12 @@ const handleDownloadTemplate = async () => {
     // Validasi Waktu
     if (formData.endTime <= formData.startTime) {
       showToast('Jam selesai harus lebih besar dari jam mulai.', 'warning');
+      return;
+    }
+
+    const configuredPeriod = findSemesterPeriod(formData.semester, formData.academicYear);
+    if (formData.roomId && !configuredPeriod && (!formData.startDate || !formData.endDate)) {
+      showToast('Tanggal periode wajib diisi atau buat konfigurasi semester aktif terlebih dahulu.', 'warning');
       return;
     }
 
@@ -823,62 +908,125 @@ const handleDownloadTemplate = async () => {
   };
 
   const handleDelete = async (id: string) => {
-    const scheduleToDelete = schedules.find(s => s.id === id);
     if (window.confirm("Apakah Anda yakin ingin menghapus jadwal kelas ini?")) {
       try {
-        await api(`/api/class-schedules/${id}`, { method: 'DELETE' });
-        showToast("Jadwal kelas berhasil dihapus!", "success");
-        fetchSchedules();
-
-        // Hapus dari Google Calendar
-        if (scheduleToDelete) {
-          const room = rooms.find(r => r.id === scheduleToDelete.roomId);
-          if (room && room.googleCalendarUrl && googleApi.isGapiInitialized && googleApi.calendarConnected) {
-            const calendarId = getCalendarId(room.googleCalendarUrl);
-            if (calendarId) {
-              try {
-                const q = `${scheduleToDelete.courseCode} ${scheduleToDelete.courseName}-${scheduleToDelete.lecturerName || ''}`;
-                const queryParams = new URLSearchParams({ calendarId, q });
-                const resList = await api(`/api/calendar/events?${queryParams.toString()}`);
-                if (resList.ok) {
-                  const dataList = await resList.json();
-                  const events = dataList.items;
-                  if (events && events.length > 0) {
-                    await googleApi.deleteEvent(calendarId, events[0].id);
-                    showToast('Jadwal terkait di Google Calendar juga telah dihapus.', 'info');
-                  }
-                }
-              } catch (e) {
-                console.error("Gagal hapus dari Google Calendar", e);
-                showToast('Gagal menghapus jadwal dari Google Calendar.', 'error');
-              }
-            }
-          }
+        const res = await api(`/api/class-schedules/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          showToast(errorData.error || "Gagal menghapus jadwal kelas.", "error");
+          return;
         }
+
+        showToast("Jadwal kelas dan event CORE Calendar terkait berhasil dihapus!", "success");
+        fetchSchedules();
+        fetchSemesterLabUsage();
       } catch (error) {
         showToast("Gagal menghapus jadwal kelas.", "error");
       }
     }
   };
 
-  const handleBulkDelete = async (e: React.FormEvent) => {
+  const resetSemesterPeriodForm = () => {
+    setEditingSemesterPeriod(null);
+    setSemesterPeriodForm({
+      semester: filterSemester || 'Ganjil',
+      academicYear: filterAcademicYear || (academicYears.length > 0 ? academicYears[0] : ''),
+      startDate: '',
+      endDate: '',
+      notes: '',
+      isActive: true
+    });
+  };
+
+  const handleOpenSemesterModal = () => {
+    resetSemesterPeriodForm();
+    setIsSemesterModalOpen(true);
+  };
+
+  const handleEditSemesterPeriod = (period: SemesterPeriod) => {
+    setEditingSemesterPeriod(period);
+    setSemesterPeriodForm({
+      semester: period.semester,
+      academicYear: period.academicYear,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      notes: period.notes || '',
+      isActive: period.isActive
+    });
+  };
+
+  const handleSaveSemesterPeriod = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check Google admin auth
-    if (!googleApi.calendarConnected) {
-      googleApi.connectCalendar();
-      showToast('Hubungkan akun Google Calendar terlebih dahulu untuk melakukan hapus semua jadwal.', 'warning');
+    if (!/^\d{4}\/\d{4}$/.test(semesterPeriodForm.academicYear)) {
+      showToast('Format Tahun Akademik harus YYYY/YYYY (contoh: 2025/2026).', 'warning');
       return;
     }
+    if (!semesterPeriodForm.startDate || !semesterPeriodForm.endDate || semesterPeriodForm.endDate < semesterPeriodForm.startDate) {
+      showToast('Tanggal periode semester tidak valid.', 'warning');
+      return;
+    }
+
+    try {
+      const res = editingSemesterPeriod
+        ? await api(`/api/semester-periods/${editingSemesterPeriod.id}`, { method: 'PUT', data: semesterPeriodForm })
+        : await api('/api/semester-periods', { method: 'POST', data: semesterPeriodForm });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        showToast(errorData.error || 'Gagal menyimpan konfigurasi semester.', res.status === 409 ? 'warning' : 'error');
+        return;
+      }
+
+      const result = await res.json().catch(() => ({}));
+      const syncText = result.schedulesUpdated ? ` ${result.schedulesUpdated} jadwal ruangan ikut diperbarui.` : '';
+      showToast(`Konfigurasi semester berhasil disimpan.${syncText}`, 'success');
+      await fetchSemesterPeriods();
+      resetSemesterPeriodForm();
+    } catch (error) {
+      showToast('Gagal menyimpan konfigurasi semester.', 'error');
+    }
+  };
+
+  const handleDeleteSemesterPeriod = async (period: SemesterPeriod) => {
+    if (!window.confirm(`Nonaktifkan konfigurasi ${period.semester} ${period.academicYear}? Jadwal yang sudah ada tidak akan dihapus.`)) return;
+
+    try {
+      const res = await api(`/api/semester-periods/${period.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        showToast(errorData.error || 'Gagal menonaktifkan konfigurasi semester.', 'error');
+        return;
+      }
+      showToast('Konfigurasi semester berhasil dinonaktifkan.', 'success');
+      await fetchSemesterPeriods();
+      if (editingSemesterPeriod?.id === period.id) resetSemesterPeriodForm();
+    } catch (error) {
+      showToast('Gagal menonaktifkan konfigurasi semester.', 'error');
+    }
+  };
+
+  const toggleSoftwareSelection = (softwareId: string) => {
+    setFormData(prev => {
+      const selected = new Set(prev.softwareIds);
+      if (selected.has(softwareId)) {
+        selected.delete(softwareId);
+      } else {
+        selected.add(softwareId);
+      }
+      return { ...prev, softwareIds: Array.from(selected) };
+    });
+  };
+
+  const handleBulkDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     if (!bulkDeleteModal.semester || !bulkDeleteModal.academicYear) {
       showToast('Semester dan Tahun Akademik harus diisi.', 'warning');
       return;
     }
 
-    if (!window.confirm(`Yakin ingin menghapus SEMUA jadwal untuk Semester ${bulkDeleteModal.semester} Tahun Akademik ${bulkDeleteModal.academicYear}?
-
-⚠️  Pastikan sudah login akun Google admin!`)) {
+    if (!window.confirm(`Yakin ingin menghapus SEMUA jadwal untuk Semester ${bulkDeleteModal.semester} Tahun Akademik ${bulkDeleteModal.academicYear}?\n\nEvent CORE Calendar terkait akan dibatalkan otomatis.`)) {
       return;
     }
 
@@ -893,11 +1041,13 @@ const handleDownloadTemplate = async () => {
       });
 
       if (res.ok) {
-        showToast('Semua jadwal berhasil dihapus!', 'success');
+        showToast('Semua jadwal dan event CORE Calendar terkait berhasil dihapus!', 'success');
         setBulkDeleteModal(prev => ({ ...prev, isOpen: false }));
         fetchSchedules();
+        fetchSemesterLabUsage();
       } else {
-        showToast('Gagal menghapus jadwal.', 'error');
+        const errorData = await res.json().catch(() => ({}));
+        showToast(errorData.error || 'Gagal menghapus jadwal.', 'error');
       }
     } catch (error) {
       showToast('Terjadi kesalahan saat menghapus jadwal.', 'error');
@@ -932,28 +1082,10 @@ const handleDownloadTemplate = async () => {
         actionsClassName="w-full md:w-auto"
         actions={
           <div className="grid w-full grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/70 sm:grid-cols-2 lg:flex lg:w-auto lg:items-center">
-            {canManage && googleApi.isGapiInitialized && !googleApi.calendarConnected && (
-              <Button onClick={() => googleApi.connectCalendar()} variant="secondary" size="sm" className="justify-center">
-                <LogIn className="w-4 h-4 mr-2" /> Hubungkan Calendar
+            {canManage && (
+              <Button onClick={handleOpenSemesterModal} variant="secondary" size="sm" className="justify-center">
+                <Calendar className="w-4 h-4 mr-2" /> Periode
               </Button>
-            )}
-            {canManage && googleApi.calendarConnected && (
-              <div className="flex h-9 items-center justify-between gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-1 shadow-sm dark:border-green-800 dark:bg-green-900/20">
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
-                  <span className="text-xs font-semibold text-green-700 dark:text-green-300 max-w-30 truncate">
-                    {googleApi.googleUserEmail || "Calendar Terhubung"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => googleApi.logout()}
-                  className="p-1 hover:bg-green-100 dark:hover:bg-green-900/40 rounded transition-colors"
-                  title="Putuskan Google Calendar"
-                >
-                  <LogOut className="h-4 w-4 text-green-600 dark:text-green-400" />
-                </button>
-              </div>
             )}
             <Button onClick={handleDownloadTemplate} variant="secondary" size="sm" className="justify-center">
               <Download className="w-4 h-4 mr-2" /> Template
@@ -969,11 +1101,9 @@ const handleDownloadTemplate = async () => {
                   semester: filterSemester || 'Ganjil',
                   academicYear: filterAcademicYear || (academicYears.length > 0 ? academicYears[0] : '')
                 })}
-                disabled={!googleApi.calendarConnected}
                 variant="destructive"
                 size="sm"
                 className="justify-center"
-                title={!googleApi.calendarConnected ? "Hubungkan Google Calendar terlebih dahulu" : ""}
               >
                 <Trash className="w-4 h-4 mr-2" /> Hapus Semua
               </Button>
@@ -1072,6 +1202,60 @@ const handleDownloadTemplate = async () => {
         </div>
       </PageCard>
 
+      {filterSemester && filterAcademicYear && (
+        <PageCard padding="md">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Pemakaian Software Laboratorium</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {filterSemester} {filterAcademicYear} - {semesterLabUsage.length} jadwal di Laboratorium Komputer
+              </p>
+            </div>
+          </div>
+          {semesterLabUsage.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <th className="px-2 py-2">Matakuliah</th>
+                    <th className="px-2 py-2">Ruang</th>
+                    <th className="px-2 py-2">Waktu</th>
+                    <th className="px-2 py-2">Software</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {semesterLabUsage.map(item => (
+                    <tr key={item.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                      <td className="px-2 py-2">
+                        <div className="font-semibold text-slate-900 dark:text-white">{item.courseCode}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">{item.courseName}</div>
+                      </td>
+                      <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{item.roomName || '-'}</td>
+                      <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{item.dayOfWeek}, {item.startTime} - {item.endTime}</td>
+                      <td className="px-2 py-2">
+                        {item.software?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {item.software.map(software => (
+                              <span key={software.id} className="rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                {software.name}{software.version ? ` ${software.version}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">Belum ditentukan</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">Belum ada jadwal lab komputer pada semester dan tahun ajaran ini.</p>
+          )}
+        </PageCard>
+      )}
+
       {/* Schedule Cards by Day */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {days.map(day => {
@@ -1144,6 +1328,20 @@ const handleDownloadTemplate = async () => {
                           <span className="truncate">{schedule.lecturerName}</span>
                         </div>
                       )}
+                      {schedule.software && schedule.software.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {schedule.software.slice(0, 4).map(software => (
+                            <span key={software.id} className="rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+                              {software.name}{software.version ? ` ${software.version}` : ''}
+                            </span>
+                          ))}
+                          {schedule.software.length > 4 && (
+                            <span className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                              +{schedule.software.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )) : (
@@ -1157,6 +1355,142 @@ const handleDownloadTemplate = async () => {
           );
         })}
       </div>
+
+      {isSemesterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/50">
+              <h3 className="font-bold text-gray-900 dark:text-white">Konfigurasi Periode Semester</h3>
+              <button onClick={() => setIsSemesterModalOpen(false)} className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'text-gray-500 dark:text-gray-300')}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[1fr_1.2fr]">
+              <form onSubmit={handleSaveSemesterPeriod} className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Semester</label>
+                    <Select value={semesterPeriodForm.semester} onValueChange={val => setSemesterPeriodForm(prev => ({ ...prev, semester: val }))} items={semesterFormItems}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Semester" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {semesters.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Tahun Akademik</label>
+                    <Input
+                      type="text"
+                      required
+                      value={semesterPeriodForm.academicYear}
+                      onChange={e => setSemesterPeriodForm(prev => ({ ...prev, academicYear: e.target.value }))}
+                      placeholder="2025/2026"
+                      pattern="\d{4}/\d{4}"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Mulai</label>
+                    <Input
+                      type="date"
+                      required
+                      value={semesterPeriodForm.startDate}
+                      onChange={e => setSemesterPeriodForm(prev => ({ ...prev, startDate: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Selesai</label>
+                    <Input
+                      type="date"
+                      required
+                      value={semesterPeriodForm.endDate}
+                      onChange={e => setSemesterPeriodForm(prev => ({ ...prev, endDate: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Catatan</label>
+                  <Input
+                    type="text"
+                    value={semesterPeriodForm.notes}
+                    onChange={e => setSemesterPeriodForm(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Opsional"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={semesterPeriodForm.isActive}
+                    onChange={e => setSemesterPeriodForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                  />
+                  Aktif
+                </label>
+                <div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+                  {editingSemesterPeriod && (
+                    <Button type="button" variant="secondary" onClick={resetSemesterPeriodForm}>Baru</Button>
+                  )}
+                  <Button type="submit" variant="primary">
+                    <Check className="mr-2 h-4 w-4" /> Simpan
+                  </Button>
+                </div>
+              </form>
+
+              <div className="min-h-0 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2">Semester</th>
+                      <th className="px-3 py-2">Periode</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {semesterPeriods.length > 0 ? semesterPeriods.map(period => (
+                      <tr key={period.id} className="border-t border-slate-100 dark:border-slate-800">
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-slate-900 dark:text-white">{period.semester}</div>
+                          <div className="text-xs text-slate-500">{period.academicYear}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                          {period.startDate} - {period.endDate}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={cn(
+                            'rounded-md px-2 py-1 text-xs font-semibold',
+                            period.isActive
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                          )}>
+                            {period.isActive ? 'Aktif' : 'Nonaktif'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button type="button" onClick={() => handleEditSemesterPeriod(period)} className="mr-2 text-sky-600 hover:text-sky-800 dark:text-sky-400">
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => handleDeleteSemesterPeriod(period)} title="Nonaktifkan" className="text-red-600 hover:text-red-800 dark:text-red-400">
+                            <Trash className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8 text-center text-slate-500 dark:text-slate-400">
+                          Belum ada konfigurasi semester.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Form */}
       {isModalOpen && (
@@ -1197,11 +1531,41 @@ const handleDownloadTemplate = async () => {
                     <SearchableSelect
                         options={roomOptions}
                         value={formData.roomId}
-                        onChange={val => setFormData({...formData, roomId: val})}
+                        onChange={val => setFormData(prev => ({...prev, roomId: val, softwareIds: []}))}
                         placeholder="-- Pilih Ruangan --"
                         searchPlaceholder="Cari ruangan..."
                     />
                  </div>
+
+                 {isSelectedRoomComputerLab && (
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Software yang Digunakan</label>
+                     {roomSoftware.length > 0 ? (
+                       <div className="grid max-h-40 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-2">
+                         {roomSoftware.map(software => (
+                           <label key={software.id} className="flex cursor-pointer items-start gap-2 rounded-md bg-white p-2 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-emerald-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
+                             <input
+                               type="checkbox"
+                               checked={formData.softwareIds.includes(software.id)}
+                               onChange={() => toggleSoftwareSelection(software.id)}
+                               className="mt-1"
+                             />
+                             <span className="min-w-0">
+                               <span className="block truncate font-semibold">{software.name}</span>
+                               <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                                 {[software.version, software.category].filter(Boolean).join(' - ') || 'Software lab'}
+                               </span>
+                             </span>
+                           </label>
+                         ))}
+                       </div>
+                     ) : (
+                       <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                         Belum ada data software untuk laboratorium ini.
+                       </p>
+                     )}
+                   </div>
+                 )}
 
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div>
@@ -1238,7 +1602,7 @@ const handleDownloadTemplate = async () => {
                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semester</label>
-                        <Select value={formData.semester || ''} onValueChange={val => setFormData({...formData, semester: val})} items={semesterFormItems}>
+                        <Select value={formData.semester || ''} onValueChange={val => setFormDataWithPeriod({ semester: val })} items={semesterFormItems}>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih Semester" />
                           </SelectTrigger>
@@ -1256,7 +1620,7 @@ const handleDownloadTemplate = async () => {
                          list="academic-years-list"
                          required
                          value={formData.academicYear}
-                         onChange={e => setFormData({...formData, academicYear: e.target.value})}
+                         onChange={e => setFormDataWithPeriod({ academicYear: e.target.value })}
                          pattern="\d{4}/\d{4}"
                          title="Format harus YYYY/YYYY (contoh: 2024/2025)"
                          placeholder="Contoh: 2024/2025"
@@ -1269,6 +1633,7 @@ const handleDownloadTemplate = async () => {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tgl Mulai Periode</label>
                         <Input
                             type="date"
+                            required={!!formData.roomId && !findSemesterPeriod(formData.semester, formData.academicYear)}
                             value={formData.startDate}
                             onChange={e => setFormData({...formData, startDate: e.target.value})}
                         />
@@ -1277,6 +1642,7 @@ const handleDownloadTemplate = async () => {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tgl Selesai Periode</label>
                         <Input
                             type="date"
+                            required={!!formData.roomId && !findSemesterPeriod(formData.semester, formData.academicYear)}
                             value={formData.endDate}
                             onChange={e => setFormData({...formData, endDate: e.target.value})}
                         />
@@ -1320,12 +1686,6 @@ const handleDownloadTemplate = async () => {
             <form onSubmit={(e) => {
               e.preventDefault();
 
-              if (canManage && googleApi.isGapiInitialized && !googleApi.calendarConnected) {
-                googleApi.connectCalendar();
-                showToast("Silakan hubungkan Google Calendar terlebih dahulu sebelum mengeksekusi import data.", "info");
-                return;
-              }
-
               if (!/^\d{4}\/\d{4}$/.test(bulkFormData.academicYear)) {
                 showToast('Format Tahun Akademik Default harus YYYY/YYYY (contoh: 2024/2025).', 'warning');
                 return;
@@ -1339,7 +1699,7 @@ const handleDownloadTemplate = async () => {
                 endDate: s.endDate || bulkFormData.endDate
               }));
               setBulkModal(prev => ({ ...prev, isOpen: false }));
-              performImport(finalSchedules, bulkModal.unmatchedRooms, bulkModal.unmatchedLecturers);
+              performImport(finalSchedules, bulkModal.unmatchedRooms, bulkModal.unmatchedLecturers, bulkModal.unmatchedSoftware);
             }} className="p-6 space-y-4">
               {bulkModal.unmatchedRooms.size > 0 && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4">
@@ -1355,10 +1715,17 @@ const handleDownloadTemplate = async () => {
                   <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">Jadwal akan tetap diimport tanpa relasi data dosen.</p>
                 </div>
               )}
+              {bulkModal.unmatchedSoftware.size > 0 && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-400 font-medium">Beberapa software tidak cocok atau diabaikan:</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">{Array.from(bulkModal.unmatchedSoftware).join('; ')}</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">Import tetap bisa dilanjutkan; software bersifat opsional.</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semester Default</label>
-                  <Select value={bulkFormData.semester} onValueChange={(val: any) => setBulkFormData({...bulkFormData, semester: val})} items={semesterFormItems}>
+                  <Select value={bulkFormData.semester} onValueChange={(val: any) => setBulkFormDataWithPeriod({ semester: val })} items={semesterFormItems}>
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih Semester" />
                     </SelectTrigger>
@@ -1374,7 +1741,7 @@ const handleDownloadTemplate = async () => {
                       list="academic-years-list"
                       required
                       value={bulkFormData.academicYear}
-                      onChange={e => setBulkFormData({...bulkFormData, academicYear: e.target.value})}
+                      onChange={e => setBulkFormDataWithPeriod({ academicYear: e.target.value })}
                       pattern="\d{4}/\d{4}"
                       title="Format harus YYYY/YYYY (contoh: 2024/2025)"
                       placeholder="Contoh: 2024/2025"
@@ -1457,16 +1824,9 @@ const handleDownloadTemplate = async () => {
             </div>
             <form onSubmit={handleBulkDelete} className="p-6 space-y-4">
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4 text-sm text-yellow-800 dark:text-yellow-400">
-                <p className="font-bold mb-1">⚠️ Perhatian!</p>
+                <p className="font-bold mb-1">Perhatian</p>
                 <p className="text-yellow-700 dark:text-yellow-500">Tindakan ini akan menghapus permanen <b>seluruh</b> data jadwal kelas di database pada semester dan tahun akademik yang dipilih.</p>
-                <p className="text-yellow-700 dark:text-yellow-500 mt-1">
-                  {googleApi.calendarConnected ? (
-                    '✅ Google Calendar terhubung.'
-                  ) : (
-                    '❌ Hubungkan Google Calendar diperlukan sebelum hapus semua jadwal.'
-                  )}
-                </p>
-                <p className="mt-2 text-xs italic text-yellow-700 dark:text-yellow-500">* Event di Google Calendar tidak akan terhapus otomatis.</p>
+                <p className="mt-2 text-xs italic text-yellow-700 dark:text-yellow-500">Event CORE Calendar terkait akan dibatalkan otomatis. Google Calendar legacy tidak disentuh.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semester</label>

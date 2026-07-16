@@ -117,7 +117,7 @@ export function LetterActionMenu({
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onGenerateQr} className="gap-3 py-3">
             <QrCode className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <span className="font-medium">Buat QR Validasi</span>
+            <span className="font-medium">Unduh via QR</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onSendEmail} className="gap-3 py-3">

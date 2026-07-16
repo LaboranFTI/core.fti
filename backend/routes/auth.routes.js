@@ -737,14 +737,14 @@ router.get('/google/calendar/callback', async (req, res) => {
   }
 });
 
-// Endpoint GET /auth/me: Mengambil data profil dan permission Calendar user yang login
+// Endpoint GET /auth/me: Mengambil data profil, SSO, dan permission Calendar internal user yang login
 router.get('/me', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Akses ditolak. Silakan login terlebih dahulu.' });
   }
 
   try {
-    const result = await pool.query('SELECT id, nama, email, role, google_refresh_token FROM users WHERE id = $1', [req.user.id]);
+    const result = await pool.query('SELECT id, nama, email, role, password, google_refresh_token FROM users WHERE id = $1', [req.user.id]);
     const user = result.rows[0];
 
     if (!user) {
@@ -753,7 +753,8 @@ router.get('/me', async (req, res) => {
 
     const calendarWriteRoles = ['ADMIN', 'LABORAN', 'SUPERVISOR'];
     const hasWriteAccess = calendarWriteRoles.includes(user.role.toUpperCase());
-    const calendarConnected = !!user.google_refresh_token;
+    const googleCalendarConnected = !!user.google_refresh_token;
+    const authProvider = user.password ? 'local' : 'google_sso';
 
     res.json({
       success: true,
@@ -762,11 +763,20 @@ router.get('/me', async (req, res) => {
         name: user.nama,
         email: user.email,
         role: user.role,
-        calendarConnected,
+        authProvider,
+        calendarProvider: 'core',
+        coreCalendarConnected: true,
+        googleCalendarConnected,
+        calendarConnected: true,
         permissions: {
           calendarRead: true,
-          calendarWrite: hasWriteAccess && calendarConnected,
-          canConnectCalendar: hasWriteAccess
+          calendarWrite: hasWriteAccess,
+          coreCalendarRead: true,
+          coreCalendarWrite: hasWriteAccess,
+          googleCalendarRead: googleCalendarConnected,
+          googleCalendarWrite: hasWriteAccess && googleCalendarConnected,
+          canConnectCalendar: hasWriteAccess,
+          canConnectGoogleCalendar: hasWriteAccess
         }
       }
     });

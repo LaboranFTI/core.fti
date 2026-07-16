@@ -67,7 +67,11 @@ const buildStudentEmail = (identifier?: string) => {
   return cleanIdentifier ? `${cleanIdentifier}@student.uksw.edu` : '';
 };
 
-export function ActiveStudentForm() {
+interface ActiveStudentFormProps {
+  onReturnToMenu?: () => void;
+}
+
+export function ActiveStudentForm({ onReturnToMenu }: ActiveStudentFormProps) {
   const { register, handleSubmit, watch, reset, setValue, control } = useForm<ActiveStudentFormValues>({
     defaultValues: {
       ...defaultFormValues,
@@ -269,11 +273,12 @@ export function ActiveStudentForm() {
             onClick={() => {
               setSubmitSuccess(false);
               resetFormState();
+              onReturnToMenu?.();
             }}
             className="mt-6 border-slate-300 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
             variant="outline"
           >
-            Buat Permohonan Baru
+            Selesai & Kembali ke Menu
           </Button>
         </CardContent>
       </Card>
@@ -297,14 +302,7 @@ export function ActiveStudentForm() {
 
         <CardContent className="p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {formFeedback && (
-              <div className={`rounded-lg border px-4 py-3 text-sm ${formFeedback.type === 'success'
-                  ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                  : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
-                }`}>
-                {formFeedback.message}
-              </div>
-            )}
+
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className={`rounded-lg border px-4 py-3 ${isVerified ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'}`}>
@@ -447,7 +445,17 @@ export function ActiveStudentForm() {
                     />
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex-1 w-full">
+                      {formFeedback && (
+                        <div className={`rounded-lg border px-4 py-3 text-sm ${formFeedback.type === 'success'
+                            ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                            : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
+                          }`}>
+                          {formFeedback.message}
+                        </div>
+                      )}
+                    </div>
                     <Button type="submit" className="h-11 w-full bg-blue-600 text-base text-white hover:bg-blue-700 sm:w-auto sm:min-w-52" disabled={isSubmitting}>
                       {isSubmitting ? 'Mengirim Permohonan...' : (
                         <>

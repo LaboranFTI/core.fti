@@ -71,16 +71,15 @@ const createDefaultObservationData = (): ObservationData => ({
 });
 
 interface ObservationFormProps {
-  onDataChange: (data: ObservationData) => void;
-  onPrint: () => void;
   readOnly?: boolean;
   feedback?: {
     type: 'success' | 'error' | 'info';
     message: string;
   } | null;
+  onReturnToMenu?: () => void;
 }
 
-export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedback = null }: ObservationFormProps) {
+export function ObservationForm({ readOnly = false, feedback = null, onReturnToMenu }: ObservationFormProps) {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [formFeedback, setFormFeedback] = useState(feedback);
@@ -88,8 +87,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrAccessCode, setQrAccessCode] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
-  const [isFinalizingPrint, setIsFinalizingPrint] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | 'print' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
   const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; accessCode?: string | null } | null>(null);
@@ -169,14 +167,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setIsProdiSelected(true);
   }, [studyPrograms, setValue]);
 
-  // Watch for changes and pass them up
-  React.useEffect(() => {
-    onDataChange(getValues());
-    const subscription = watch((value: any) => {
-      onDataChange(value as ObservationData);
-    });
-    return () => subscription.unsubscribe();
-  }, [getValues, watch, onDataChange]);
+  // Empty effect removed since we don't need to watch data for preview anymore
 
   const resetSelfServiceFlow = useCallback(() => {
     const defaultData = createDefaultObservationData();
@@ -195,8 +186,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     setIsOpeningAccessCode(false);
     setIsSavingAccessCode(false);
     setFormFeedback(null);
-    onDataChange(defaultData);
-  }, [onDataChange, reset]);
+  }, [reset]);
 
   const handleFormModeChange = (mode: 'new' | 'existing') => {
     if (mode === formMode) return;
@@ -224,7 +214,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
       const loadedData = normalizeLoadedObservationData(json.letter?.data);
       reset(loadedData);
-      onDataChange(loadedData);
       setSelectedProdiId(loadedData.studyProgramId || '');
       setIsProdiSelected(true);
       setAccessCodeInput(json.letter.accessCode || accessCode);
@@ -265,7 +254,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
       const loadedData = normalizeLoadedObservationData(json.letter?.data);
       reset(loadedData);
-      onDataChange(loadedData);
       setAccessLetterState({
         accessCode: json.letter.accessCode || accessLetterState.accessCode,
         letterNumber: json.letter.letterNumber || accessLetterState.letterNumber || null,
@@ -290,8 +278,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       handleDownloadPdf();
     } else if (action === 'qr') {
       handleGenerateQr();
-    } else if (action === 'print') {
-      handleFinalizeAndPrint();
     }
   };
 
@@ -308,7 +294,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       const res = await api('/api/tu/observation-letter/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, targetEmail })
+        body: JSON.stringify({ ...formData, targetEmail }),
+        timeoutMs: 90000
       });
       const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
       if (!res.ok) throw new Error(json.error);
@@ -326,35 +313,7 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
     }
   };
 
-  const handleFinalizeAndPrint = async () => {
-    setIsFinalizingPrint(true);
-    setFormFeedback(null);
-    try {
-      const formData = getValues();
-      const res = await api('/api/tu/observation-letter/finalize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal menghasilkan nomor surat.');
 
-      const tds = document.querySelectorAll('td');
-      tds.forEach(td => {
-        if (td.textContent?.includes('AUTO/FTI-OBS/')) {
-          td.textContent = json.letterNumber;
-        }
-      });
-
-      localStorage.setItem('core_fti_last_observation_cc', JSON.stringify(formData.carbonCopies || []));
-      setFormFeedback({ type: 'success', message: 'Surat berhasil diarsipkan dengan nomor resmi.' });
-      setTimeout(() => onPrint(), 300);
-    } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memproses cetak surat.' });
-    } finally {
-      setIsFinalizingPrint(false);
-    }
-  };
 
   const handleDownloadPdf = async () => {
     setIsDownloadingPdf(true);
@@ -374,7 +333,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
 
         const loadedData = normalizeLoadedObservationData(saveJson.letter?.data);
         reset(loadedData);
-        onDataChange(loadedData);
         setAccessLetterState({
           accessCode: saveJson.letter.accessCode || accessLetterState.accessCode,
           letterNumber: saveJson.letter.letterNumber || accessLetterState.letterNumber || null,
@@ -408,13 +366,19 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
         document.body.removeChild(a);
 
         setFormFeedback({ type: 'success', message: 'Perubahan disimpan dan surat berhasil diunduh dari kode akses.' });
+        if (onReturnToMenu) {
+          setTimeout(() => {
+            onReturnToMenu();
+          }, 1500);
+        }
         return;
       }
 
       const res = await api('/api/tu/observation-letter/generate-and-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        timeoutMs: 90000
       });
 
       if (!res.ok) {
@@ -445,6 +409,11 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           ? `Surat berhasil diunduh dan diarsipkan. Kode akses surat: ${accessCode}. Simpan kode ini untuk membuka ulang surat.`
           : 'Surat berhasil diunduh dan diarsipkan secara otomatis.'
       });
+      if (onReturnToMenu) {
+        setTimeout(() => {
+          onReturnToMenu();
+        }, 1500);
+      }
     } catch (error) {
       console.error('Failed to download PDF:', error);
       setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengunduh PDF.' });
@@ -461,7 +430,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       const res = await api('/api/tu/observation-letter/generate-qr-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        timeoutMs: 90000
       });
 
       const json = await res.json();
@@ -532,17 +502,6 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                 ? 'Surat observasi ini dibuat langsung oleh mahasiswa tanpa menunggu proses admin. Isi data secara bertahap, lalu unduh PDF atau cetak. Aktifkan preview bila ingin memeriksa tata letak surat. Data surat akan otomatis masuk arsip.'
                 : 'Gunakan kode akses yang diperoleh dari email atau tampilan QR. Form surat baru tidak perlu diisi untuk membuka surat lama.'}
           </div>
-
-          {formFeedback && (
-            <div className={`mx-6 my-5 rounded-lg border px-4 py-3 text-sm ${formFeedback.type === 'success'
-                ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                : formFeedback.type === 'error'
-                  ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
-                  : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300'
-              }`}>
-              {formFeedback.message}
-            </div>
-          )}
 
           {!readOnly && formMode === 'existing' && (
             <div className="p-6 bg-white dark:bg-gray-800 space-y-4">
@@ -757,7 +716,18 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
               </div>
 
               {/* Actions */}
-              <div className="flex flex-col gap-3 bg-white p-6 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex flex-col gap-4 bg-white p-6 dark:bg-gray-800">
+                {formFeedback && (
+                  <div className={`rounded-lg border px-4 py-3 text-sm ${formFeedback.type === 'success'
+                      ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                      : formFeedback.type === 'error'
+                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
+                        : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300'
+                    }`}>
+                    {formFeedback.message}
+                  </div>
+                )}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <LetterActionMenu
                   className="sm:min-w-52"
                   disabled={readOnly}
@@ -769,11 +739,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
                   onSendEmail={() => setEmailModalOpen(true)}
                   emailDescription="PDF surat langsung ke kotak masuk"
                 />
-                <Button type="button" onClick={() => setConfirmAction('print')} disabled={readOnly || isFinalizingPrint} variant="outline" className="h-11 w-full border-slate-300 text-base dark:border-slate-600 sm:w-auto sm:min-w-44">
-                  {isFinalizingPrint ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
-                  {isFinalizingPrint ? 'Menyiapkan...' : 'Cetak Langsung'}
-                </Button>
               </div>
+            </div>
             </>
           )}
         </div>
@@ -789,8 +756,8 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Periksa Kembali</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700">
-              Yakin & Generate
+            <AlertDialogAction type="button" onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700">
+              Yakin &amp; Generate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -891,9 +858,12 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
           <Button
             type="button"
             className="w-full bg-blue-600 text-white hover:bg-blue-700"
-            onClick={resetSelfServiceFlow}
+            onClick={() => {
+              resetSelfServiceFlow();
+              onReturnToMenu?.();
+            }}
           >
-            Selesai & Buat Surat Baru
+            Selesai & Kembali ke Menu
           </Button>
         </DialogContent>
       </Dialog>
@@ -906,7 +876,10 @@ export function ObservationForm({ onDataChange, onPrint, readOnly = false, feedb
       />
       <EmailSuccessDialog
         open={Boolean(emailSuccessState)}
-        onClose={resetSelfServiceFlow}
+        onClose={() => {
+          resetSelfServiceFlow();
+          onReturnToMenu?.();
+        }}
         recipientEmail={emailSuccessState?.email}
         letterNumber={emailSuccessState?.letterNumber}
         accessCode={emailSuccessState?.accessCode}

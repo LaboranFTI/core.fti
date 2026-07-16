@@ -24,18 +24,25 @@
 
         .page {
             position: relative;
-            width: 210mm;
-            height: 297mm;
-            overflow: hidden;
+            width: 100%;
             background: white;
         }
 
         .background-image {
-            position: absolute;
-            inset: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 100%;
+            height: 100vh;
             object-fit: fill;
+            z-index: 0;
+        }
+
+        .content-table {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            border-collapse: collapse;
         }
 
         .content {
@@ -189,9 +196,17 @@
         <img src="{{backgroundImage}}" alt="Background Surat" class="background-image">
         {{draftWatermark}}
 
-        <div class="content"
-            style="padding: {{marginTopMm}}mm {{marginRightMm}}mm {{marginBottomMm}}mm {{marginLeftMm}}mm;">
-            <div class="top-block">
+        <table class="content-table">
+            <thead>
+                <tr>
+                    <td style="height: {{marginTopMm}}mm; padding: 0;"></td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 0 {{marginRightMm}}mm 0 {{marginLeftMm}}mm;">
+                        <div class="content">
+                            <div class="top-block">
                 <div class="subject-meta" style="margin: 0;">
                     <p style="margin: 0;"><strong>Perihal:</strong></p>
                     <p style="margin: 0;">{{letterPurpose}}</p>
@@ -255,7 +270,16 @@
             </div>
 
             {{tembusanBlock}}
-        </div>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td style="height: {{marginBottomMm}}mm; padding: 0;"></td>
+                </tr>
+            </tfoot>
+        </table>
     </div>
 </body>
 

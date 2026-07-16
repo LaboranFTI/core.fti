@@ -3,11 +3,22 @@ import multer from 'multer';
 import ExcelJS from 'exceljs';
 import { pool } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
+import { CalendarConflictError, CalendarNotFoundError, CalendarValidationError, syncBookingToCalendar } from '../services/calendar.service.js';
 const router = express.Router();
 const BOOKING_READONLY_ROLES = ['Mahasiswa'];
 
 // Konfigurasi Upload (Simpan sementara di folder uploads/)
 const upload = multer({ dest: 'uploads/' });
+
+const sendBookingMutationError = (res, err, fallbackMessage) => {
+  if (err instanceof CalendarConflictError || err?.code === 'CALENDAR_CONFLICT') {
+    return res.status(409).json({ error: err.message, code: err.code });
+  }
+  if (err instanceof CalendarNotFoundError || err instanceof CalendarValidationError || err?.status) {
+    return res.status(err.status || 422).json({ error: err.message || fallbackMessage, code: err.code });
+  }
+  return res.status(500).json({ error: fallbackMessage });
+};
 
 // Endpoint Summary untuk Statistik Dashboard
 router.get('/dashboard/summary', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
@@ -222,12 +233,16 @@ router.post('/bookings', async (req, res) => {
       }
     }
 
+    if (initialStatus === 'Disetujui') {
+      await syncBookingToCalendar(client, bookingId, req.user?.id);
+    }
+
     await client.query('COMMIT');
     res.json({ success: true, id: bookingId });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create booking error:', err);
-    res.status(500).json({ error: 'Gagal membuat booking.' });
+    sendBookingMutationError(res, err, 'Gagal membuat booking.');
   } finally {
     client.release();
   }
@@ -237,9 +252,12 @@ router.post('/bookings', async (req, res) => {
 router.put('/bookings/:id/status', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
     const { id } = req.params;
     const { status, techSupportPic, techSupportNeeds, rejectionReason } = req.body;
+    const client = await pool.connect();
 
     try {
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        const result = await client.query(
             `UPDATE bookings
              SET status = $1,
                  tech_support_pic = $2,
@@ -251,13 +269,20 @@ router.put('/bookings/:id/status', verifyRole(['Admin', 'Laboran', 'Supervisor']
         );
 
         if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ error: 'Booking tidak ditemukan' });
         }
 
+        await syncBookingToCalendar(client, id, req.user?.id);
+
+        await client.query('COMMIT');
         res.json({ success: true, message: 'Status berhasil diperbarui' });
     } catch (err) {
+        await client.query('ROLLBACK');
         console.error('Update booking status error:', err);
-        res.status(500).json({ error: 'Gagal memperbarui status booking' });
+        sendBookingMutationError(res, err, 'Gagal memperbarui status booking');
+    } finally {
+        client.release();
     }
 });
 
@@ -357,12 +382,14 @@ router.put('/bookings/:id', async (req, res) => {
             }
         }
 
+        await syncBookingToCalendar(client, id, loggedInUserId);
+
         await client.query('COMMIT');
         res.json({ success: true, message: 'Booking berhasil diperbarui' });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Update booking error:', err);
-        res.status(500).json({ error: 'Gagal memperbarui booking.' });
+        sendBookingMutationError(res, err, 'Gagal memperbarui booking.');
     } finally {
         client.release();
     }

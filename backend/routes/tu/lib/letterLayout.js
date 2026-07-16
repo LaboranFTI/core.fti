@@ -49,10 +49,22 @@ export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         .content li {
             font-size: 11pt;
             line-height: 1.5;
+            orphans: 3;
+            widows: 3;
+        }
+
+        .signature-block {
+            page-break-inside: avoid;
         }
 
         .title {
-            font-size: 12pt;
+            font-size: 14pt;
+            line-height: 1.5;
+        }
+
+        .research-title {
+            font-size: 11pt;
+            font-weight: bold;
             line-height: 1.5;
         }
 

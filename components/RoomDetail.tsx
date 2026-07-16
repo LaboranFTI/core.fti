@@ -39,6 +39,9 @@ declare global {
 
 interface GoogleEvent {
   id: string;
+  eventId?: string;
+  occurrenceId?: string;
+  sourceId?: string;
   summary: string;
   description?: string;
   start: { dateTime?: string; date?: string };
@@ -251,12 +254,10 @@ const RoomDetail: React.FC<RoomDetailProps> = ({
                 )}
               </div>
 
-              {room.googleCalendarUrl && (
-                <div className="flex items-center text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
-                  <Check className="w-4 h-4 mr-2" />
-                  <span>Jadwal tersedia via Google Calendar</span>
-                </div>
-              )}
+              <div className="flex items-center text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                <Check className="w-4 h-4 mr-2" />
+                <span>Jadwal tersedia via CORE Calendar</span>
+              </div>
 
               {/* Software Section */}
               {room.category === 'Laboratorium Komputer' && (
@@ -329,34 +330,39 @@ const RoomDetail: React.FC<RoomDetailProps> = ({
                 )}
               </h3>
               
-              {room.googleCalendarUrl ? ( 
-                <div className="min-h-62.5 max-h-100 overflow-y-auto pr-1">
-                  {calendarEvents.length > 0 ? (
-                    <div className="space-y-3">
-                      {calendarEvents.map(event => (
-                        <a key={event.id} href={event.htmlLink} target="_blank" rel="noopener noreferrer" className="block bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors group">
+              <div className="min-h-62.5 max-h-100 overflow-y-auto pr-1">
+                {calendarEvents.length > 0 ? (
+                  <div className="space-y-3">
+                    {calendarEvents.map(event => {
+                      const content = (
+                        <>
                           <div className="flex justify-between items-start">
                             <h4 className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-1">{event.summary}</h4>
-                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                            {event.htmlLink && <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />}
                           </div>
                           <div className="mt-2 flex items-center text-xs text-gray-500 dark:text-gray-400">
                             <Clock className="w-3 h-3 mr-1" /> {formatEventTime(event.start.dateTime, event.start.date)}
                           </div>
+                        </>
+                      );
+                      const className = "block bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors group";
+                      return event.htmlLink ? (
+                        <a key={event.id} href={event.htmlLink} target="_blank" rel="noopener noreferrer" className={className}>
+                          {content}
                         </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-48 text-center text-gray-500">
-                      <p className="text-sm">Tidak ada agenda mendatang.</p>
-                    </div>
-                  )}
-                </div> 
-              ) : (
-                <div className="h-64 flex flex-col items-center justify-center text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">
-                  <Calendar className="w-8 h-8 mb-2 opacity-50" />
-                  <span className="text-sm">Jadwal belum dikonfigurasi</span>
-                </div>
-              )}
+                      ) : (
+                        <div key={event.id} className={className}>
+                          {content}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-48 text-center text-gray-500">
+                    <p className="text-sm">Tidak ada agenda mendatang.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

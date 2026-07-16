@@ -4,10 +4,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { allowedOrigins } from './backend/config/cors.js';
-import { pool, testConnection, createIndexes, ensureAuthSchema } from './backend/config/database.js';
+import { pool, testConnection, createIndexes, ensureAuthSchema, ensureCalendarSchema, ensureAcademicSchema } from './backend/config/database.js';
 import { verifyToken } from './backend/middleware/auth.js';
 import authRoutes from './backend/routes/auth.routes.js';
 import calendarRoutes from './backend/routes/calendar.routes.js';
+import coreCalendarRoutes from './backend/routes/core-calendar.routes.js';
 import userRoutes from './backend/routes/user.routes.js';
 import inventoryRoutes from './backend/routes/inventory.routes.js';
 import roomRoutes from './backend/routes/room.routes.js';
@@ -41,8 +42,13 @@ app.use(cors({
     if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('file://')) {
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
-      callback(null, true); // Allow all origins for development
+      if (process.env.NODE_ENV === 'production') {
+        console.error('CORS blocked origin in production:', origin);
+        callback(new Error('Not allowed by CORS'));
+      } else {
+        console.log('CORS bypassed for development origin:', origin);
+        callback(null, true); // Allow all origins for development
+      }
     }
   }
 }));
@@ -80,6 +86,7 @@ app.delete('/api/error-logs', async (req, res) => {
 app.use('/api', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/core-calendar', coreCalendarRoutes);
 app.use('/api', userRoutes);
 app.use('/api', inventoryRoutes);
 app.use('/api', roomRoutes);
@@ -109,6 +116,8 @@ const startServer = async () => {
   try {
     await testConnection();
     await ensureAuthSchema();
+    await ensureAcademicSchema();
+    await ensureCalendarSchema();
     await createIndexes();
     await verifyMailer(); // Verifikasi koneksi SMTP Gmail
 

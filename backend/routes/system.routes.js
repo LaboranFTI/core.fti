@@ -4,11 +4,248 @@ import fs from 'fs';
 import multer from 'multer';
 import { pool, dbConfig } from '../config/database.js';
 import { verifyRole } from '../middleware/auth.js';
+import {
+  CalendarConflictError,
+  CalendarNotFoundError,
+  CalendarValidationError,
+  cancelCalendarEventsForClassSchedule,
+  syncClassScheduleToCalendar,
+} from '../services/calendar.service.js';
 import jwt from 'jsonwebtoken';
 const router = express.Router();
 
 // Konfigurasi Upload for restore
 const upload = multer({ dest: 'uploads/' });
+
+const CLASS_SCHEDULE_MUTATION_ROLES = ['Admin', 'Laboran', 'Supervisor'];
+const CLASS_SCHEDULE_DAYS = new Set(['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']);
+const CLASS_SCHEDULE_SEMESTERS = new Set(['Ganjil', 'Antara', 'Genap']);
+const LAB_ROOM_CATEGORY = 'Laboratorium Komputer';
+const TIME_VALUE_PATTERN = /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
+const DATE_VALUE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_CLASS_SCHEDULE_SOFTWARE_IDS = 100;
+
+const createClassScheduleId = () => `SCH-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+const createSemesterPeriodId = () => `SEM-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+const trimString = (value) => (typeof value === 'string' ? value.trim() : '');
+const optionalTrimmedString = (value) => {
+  const trimmed = trimString(value);
+  return trimmed || null;
+};
+const normalizeTimeValue = (value) => trimString(value).slice(0, 5);
+const normalizeBoolean = (value, fallback = true) => (typeof value === 'boolean' ? value : fallback);
+const normalizeIdArray = (value) => {
+  if (!Array.isArray(value)) return [];
+  const normalized = [...new Set(
+    value
+      .map((item) => trimString(item))
+      .filter(Boolean)
+  )];
+  if (normalized.length > MAX_CLASS_SCHEDULE_SOFTWARE_IDS) {
+    throw new CalendarValidationError(`Maksimal ${MAX_CLASS_SCHEDULE_SOFTWARE_IDS} software dapat dipilih untuk satu jadwal.`);
+  }
+  return normalized;
+};
+
+const normalizeClassSchedulePayload = (body = {}) => {
+  const payload = {
+    courseCode: trimString(body.courseCode).toUpperCase(),
+    courseName: trimString(body.courseName),
+    classGroup: trimString(body.classGroup) || '-',
+    dayOfWeek: trimString(body.dayOfWeek),
+    startTime: normalizeTimeValue(body.startTime),
+    endTime: normalizeTimeValue(body.endTime),
+    semester: trimString(body.semester),
+    academicYear: trimString(body.academicYear),
+    roomId: optionalTrimmedString(body.roomId),
+    lecturerId: optionalTrimmedString(body.lecturerId),
+    lecturerName: trimString(body.lecturerName),
+    startDate: optionalTrimmedString(body.startDate),
+    endDate: optionalTrimmedString(body.endDate),
+    softwareIds: normalizeIdArray(body.softwareIds),
+  };
+
+  if (!payload.courseCode || !payload.courseName || !payload.dayOfWeek || !payload.startTime || !payload.endTime || !payload.semester || !payload.academicYear) {
+    throw new CalendarValidationError('Kode, nama, hari, jam, semester, dan tahun akademik wajib diisi.');
+  }
+  if (!CLASS_SCHEDULE_DAYS.has(payload.dayOfWeek)) {
+    throw new CalendarValidationError('Hari jadwal kelas tidak valid.');
+  }
+  if (!CLASS_SCHEDULE_SEMESTERS.has(payload.semester)) {
+    throw new CalendarValidationError('Semester jadwal kelas tidak valid.');
+  }
+  if (!/^\d{4}\/\d{4}$/.test(payload.academicYear)) {
+    throw new CalendarValidationError('Format tahun akademik harus YYYY/YYYY.');
+  }
+  if (!TIME_VALUE_PATTERN.test(payload.startTime) || !TIME_VALUE_PATTERN.test(payload.endTime)) {
+    throw new CalendarValidationError('Format jam jadwal kelas tidak valid.');
+  }
+  if (payload.endTime <= payload.startTime) {
+    throw new CalendarValidationError('Jam selesai harus lebih besar dari jam mulai.');
+  }
+  if ((payload.startDate && !DATE_VALUE_PATTERN.test(payload.startDate)) || (payload.endDate && !DATE_VALUE_PATTERN.test(payload.endDate))) {
+    throw new CalendarValidationError('Format tanggal periode harus YYYY-MM-DD.');
+  }
+  if ((payload.startDate && !payload.endDate) || (!payload.startDate && payload.endDate)) {
+    throw new CalendarValidationError('Tanggal mulai dan selesai periode harus diisi berpasangan.');
+  }
+  if (payload.startDate && payload.endDate && payload.endDate < payload.startDate) {
+    throw new CalendarValidationError('Tanggal selesai periode harus setelah tanggal mulai.');
+  }
+  return payload;
+};
+
+const normalizeSemesterPeriodPayload = (body = {}) => {
+  const payload = {
+    semester: trimString(body.semester),
+    academicYear: trimString(body.academicYear),
+    startDate: optionalTrimmedString(body.startDate),
+    endDate: optionalTrimmedString(body.endDate),
+    notes: optionalTrimmedString(body.notes),
+    isActive: normalizeBoolean(body.isActive, true),
+  };
+
+  if (!CLASS_SCHEDULE_SEMESTERS.has(payload.semester)) {
+    throw new CalendarValidationError('Semester tidak valid.');
+  }
+  if (!/^\d{4}\/\d{4}$/.test(payload.academicYear)) {
+    throw new CalendarValidationError('Format tahun akademik harus YYYY/YYYY.');
+  }
+  if (!payload.startDate || !payload.endDate || !DATE_VALUE_PATTERN.test(payload.startDate) || !DATE_VALUE_PATTERN.test(payload.endDate)) {
+    throw new CalendarValidationError('Tanggal mulai dan selesai semester wajib berformat YYYY-MM-DD.');
+  }
+  if (payload.endDate < payload.startDate) {
+    throw new CalendarValidationError('Tanggal selesai semester harus setelah tanggal mulai.');
+  }
+
+  return payload;
+};
+
+const sendClassScheduleMutationError = (res, err, fallbackMessage) => {
+  if (err instanceof CalendarConflictError || err?.code === 'CALENDAR_CONFLICT') {
+    return res.status(409).json({ error: err.message, code: err.code });
+  }
+  if (err?.code === '23505') {
+    return res.status(409).json({ error: 'Data dengan kombinasi yang sama sudah ada.', code: 'DUPLICATE_DATA' });
+  }
+  if (err?.code === '23503' || err?.code === '23514') {
+    return res.status(422).json({ error: 'Referensi atau nilai data tidak valid.', code: 'INVALID_REFERENCE' });
+  }
+  if (err instanceof CalendarNotFoundError || err instanceof CalendarValidationError || err?.status) {
+    return res.status(err.status || 422).json({ error: err.message || fallbackMessage, code: err.code });
+  }
+  console.error(fallbackMessage, err);
+  return res.status(500).json({ error: fallbackMessage });
+};
+
+const mapSemesterPeriodRow = (row) => ({
+  id: row.id,
+  semester: row.semester,
+  academicYear: row.academic_year,
+  startDate: row.start_date ? new Date(row.start_date).toLocaleDateString('en-CA') : '',
+  endDate: row.end_date ? new Date(row.end_date).toLocaleDateString('en-CA') : '',
+  notes: row.notes || '',
+  isActive: row.is_active,
+});
+
+const getActiveSemesterPeriod = async (queryable, semester, academicYear) => {
+  const result = await queryable.query(
+    `SELECT *
+     FROM semester_periods
+     WHERE semester = $1
+       AND academic_year = $2
+       AND is_active = TRUE
+     LIMIT 1`,
+    [semester, academicYear]
+  );
+  return result.rows[0] || null;
+};
+
+const applySemesterPeriodDates = async (queryable, payload) => {
+  if (!payload.roomId) return payload;
+
+  const period = await getActiveSemesterPeriod(queryable, payload.semester, payload.academicYear);
+  if (!period) {
+    if (!payload.startDate || !payload.endDate) {
+      throw new CalendarValidationError('Konfigurasi periode semester aktif belum tersedia untuk jadwal ruangan ini.');
+    }
+    return payload;
+  }
+
+  return {
+    ...payload,
+    startDate: mapSemesterPeriodRow(period).startDate,
+    endDate: mapSemesterPeriodRow(period).endDate,
+  };
+};
+
+const syncClassSchedulesForSemesterPeriod = async (client, payload, actorUserId) => {
+  if (!payload.isActive) {
+    return { schedulesUpdated: 0, calendarSyncedCount: 0 };
+  }
+
+  const schedules = await client.query(
+    `UPDATE class_schedules
+     SET start_date = $1,
+         end_date = $2,
+         updated_at = NOW()
+     WHERE semester = $3
+       AND academic_year = $4
+       AND room_id IS NOT NULL
+     RETURNING id`,
+    [payload.startDate, payload.endDate, payload.semester, payload.academicYear]
+  );
+
+  let calendarSyncedCount = 0;
+  for (const row of schedules.rows) {
+    const calendarEvents = await syncClassScheduleToCalendar(client, row.id, actorUserId);
+    if (calendarEvents) calendarSyncedCount++;
+  }
+
+  return { schedulesUpdated: schedules.rowCount, calendarSyncedCount };
+};
+
+const syncClassScheduleSoftware = async (client, scheduleId, roomId, softwareIds) => {
+  const normalizedSoftwareIds = normalizeIdArray(softwareIds);
+
+  if (!roomId || normalizedSoftwareIds.length === 0) {
+    await client.query('DELETE FROM class_schedule_software WHERE class_schedule_id = $1', [scheduleId]);
+    return;
+  }
+
+  const roomResult = await client.query('SELECT id, category FROM rooms WHERE id = $1', [roomId]);
+  const room = roomResult.rows[0];
+  if (!room) {
+    throw new CalendarValidationError('Ruangan jadwal kelas tidak ditemukan.');
+  }
+  if (room.category !== LAB_ROOM_CATEGORY) {
+    throw new CalendarValidationError('Kebutuhan software hanya dapat dipilih untuk ruangan Laboratorium Komputer.');
+  }
+
+  const softwareResult = await client.query(
+    `SELECT id
+     FROM software
+     WHERE room_id = $1
+       AND id = ANY($2::varchar[])`,
+    [roomId, normalizedSoftwareIds]
+  );
+  const validSoftwareIds = new Set(softwareResult.rows.map((row) => row.id));
+  const invalidSoftwareIds = normalizedSoftwareIds.filter((softwareId) => !validSoftwareIds.has(softwareId));
+  if (invalidSoftwareIds.length > 0) {
+    throw new CalendarValidationError('Software yang dipilih harus terdaftar pada laboratorium yang sama.');
+  }
+
+  await client.query('DELETE FROM class_schedule_software WHERE class_schedule_id = $1', [scheduleId]);
+  for (const softwareId of normalizedSoftwareIds) {
+    await client.query(
+      `INSERT INTO class_schedule_software (class_schedule_id, software_id)
+       VALUES ($1, $2)
+       ON CONFLICT (class_schedule_id, software_id) DO NOTHING`,
+      [scheduleId, softwareId]
+    );
+  }
+};
 
 // --- ENDPOINTS STAFF (Data Internal & PIC) ---
 
@@ -411,12 +648,298 @@ router.delete('/pkl/:id', async (req, res) => {
 
 // --- CLASS SCHEDULES (Jadwal Kuliah) ---
 
+router.get('/semester-periods', async (req, res) => {
+  try {
+    const { semester, academicYear, activeOnly } = req.query;
+    const params = [];
+    const conditions = [];
+
+    if (semester) {
+      params.push(semester);
+      conditions.push(`semester = $${params.length}`);
+    }
+    if (academicYear) {
+      params.push(academicYear);
+      conditions.push(`academic_year = $${params.length}`);
+    }
+    if (activeOnly === 'true') {
+      conditions.push('is_active = TRUE');
+    }
+
+    const result = await pool.query(
+      `SELECT *
+       FROM semester_periods
+       ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+       ORDER BY academic_year DESC,
+         CASE semester WHEN 'Ganjil' THEN 1 WHEN 'Genap' THEN 2 WHEN 'Antara' THEN 3 ELSE 4 END`,
+      params
+    );
+
+    res.json(result.rows.map(mapSemesterPeriodRow));
+  } catch (err) {
+    console.error('Get semester periods error:', err);
+    res.status(500).json({ error: 'Gagal mengambil konfigurasi semester.' });
+  }
+});
+
+router.post('/semester-periods', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
+  let payload;
+  try {
+    payload = normalizeSemesterPeriodPayload(req.body);
+  } catch (err) {
+    return sendClassScheduleMutationError(res, err, 'Payload konfigurasi semester tidak valid');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const id = createSemesterPeriodId();
+    const result = await client.query(
+      `INSERT INTO semester_periods (
+         id, semester, academic_year, start_date, end_date, notes, is_active, created_by, updated_by
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+       ON CONFLICT (semester, academic_year) DO UPDATE
+       SET start_date = EXCLUDED.start_date,
+           end_date = EXCLUDED.end_date,
+           notes = EXCLUDED.notes,
+           is_active = EXCLUDED.is_active,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()
+       RETURNING *`,
+      [
+        id,
+        payload.semester,
+        payload.academicYear,
+        payload.startDate,
+        payload.endDate,
+        payload.notes,
+        payload.isActive,
+        req.user?.id || null,
+      ]
+    );
+
+    const syncResult = await syncClassSchedulesForSemesterPeriod(client, payload, req.user?.id);
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      ...mapSemesterPeriodRow(result.rows[0]),
+      ...syncResult,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return sendClassScheduleMutationError(res, err, 'Gagal menyimpan konfigurasi semester');
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/semester-periods/:id', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
+  let payload;
+  try {
+    payload = normalizeSemesterPeriodPayload(req.body);
+  } catch (err) {
+    return sendClassScheduleMutationError(res, err, 'Payload konfigurasi semester tidak valid');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `UPDATE semester_periods
+       SET semester = $1,
+           academic_year = $2,
+           start_date = $3,
+           end_date = $4,
+           notes = $5,
+           is_active = $6,
+           updated_by = $7,
+           updated_at = NOW()
+       WHERE id = $8
+       RETURNING *`,
+      [
+        payload.semester,
+        payload.academicYear,
+        payload.startDate,
+        payload.endDate,
+        payload.notes,
+        payload.isActive,
+        req.user?.id || null,
+        req.params.id,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Konfigurasi semester tidak ditemukan.' });
+    }
+
+    const syncResult = await syncClassSchedulesForSemesterPeriod(client, payload, req.user?.id);
+    await client.query('COMMIT');
+
+    res.json({
+      ...mapSemesterPeriodRow(result.rows[0]),
+      ...syncResult,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return sendClassScheduleMutationError(res, err, 'Gagal memperbarui konfigurasi semester');
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/semester-periods/:id', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT * FROM semester_periods WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const period = existing.rows[0];
+    if (!period) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Konfigurasi semester tidak ditemukan.' });
+    }
+
+    const scheduleCount = await client.query(
+      'SELECT COUNT(*)::int AS count FROM class_schedules WHERE semester = $1 AND academic_year = $2',
+      [period.semester, period.academic_year]
+    );
+    const result = await client.query(
+      `UPDATE semester_periods
+       SET is_active = FALSE,
+           updated_by = $2,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [req.params.id, req.user?.id || null]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Konfigurasi semester tidak ditemukan.' });
+    }
+
+    await client.query('COMMIT');
+    res.json({
+      success: true,
+      disabled: true,
+      affectedSchedules: scheduleCount.rows[0]?.count || 0,
+      period: mapSemesterPeriodRow(result.rows[0]),
+      message: 'Konfigurasi semester berhasil dinonaktifkan.',
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Delete semester period error:', err);
+    res.status(500).json({ error: 'Gagal menonaktifkan konfigurasi semester.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.get('/semester-lab-usage', async (req, res) => {
+  const semester = trimString(req.query.semester);
+  const academicYear = trimString(req.query.academicYear);
+  const roomId = optionalTrimmedString(req.query.roomId);
+
+  if (!semester || !academicYear) {
+    return res.status(422).json({ error: 'Semester dan tahun akademik wajib diisi.' });
+  }
+
+  try {
+    const params = [semester, academicYear, LAB_ROOM_CATEGORY];
+    const roomFilter = roomId ? `AND cs.room_id = $${params.push(roomId)}` : '';
+    const result = await pool.query(
+      `SELECT
+         cs.id,
+         cs.course_code,
+         cs.course_name,
+         cs.class_group,
+         cs.day_of_week,
+         cs.start_time,
+         cs.end_time,
+         cs.semester,
+         cs.academic_year,
+         cs.room_id,
+         r.name AS room_name,
+         COALESCE(l.nama, cs.lecturer_name) AS lecturer_name,
+         COALESCE(json_agg(
+           DISTINCT jsonb_build_object(
+             'id', s.id,
+             'name', s.name,
+             'version', s.version,
+             'category', s.category,
+             'licenseType', s.license_type,
+             'vendor', s.vendor
+           )
+         ) FILTER (WHERE s.id IS NOT NULL), '[]'::json) AS software
+       FROM class_schedules cs
+       JOIN rooms r ON r.id = cs.room_id
+       LEFT JOIN lecturer l ON l.id = cs.lecturer_id
+       LEFT JOIN class_schedule_software css ON css.class_schedule_id = cs.id
+       LEFT JOIN software s ON s.id = css.software_id
+       WHERE cs.semester = $1
+         AND cs.academic_year = $2
+         AND r.category = $3
+         ${roomFilter}
+       GROUP BY cs.id, r.name, l.nama
+       ORDER BY r.name ASC, cs.day_of_week ASC, cs.start_time ASC`,
+      params
+    );
+
+    res.json(result.rows.map((row) => ({
+      id: row.id,
+      courseCode: row.course_code,
+      courseName: row.course_name,
+      classGroup: row.class_group,
+      dayOfWeek: row.day_of_week,
+      startTime: row.start_time ? row.start_time.substring(0, 5) : '',
+      endTime: row.end_time ? row.end_time.substring(0, 5) : '',
+      semester: row.semester,
+      academicYear: row.academic_year,
+      roomId: row.room_id,
+      roomName: row.room_name,
+      lecturerName: row.lecturer_name,
+      software: row.software || [],
+    })));
+  } catch (err) {
+    console.error('Get semester lab usage error:', err);
+    res.status(500).json({ error: 'Gagal mengambil pemakaian software laboratorium.' });
+  }
+});
+
 // Get All Class Schedules
 router.get('/class-schedules', async (req, res) => {
   try {
     const { semester, academicYear, roomId } = req.query;
     
-    let query = 'SELECT cs.*, r.name as room_name, l.nama as lecturer_name FROM class_schedules cs LEFT JOIN rooms r ON cs.room_id = r.id LEFT JOIN lecturer l ON cs.lecturer_id = l.id';
+    let query = `
+      SELECT
+        cs.*,
+        r.name as room_name,
+        r.category as room_category,
+        l.nama as lecturer_name,
+        COALESCE(schedule_software.software, '[]'::json) as software
+      FROM class_schedules cs
+      LEFT JOIN rooms r ON cs.room_id = r.id
+      LEFT JOIN lecturer l ON cs.lecturer_id = l.id
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', s.id,
+            'name', s.name,
+            'version', s.version,
+            'category', s.category,
+            'licenseType', s.license_type,
+            'vendor', s.vendor,
+            'roomId', s.room_id,
+            'notes', s.notes
+          )
+          ORDER BY s.name ASC, s.version ASC
+        ) AS software
+        FROM class_schedule_software css
+        JOIN software s ON s.id = css.software_id
+        WHERE css.class_schedule_id = cs.id
+      ) schedule_software ON true`;
     let params = [];
     let conditions = [];
     
@@ -455,10 +978,13 @@ router.get('/class-schedules', async (req, res) => {
       academicYear: row.academic_year,
       roomId: row.room_id,
       roomName: row.room_name,
+      roomCategory: row.room_category,
       lecturerId: row.lecturer_id,
       lecturerName: row.lecturer_name,
       startDate: row.start_date ? new Date(row.start_date).toLocaleDateString('en-CA') : '',
-      endDate: row.end_date ? new Date(row.end_date).toLocaleDateString('en-CA') : ''
+      endDate: row.end_date ? new Date(row.end_date).toLocaleDateString('en-CA') : '',
+      software: row.software || [],
+      softwareIds: (row.software || []).map((software) => software.id)
     }));
     
     res.json(schedules);
@@ -469,46 +995,76 @@ router.get('/class-schedules', async (req, res) => {
 });
 
 // Add New Class Schedule
-router.post('/class-schedules', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
-  const {
-    courseCode, courseName, classGroup, dayOfWeek,
-    startTime, endTime, semester, academicYear,
-    roomId, lecturerId, lecturerName, startDate, endDate
-  } = req.body;
-
+router.post('/class-schedules', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
+  let payload;
   try {
-    const id = `SCH-${Date.now()}`;
-    const result = await pool.query(
+    payload = normalizeClassSchedulePayload(req.body);
+  } catch (err) {
+    return sendClassScheduleMutationError(res, err, 'Payload jadwal kelas tidak valid');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    payload = await applySemesterPeriodDates(client, payload);
+
+    const id = createClassScheduleId();
+    const result = await client.query(
       `INSERT INTO class_schedules 
        (id, course_code, course_name, class_group, day_of_week, start_time, end_time, semester, academic_year, room_id, lecturer_id, lecturer_name, start_date, end_date) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
        RETURNING *`,
       [
-        id, courseCode, courseName, classGroup || '-', dayOfWeek, 
-        startTime, endTime, semester, academicYear, 
-        roomId || null, lecturerId || null, lecturerName || '', 
-        startDate || null, endDate || null
+        id,
+        payload.courseCode,
+        payload.courseName,
+        payload.classGroup,
+        payload.dayOfWeek,
+        payload.startTime,
+        payload.endTime,
+        payload.semester,
+        payload.academicYear,
+        payload.roomId,
+        payload.lecturerId,
+        payload.lecturerName,
+        payload.startDate,
+        payload.endDate
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    await syncClassScheduleSoftware(client, id, payload.roomId, payload.softwareIds);
+    const calendarEvents = await syncClassScheduleToCalendar(client, id, req.user?.id);
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      ...result.rows[0],
+      calendarSynced: Boolean(calendarEvents),
+      calendarEventId: calendarEvents?.[0]?.eventId || null,
+    });
   } catch (err) {
-    console.error('Error creating class schedule:', err);
-    res.status(500).json({ error: 'Gagal menambahkan jadwal kelas' });
+    await client.query('ROLLBACK');
+    return sendClassScheduleMutationError(res, err, 'Gagal menambahkan jadwal kelas');
+  } finally {
+    client.release();
   }
 });
 
 // Update Class Schedule
-router.put('/class-schedules/:id', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
+router.put('/class-schedules/:id', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
   const { id } = req.params;
-  const {
-    courseCode, courseName, classGroup, dayOfWeek,
-    startTime, endTime, semester, academicYear,
-    roomId, lecturerId, lecturerName, startDate, endDate
-  } = req.body;
-
+  let payload;
   try {
-    const result = await pool.query(
+    payload = normalizeClassSchedulePayload(req.body);
+  } catch (err) {
+    return sendClassScheduleMutationError(res, err, 'Payload jadwal kelas tidak valid');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    payload = await applySemesterPeriodDates(client, payload);
+
+    const result = await client.query(
       `UPDATE class_schedules 
        SET course_code = $1, course_name = $2, class_group = $3, day_of_week = $4, 
            start_time = $5, end_time = $6, semester = $7, academic_year = $8, 
@@ -516,36 +1072,109 @@ router.put('/class-schedules/:id', verifyRole(['Admin', 'Laboran', 'Supervisor']
            updated_at = NOW()
        WHERE id = $14 RETURNING *`,
       [
-        courseCode, courseName, classGroup || '-', dayOfWeek, 
-        startTime, endTime, semester, academicYear, 
-        roomId || null, lecturerId || null, lecturerName || '', 
-        startDate || null, endDate || null, id
+        payload.courseCode,
+        payload.courseName,
+        payload.classGroup,
+        payload.dayOfWeek,
+        payload.startTime,
+        payload.endTime,
+        payload.semester,
+        payload.academicYear,
+        payload.roomId,
+        payload.lecturerId,
+        payload.lecturerName,
+        payload.startDate,
+        payload.endDate,
+        id
       ]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Jadwal kelas tidak ditemukan' });
     }
 
-    res.json(result.rows[0]);
+    await syncClassScheduleSoftware(client, id, payload.roomId, payload.softwareIds);
+    const calendarEvents = await syncClassScheduleToCalendar(client, id, req.user?.id);
+    await client.query('COMMIT');
+
+    res.json({
+      ...result.rows[0],
+      calendarSynced: Boolean(calendarEvents),
+      calendarEventId: calendarEvents?.[0]?.eventId || null,
+    });
   } catch (err) {
-    console.error('Error updating class schedule:', err);
-    res.status(500).json({ error: 'Gagal memperbarui jadwal kelas' });
+    await client.query('ROLLBACK');
+    return sendClassScheduleMutationError(res, err, 'Gagal memperbarui jadwal kelas');
+  } finally {
+    client.release();
+  }
+});
+
+// Bulk Delete Class Schedules
+router.delete('/class-schedules', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
+  const semester = trimString(req.query.semester);
+  const academicYear = trimString(req.query.academicYear);
+
+  if (!semester || !academicYear) {
+    return res.status(422).json({ error: 'Semester dan tahun akademik wajib diisi untuk hapus jadwal massal.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const schedules = await client.query(
+      'SELECT id FROM class_schedules WHERE semester = $1 AND academic_year = $2',
+      [semester, academicYear]
+    );
+
+    for (const row of schedules.rows) {
+      await cancelCalendarEventsForClassSchedule(client, row.id, req.user?.id);
+    }
+
+    const result = await client.query(
+      'DELETE FROM class_schedules WHERE semester = $1 AND academic_year = $2 RETURNING id',
+      [semester, academicYear]
+    );
+
+    await client.query('COMMIT');
+    res.json({
+      success: true,
+      message: 'Jadwal kelas berhasil dihapus',
+      deletedCount: result.rowCount,
+      calendarCancelledCount: schedules.rowCount,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return sendClassScheduleMutationError(res, err, 'Gagal menghapus jadwal kelas');
+  } finally {
+    client.release();
   }
 });
 
 // Delete Class Schedule
-router.delete('/class-schedules/:id', verifyRole(['Admin', 'Laboran', 'Supervisor']), async (req, res) => {
+router.delete('/class-schedules/:id', verifyRole(CLASS_SCHEDULE_MUTATION_ROLES), async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect();
   try {
-    const result = await pool.query('DELETE FROM class_schedules WHERE id = $1 RETURNING id', [id]);
+    await client.query('BEGIN');
+
+    const result = await client.query('DELETE FROM class_schedules WHERE id = $1 RETURNING id', [id]);
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Jadwal kelas tidak ditemukan' });
     }
+
+    await cancelCalendarEventsForClassSchedule(client, id, req.user?.id);
+    await client.query('COMMIT');
+
     res.json({ success: true, message: 'Jadwal kelas berhasil dihapus' });
   } catch (err) {
-    console.error('Error deleting class schedule:', err);
-    res.status(500).json({ error: 'Gagal menghapus jadwal kelas' });
+    await client.query('ROLLBACK');
+    return sendClassScheduleMutationError(res, err, 'Gagal menghapus jadwal kelas');
+  } finally {
+    client.release();
   }
 });
 

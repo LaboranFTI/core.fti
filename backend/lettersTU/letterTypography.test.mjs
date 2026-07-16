@@ -16,7 +16,8 @@ const templates = templateNames.map((name) => ({
   source: readFileSync(new URL(`./${name}`, import.meta.url), 'utf8')
 }));
 
-const routeSource = readFileSync(new URL('../routes/tu.routes.v2.js', import.meta.url), 'utf8');
+const layoutSource = readFileSync(new URL('../routes/tu/lib/letterLayout.js', import.meta.url), 'utf8');
+const coreSource = readFileSync(new URL('../routes/tu/core.js', import.meta.url), 'utf8');
 
 describe('official TU letter typography', () => {
   it('uses Calibri as the document font in every letter template', () => {
@@ -27,14 +28,15 @@ describe('official TU letter typography', () => {
   });
 
   it('keeps generated letter body text at 11pt with 1.5 line spacing', () => {
-    assert.match(routeSource, /OFFICIAL_LETTER_TYPOGRAPHY_CSS/);
-    assert.match(routeSource, /\.content p,\s*[\s\S]*?\.content td,\s*[\s\S]*?\.content th,\s*[\s\S]*?\.content li\s*\{[\s\S]*?font-size:\s*11pt;[\s\S]*?line-height:\s*1\.5;/);
-    assert.match(routeSource, /\.title\s*\{[\s\S]*?font-size:\s*12pt;[\s\S]*?line-height:\s*1\.5;/);
+    assert.match(layoutSource, /OFFICIAL_LETTER_TYPOGRAPHY_CSS/);
+    assert.match(layoutSource, /\.content p,\s*[\s\S]*?\.content td,\s*[\s\S]*?\.content th,\s*[\s\S]*?\.content li\s*\{[\s\S]*?font-size:\s*11pt;[\s\S]*?line-height:\s*1\.5;/);
+    assert.match(layoutSource, /\.title\s*\{[\s\S]*?font-size:\s*14pt;[\s\S]*?line-height:\s*1\.5;/);
+    assert.match(layoutSource, /\.research-title\s*\{[\s\S]*?font-size:\s*11pt;[\s\S]*?font-weight:\s*bold;[\s\S]*?line-height:\s*1\.5;/);
   });
 
   it('applies the shared typography guard to all rendered preview and PDF HTML', () => {
-    assert.match(routeSource, /const applyOfficialLetterTypography\s*=/);
-    assert.match(routeSource, /return applyOfficialLetterTypography\(htmlContent\);/);
-    assert.match(routeSource, /const buildLetterPdfBuffer\s*=\s*async[\s\S]*?buildLetterHtml\(type, requestData, req\)/);
+    assert.match(layoutSource, /const applyOfficialLetterTypography\s*=/);
+    assert.match(coreSource, /return applyOfficialLetterTypography\(htmlContent\);/);
+    assert.match(coreSource, /const buildLetterPdfBuffer\s*=\s*async[\s\S]*?buildLetterHtml\(type, requestData, req\)/);
   });
 });

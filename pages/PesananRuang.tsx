@@ -24,10 +24,9 @@ import {
   XCircle
 } from '@phosphor-icons/react';
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Booking, BookingStatus, Room, Role } from "../types";
+import { Booking, BookingStatus, Role } from "../types";
 import { api } from "../services/api";
 import BookingForm from "../components/BookingForm";
-import { useGoogleCalendar } from "../hooks/useGoogleCalendar";
 import { useRooms } from "../hooks/useRooms";
 import ApprovalModal from "../components/ApprovalModal";
 import RejectionModal from "../components/RejectionModal";
@@ -117,8 +116,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     null,
   );
 
-  const googleApi = useGoogleCalendar(Role.ADMIN, showToast);
-
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [bookingsToApprove, setBookingsToApprove] =
     useState<BookingWithTech[]>([]);
@@ -136,9 +133,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     pic: string[];
   }>({ pic: [] });
 
-  const [deleteOption, setDeleteOption] = useState<
-    "single" | "thisAndFollowing" | "all"
-  >("single");
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Delete Booking State
@@ -152,33 +146,16 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     setIsDeleteModalOpen(true);
   };
 
-  // Handle confirm delete booking (both from database and Google Calendar)
+  const getMutationErrorMessage = async (response: Response, fallback: string) => {
+    const data = await response.json().catch(() => ({}));
+    return data.error || data.message || fallback;
+  };
+
+  // Handle confirm delete booking. CORE Calendar rows are removed by database cascade.
   const handleConfirmDelete = async () => {
     if (!bookingToDelete) return;
     setIsDeleting(true);
 
-    // Try to delete from Google Calendar first (if approved)
-    if (
-      bookingToDelete.status === BookingStatus.APPROVED &&
-      googleApi.isGapiInitialized
-    ) {
-      const gapiResult: any = await deleteFromGoogleCalendar(
-        bookingToDelete,
-        deleteOption,
-      );
-      if (
-        !gapiResult.success &&
-        gapiResult.message !== "Dilewati: Tidak ada URL Kalender" &&
-        gapiResult.message !== "Event tidak ditemukan di Google Calendar"
-      ) {
-        showToast(
-          `Peringatan: Gagal hapus dari Calendar (${gapiResult.message}), namun data tetap dihapus.`,
-          "warning",
-        );
-      }
-    }
-
-    // Delete from database
     try {
       const response = await api(`/api/bookings/${bookingToDelete.id}`, {
         method: "DELETE",
@@ -186,108 +163,24 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
 
       if (response.ok) {
         showToast(
-          "Booking berhasil dihapus dari database dan Google Calendar!",
+          "Booking berhasil dihapus. Jadwal CORE Calendar terkait ikut dibersihkan.",
           "success",
         );
-        // Refresh data
         fetchData();
         setSelectedBooking(null);
       } else {
-        showToast("Gagal menghapus booking dari database", "error");
+        showToast(await getMutationErrorMessage(response, "Gagal menghapus booking."), "error");
       }
     } catch (e) {
       showToast("Gagal menghapus booking", "error");
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+      setBookingToDelete(null);
     }
-
-    setIsDeleting(false);
-    setIsDeleteModalOpen(false);
-    setBookingToDelete(null);
   };
 
   const ticketRef = useRef<HTMLDivElement>(null);
-
-  const deleteFromGoogleCalendar = async (
-    booking: Booking,
-    option: "single" | "thisAndFollowing" | "all",
-  ) => {
-    const room = rooms.find((r) => r.id === booking.roomId);
-    if (!room?.googleCalendarUrl)
-      return { success: true, message: "Dilewati: Tidak ada URL Kalender" };
-    const calendarId = getCalendarId(room.googleCalendarUrl);
-    if (!calendarId)
-      return { success: false, message: "ID Kalender Tidak Valid" };
-    if (!googleApi.calendarConnected) {
-      googleApi.connectCalendar();
-      return {
-        success: false,
-        message: "Harap hubungkan Google Calendar lalu coba lagi.",
-      };
-    }
-    return await deleteCalendarEvent(calendarId, booking, room.name, option);
-  };
-
-  const deleteCalendarEvent = async (
-    calendarId: string,
-    booking: any,
-    roomName: string,
-    option: "single" | "thisAndFollowing" | "all",
-  ) => {
-    try {
-      const timeMin = new Date(`${booking.date}T00:00:00Z`).toISOString();
-      const timeMax = new Date(`${booking.date}T23:59:59Z`).toISOString();
-      const queryParams = new URLSearchParams({
-        calendarId,
-        timeMin,
-        timeMax,
-        q: `[BOOKED] ${booking.purpose}`
-      });
-      const res = await api(`/api/calendar/events?${queryParams.toString()}`);
-      if (!res.ok) {
-        return { success: false, message: "Gagal memproses request Google Calendar di server" };
-      }
-      const data = await res.json();
-      const events = data.items;
-      if (!events || events.length === 0)
-        return {
-          success: true,
-          message: "Event tidak ditemukan di Google Calendar",
-        };
-      if (option === "all") {
-        for (const event of events) {
-          await googleApi.deleteEvent(calendarId, event.id);
-        }
-        return {
-          success: true,
-          message: `Menghapus ${events.length} event dari Google Calendar`,
-        };
-      } else if (option === "thisAndFollowing") {
-        const queryParams2 = new URLSearchParams({
-          calendarId,
-          timeMin,
-          q: `[BOOKED] ${booking.purpose}`
-        });
-        const res2 = await api(`/api/calendar/events?${queryParams2.toString()}`);
-        if (!res2.ok) return { success: false, message: "Gagal memproses request Google Calendar di server" };
-        const data2 = await res2.json();
-        for (const event of (data2.items || [])) {
-          await googleApi.deleteEvent(calendarId, event.id);
-        }
-        return {
-          success: true,
-          message: "Menghapus event ini dan event selanjutnya",
-        };
-      } else {
-        await googleApi.deleteEvent(calendarId, events[0].id);
-        return { success: true, message: "Event dihapus dari Google Calendar" };
-      }
-    } catch (error: any) {
-      console.error("GAPI Delete Error:", error);
-      return {
-        success: false,
-        message: error.result?.error?.message || "Kesalahan GAPI",
-      };
-    }
-  };
 
   useEffect(() => {
     fetchData();
@@ -321,63 +214,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
   const getRoomName = (roomId: string) =>
     rooms.find((r) => r.id === roomId)?.name || "Ruangan Tidak Diketahui";
 
-  const getCalendarId = (input: string) => {
-    if (!input) return null;
-    if (!input.startsWith("http")) return input;
-    try {
-      return new URL(input).searchParams.get("src") || null;
-    } catch (e) {
-      return null;
-    }
-  };
-
-  const addToGoogleCalendar = async (booking: Booking) => {
-    const room = rooms.find((r) => r.id === booking.roomId);
-    if (!room?.googleCalendarUrl)
-      return { success: true, message: "Dilewati: Tidak ada URL Kalender" };
-    const calendarId = getCalendarId(room.googleCalendarUrl);
-    if (!calendarId)
-      return { success: false, message: "ID Kalender Tidak Valid" };
-    if (!googleApi.calendarConnected) {
-      googleApi.connectCalendar();
-      return {
-        success: false,
-        message: "Harap hubungkan Google Calendar lalu coba lagi.",
-      };
-    }
-    return await insertEvent(calendarId, booking, room.name);
-  };
-
-  const insertEvent = async (
-    calendarId: string,
-    booking: Booking,
-    roomName: string,
-  ) => {
-    try {
-      const startDateTime = new Date(`${booking.date}T${booking.startTime}:00`);
-      const endDateTime = new Date(`${booking.date}T${booking.endTime}:00`);
-      const resource = {
-        summary: `[BOOKED] ${booking.purpose}`,
-        location: roomName,
-        description: `Peminjam: ${booking.userName}\nPJ: ${booking.responsiblePerson}\nKontak: ${booking.contactPerson}\n\nDisetujui via CORE.FTI.`,
-        start: { dateTime: startDateTime.toISOString() },
-        end: { dateTime: endDateTime.toISOString() },
-      };
-      const success = await googleApi.createEvent(calendarId, resource);
-      if (success) {
-        return { success: true, message: "Disinkronkan ke Google Calendar" };
-      } else {
-        return { success: false, message: "Gagal mensinkronkan ke Google Calendar" };
-      }
-    } catch (error: any) {
-      console.error("GAPI Error:", error);
-      return {
-        success: false,
-        message: error.message || "Kesalahan Calendar API",
-      };
-    }
-  };
-
   const handleUpdateStatus = async (
     id: string,
     newStatus: BookingStatus,
@@ -386,68 +222,68 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     skipFetch?: boolean
   ) => {
     const booking = bookings.find((b) => b.id === id);
-    if (!booking) return;
+    if (!booking) return false;
     setProcessingId(id);
-    if (newStatus === BookingStatus.APPROVED && googleApi.isGapiInitialized) {
-      const gapiResult: any = await addToGoogleCalendar(booking);
-      if (
-        !gapiResult.success &&
-        gapiResult.message !== "Dilewati: Tidak ada URL Kalender"
-      ) {
-        showToast(
-          `Peringatan: Gagal sinkron ke Calendar (${gapiResult.message}), namun status tetap diupdate.`,
-          "warning",
-        );
-      } else if (gapiResult.success) {
-        showToast("Berhasil sinkronisasi ke Google Calendar!", "success");
-      }
-    }
-    await api(`/api/bookings/${id}/status`, {
-      method: "PUT",
-      data: {
-        status: newStatus,
-        techSupportPic: techData?.pic || [],
-        rejectionReason: reason,
-      },
-    });
-    if (!skipFetch) {
-      fetchData();
-    }
-    if (selectedBooking && selectedBooking.id === id) {
-      setSelectedBooking({
-        ...selectedBooking,
-        status: newStatus,
-        techSupportPic: techData?.pic || [],
-        techSupportPicName: staffList
-          .filter((s) => techData?.pic.includes(s.id))
-          .map((s) => s.name)
-          .join(", "),
-        rejectionReason: reason,
+    try {
+      const response = await api(`/api/bookings/${id}/status`, {
+        method: "PUT",
+        data: {
+          status: newStatus,
+          techSupportPic: techData?.pic || [],
+          rejectionReason: reason,
+        },
       });
+
+      if (!response.ok) {
+        const message = await getMutationErrorMessage(response, "Gagal memperbarui status booking.");
+        showToast(message, response.status === 409 ? "warning" : "error");
+        return false;
+      }
+
+      if (!skipFetch) {
+        fetchData();
+      }
+      if (selectedBooking && selectedBooking.id === id) {
+        setSelectedBooking({
+          ...selectedBooking,
+          status: newStatus,
+          techSupportPic: techData?.pic || [],
+          techSupportPicName: staffList
+            .filter((s) => techData?.pic.includes(s.id))
+            .map((s) => s.name)
+            .join(", "),
+          rejectionReason: reason,
+        });
+      }
+      const isCancellation =
+        booking.status === BookingStatus.APPROVED &&
+        newStatus === BookingStatus.REJECTED;
+      const message =
+        newStatus === BookingStatus.APPROVED
+          ? `Peminjaman ${booking.userName} berhasil disetujui dan masuk CORE Calendar.`
+          : isCancellation
+            ? `Peminjaman ${booking.userName} berhasil dibatalkan dari CORE Calendar.`
+            : `Peminjaman ${booking.userName} telah ditolak.`;
+      const type = newStatus === BookingStatus.APPROVED ? "success" : "warning";
+      showToast(message, type);
+      addNotification(
+        newStatus === BookingStatus.APPROVED
+          ? "Peminjaman Disetujui"
+          : isCancellation
+            ? "Peminjaman Dibatalkan"
+            : "Peminjaman Ditolak",
+        isCancellation
+          ? `Admin membatalkan peminjaman ${booking.userName} karena keadaan darurat.`
+          : `Admin telah memverifikasi permintaan dari ${booking.userName}.`,
+        type,
+      );
+      return true;
+    } catch (error) {
+      showToast("Gagal memperbarui status booking.", "error");
+      return false;
+    } finally {
+      setProcessingId(null);
     }
-    const isCancellation =
-      booking.status === BookingStatus.APPROVED &&
-      newStatus === BookingStatus.REJECTED;
-    const message =
-      newStatus === BookingStatus.APPROVED
-        ? `Peminjaman ${booking.userName} berhasil disetujui.`
-        : isCancellation
-          ? `Peminjaman ${booking.userName} berhasil dibatalkan.`
-          : `Peminjaman ${booking.userName} telah ditolak.`;
-    const type = newStatus === BookingStatus.APPROVED ? "success" : "warning";
-    showToast(message, type);
-    addNotification(
-      newStatus === BookingStatus.APPROVED
-        ? "Peminjaman Disetujui"
-        : isCancellation
-          ? "Peminjaman Dibatalkan"
-          : "Peminjaman Ditolak",
-      isCancellation
-        ? `Admin membatalkan peminjaman ${booking.userName} karena keadaan darurat.`
-        : `Admin telah memverifikasi permintaan dari ${booking.userName}.`,
-      type,
-    );
-    setProcessingId(null);
   };
 
   const handleApproveClick = (bookingsTarget: BookingWithTech | BookingWithTech[]) => {
@@ -475,7 +311,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
 
   const handleRejectClick = (bookingsTarget: BookingWithTech | BookingWithTech[]) => {
     setBookingsToReject(Array.isArray(bookingsTarget) ? bookingsTarget : [bookingsTarget]);
-    setDeleteOption("all");
     setRejectionReason("");
     setIsRejectionModalOpen(true);
   };
@@ -484,25 +319,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
     if (bookingsToReject.length > 0) {
       setIsRejectionModalOpen(false);
       for (const booking of bookingsToReject) {
-        const isCancellation = booking.status === BookingStatus.APPROVED;
-        if (isCancellation && googleApi.isGapiInitialized) {
-          const gapiResult: any = await deleteFromGoogleCalendar(
-            booking,
-            deleteOption,
-          );
-          if (
-            !gapiResult.success &&
-            gapiResult.message !== "Dilewati: Tidak ada URL Kalender" &&
-            gapiResult.message !== "Event tidak ditemukan di Google Calendar"
-          ) {
-            showToast(
-              `Peringatan: Gagal hapus dari Calendar (${gapiResult.message}), namun status tetap diupdate.`,
-              "warning",
-            );
-          } else if (gapiResult.success) {
-            showToast("Event dihapus dari Google Calendar!", "success");
-          }
-        }
         await handleUpdateStatus(
           booking.id,
           BookingStatus.REJECTED,
@@ -1541,8 +1357,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         rooms={rooms}
         rejectionReason={rejectionReason}
         setRejectionReason={setRejectionReason}
-        deleteOption={deleteOption}
-        setDeleteOption={setDeleteOption}
         onClose={() => setIsRejectionModalOpen(false)}
         onConfirm={handleConfirmRejection}
       />
@@ -1553,8 +1367,6 @@ const PesananRuang: React.FC<ManageBookingsProps> = ({
         booking={bookingToDelete}
         rooms={rooms}
         isDeleting={isDeleting}
-        deleteOption={deleteOption}
-        setDeleteOption={setDeleteOption}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleConfirmDelete}
       />

@@ -25,6 +25,9 @@ import { Button } from "./ui/button";
 
 interface GoogleEvent {
   id: string;
+  eventId?: string;
+  occurrenceId?: string;
+  sourceId?: string;
   summary: string;
   description?: string;
   start: { dateTime?: string; date?: string };
@@ -170,11 +173,12 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
     isGapiInitialized,
     login,
     logout,
+    fetchCoreEvents,
     fetchEvents,
     createEvent,
     updateEvent,
     deleteEvent,
-    calendarConnected,
+    googleCalendarConnected,
     connectCalendar,
   } = googleApi;
 
@@ -182,6 +186,9 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   const canManage = role === Role.ADMIN || role === Role.LABORAN || role.toString() === 'Supervisor';
   /** Admin TU can authenticate to read private calendars without management controls. */
   const canAuthenticate = canManage || role === Role.ADMIN_TU;
+  const canManageGoogleLegacy = canManage && googleCalendarConnected && !!selectedRoom?.googleCalendarUrl;
+  const isCoreCalendarEvent = (event: GoogleEvent) =>
+    event.sourceId === "CORE_CALENDAR" || !!event.occurrenceId || !!event.eventId;
 
   const getDateRangeForView = (date: Date, view: "month" | "week" | "day") => {
     const year = date.getFullYear();
@@ -207,10 +214,15 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const fetchCurrentEvents = () => {
+    const { timeMin, timeMax } = getDateRangeForView(currentDate, viewMode);
+    if (selectedRoom?.id && fetchCoreEvents) {
+      fetchCoreEvents(selectedRoom.id, timeMin, timeMax);
+      return;
+    }
+
     if (!selectedRoom?.googleCalendarUrl || !isGapiInitialized) return;
     const calendarId = getCalendarId(selectedRoom.googleCalendarUrl);
     if (!calendarId) return;
-    const { timeMin, timeMax } = getDateRangeForView(currentDate, viewMode);
     fetchEvents(calendarId, timeMin, timeMax);
   };
 
@@ -248,9 +260,9 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
     fullDate: string;
   }) => {
     if (!day.isCurrentMonth) return;
-    const canAdd = role === Role.ADMIN || role === Role.LABORAN;
+    const canAdd = canManageGoogleLegacy;
     if (canAdd && day.events.length === 0) {
-      if (!calendarConnected) {
+      if (!googleCalendarConnected) {
         connectCalendar();
         return;
       }
@@ -270,7 +282,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const handleOpenAddEventModal = () => {
-    if (!calendarConnected) {
+    if (!googleCalendarConnected) {
       connectCalendar();
       return;
     }
@@ -336,7 +348,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const handleDeleteEventClick = (event: GoogleEvent) => {
-    if (!calendarConnected) {
+    if (isCoreCalendarEvent(event)) {
+      showToast("Event dari CORE Calendar bersifat read-only di tampilan ini.", "info");
+      return;
+    }
+    if (!googleCalendarConnected) {
       connectCalendar();
       return;
     }
@@ -361,7 +377,11 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
   };
 
   const handleEditEventClick = (event: GoogleEvent) => {
-    if (!calendarConnected) {
+    if (isCoreCalendarEvent(event)) {
+      showToast("Event dari CORE Calendar bersifat read-only di tampilan ini.", "info");
+      return;
+    }
+    if (!googleCalendarConnected) {
       connectCalendar();
       return;
     }
@@ -912,7 +932,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
             {filterComponent}
 
             <div className="flex items-center gap-2 flex-wrap">
-              {canManage && (
+              {canManageGoogleLegacy && (
                 <button
                   onClick={handleOpenAddEventModal}
                   disabled={isLoading}
@@ -954,9 +974,9 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
             )}
 
             {/* Auth status / login for roles allowed to access private calendars. */}
-            {canManage && (
+            {canAuthenticate && (
               <div className="flex items-center">
-                {calendarConnected ? (
+                {googleCalendarConnected ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
                     <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium max-w-37.5 truncate">
@@ -1093,7 +1113,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               </button>
             </div>
 
-            {(role === Role.ADMIN || role === Role.LABORAN) && (
+            {canManageGoogleLegacy && (
               <div className="px-6 pt-4">
                 <button
                   onClick={() => {
@@ -1217,8 +1237,7 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               </div>
             </div>
             <div className="mobile-modal-actions p-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3 bg-slate-50 dark:bg-slate-700/50">
-              {(role === Role.ADMIN || role === Role.LABORAN) &&
-              isAuthenticated ? (
+              {canManageGoogleLegacy && !isCoreCalendarEvent(selectedEvent) ? (
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleEditEventClick(selectedEvent)}
@@ -1238,15 +1257,21 @@ const RoomCalendar: React.FC<RoomCalendarProps> = ({
               ) : (
                 <div />
               )}
-              <a
-                href={selectedEvent.htmlLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:underline flex items-center"
-              >
-                Buka di Google Calendar{" "}
-                <ExternalLink className="w-4 h-4 ml-1" />
-              </a>
+              {selectedEvent.htmlLink ? (
+                <a
+                  href={selectedEvent.htmlLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline flex items-center"
+                >
+                  Buka di Google Calendar{" "}
+                  <ExternalLink className="w-4 h-4 ml-1" />
+                </a>
+              ) : (
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  CORE Calendar
+                </span>
+              )}
             </div>
           </div>
         </div>

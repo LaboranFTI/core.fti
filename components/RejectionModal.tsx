@@ -9,8 +9,6 @@ const RejectionModal = ({
   rooms,
   rejectionReason,
   setRejectionReason,
-  deleteOption,
-  setDeleteOption,
   onClose,
   onConfirm
 }: any) => {
@@ -54,34 +52,8 @@ const RejectionModal = ({
           />
 
           {isCancel && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
-              <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Hapus dari Google Calendar</p>
-              <div className="space-y-2">
-                {(['single', 'thisAndFollowing', 'all'] as const).map((opt) => (
-                  <label
-                    key={opt}
-                    className={`flex cursor-pointer items-center rounded-lg border p-3 transition ${
-                      deleteOption === opt
-                        ? 'border-red-400 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-100'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="deleteOption"
-                      value={opt}
-                      checked={deleteOption === opt}
-                      onChange={() => setDeleteOption(opt)}
-                      className="mr-3 h-4 w-4 accent-red-600 focus:ring-red-500/30"
-                    />
-                    <span className="text-sm">
-                      {opt === 'single' && 'Hapus event ini saja'}
-                      {opt === 'thisAndFollowing' && 'Ini dan event selanjutnya'}
-                      {opt === 'all' && 'Semua event terkait'}
-                    </span>
-                  </label>
-                ))}
-              </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+              Jadwal terkait di CORE Calendar akan dibatalkan otomatis setelah status disimpan.
             </div>
           )}
 

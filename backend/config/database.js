@@ -215,6 +215,277 @@ export const ensureAuthSchema = async () => {
   }
 };
 
+export const ensureCalendarSchema = async () => {
+  const schemaQueries = [
+    `CREATE OR REPLACE FUNCTION update_updated_at_column()
+     RETURNS TRIGGER AS $$
+     BEGIN
+       NEW.updated_at = NOW();
+       RETURN NEW;
+     END;
+     $$ language 'plpgsql'`,
+    `CREATE TABLE IF NOT EXISTS calendar_sources (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      provider VARCHAR(30) NOT NULL DEFAULT 'core',
+      is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT chk_calendar_sources_provider CHECK (provider IN ('core', 'google_legacy', 'ics_import'))
+    )`,
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_calendar_sources_updated_at') THEN
+         CREATE TRIGGER update_calendar_sources_updated_at
+         BEFORE UPDATE ON calendar_sources
+         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+       END IF;
+     END $$`,
+    `INSERT INTO calendar_sources (id, name, provider, is_primary, is_active, notes)
+     VALUES ('CORE_CALENDAR', 'CORE.FTI Calendar', 'core', TRUE, TRUE, 'Primary internal calendar source of truth.')
+     ON CONFLICT (id) DO UPDATE
+     SET name = EXCLUDED.name,
+         provider = EXCLUDED.provider,
+         is_primary = TRUE,
+         is_active = TRUE,
+         notes = EXCLUDED.notes,
+         updated_at = NOW()`,
+    "UPDATE calendar_sources SET is_primary = FALSE, updated_at = NOW() WHERE id <> 'CORE_CALENDAR' AND is_primary = TRUE",
+    `CREATE TABLE IF NOT EXISTS calendar_events (
+      id VARCHAR(50) PRIMARY KEY,
+      source_id VARCHAR(50) NOT NULL DEFAULT 'CORE_CALENDAR',
+      room_id VARCHAR(50),
+      booking_id VARCHAR(50),
+      source_reference_type VARCHAR(50),
+      source_reference_id VARCHAR(100),
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      location TEXT,
+      event_type VARCHAR(30) NOT NULL DEFAULT 'manual',
+      status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+      visibility VARCHAR(30) NOT NULL DEFAULT 'internal',
+      timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Jakarta',
+      recurrence_rule TEXT,
+      recurrence_until TIMESTAMPTZ,
+      created_by VARCHAR(50),
+      updated_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_calendar_event_source FOREIGN KEY (source_id) REFERENCES calendar_sources(id) ON DELETE RESTRICT,
+      CONSTRAINT fk_calendar_event_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      CONSTRAINT fk_calendar_event_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+      CONSTRAINT fk_calendar_event_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT fk_calendar_event_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT chk_calendar_event_type CHECK (event_type IN ('booking', 'class_schedule', 'maintenance', 'manual', 'holiday')),
+      CONSTRAINT chk_calendar_event_status CHECK (status IN ('scheduled', 'tentative', 'cancelled')),
+      CONSTRAINT chk_calendar_event_visibility CHECK (visibility IN ('internal', 'public'))
+    )`,
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_calendar_events_updated_at') THEN
+         CREATE TRIGGER update_calendar_events_updated_at
+         BEFORE UPDATE ON calendar_events
+         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+       END IF;
+     END $$`,
+    `CREATE TABLE IF NOT EXISTS calendar_occurrences (
+      id VARCHAR(50) PRIMARY KEY,
+      event_id VARCHAR(50) NOT NULL,
+      room_id VARCHAR(50),
+      booking_schedule_id INTEGER,
+      start_at TIMESTAMPTZ NOT NULL,
+      end_at TIMESTAMPTZ NOT NULL,
+      is_all_day BOOLEAN NOT NULL DEFAULT FALSE,
+      status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_calendar_occurrence_event FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
+      CONSTRAINT fk_calendar_occurrence_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      CONSTRAINT fk_calendar_occurrence_booking_schedule FOREIGN KEY (booking_schedule_id) REFERENCES booking_schedules(id) ON DELETE SET NULL,
+      CONSTRAINT chk_calendar_occurrence_status CHECK (status IN ('scheduled', 'tentative', 'cancelled')),
+      CONSTRAINT chk_calendar_occurrence_time CHECK (end_at > start_at)
+    )`,
+    'ALTER TABLE calendar_occurrences ALTER COLUMN room_id DROP NOT NULL',
+    'ALTER TABLE calendar_occurrences ADD COLUMN IF NOT EXISTS is_all_day BOOLEAN NOT NULL DEFAULT FALSE',
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_calendar_occurrences_updated_at') THEN
+         CREATE TRIGGER update_calendar_occurrences_updated_at
+         BEFORE UPDATE ON calendar_occurrences
+         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+       END IF;
+     END $$`,
+    `CREATE TABLE IF NOT EXISTS calendar_audit_logs (
+      id VARCHAR(50) PRIMARY KEY,
+      event_id VARCHAR(50),
+      occurrence_id VARCHAR(50),
+      actor_user_id VARCHAR(50),
+      action VARCHAR(50) NOT NULL,
+      previous_data JSONB,
+      next_data JSONB,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_calendar_audit_event FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE SET NULL,
+      CONSTRAINT fk_calendar_audit_occurrence FOREIGN KEY (occurrence_id) REFERENCES calendar_occurrences(id) ON DELETE SET NULL,
+      CONSTRAINT fk_calendar_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+    )`,
+    'DROP INDEX IF EXISTS idx_calendar_sources_primary',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_sources_primary ON calendar_sources(is_primary) WHERE is_primary = TRUE',
+    'CREATE INDEX IF NOT EXISTS idx_calendar_events_source_id ON calendar_events(source_id)',
+    'CREATE INDEX IF NOT EXISTS idx_calendar_events_room_id ON calendar_events(room_id)',
+    'CREATE INDEX IF NOT EXISTS idx_calendar_events_booking_id ON calendar_events(booking_id)',
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_booking_unique ON calendar_events(booking_id) WHERE booking_id IS NOT NULL AND status <> 'cancelled'",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_class_schedule_unique ON calendar_events(source_reference_id) WHERE source_reference_type = 'class_schedule' AND source_reference_id IS NOT NULL AND status <> 'cancelled'",
+    'CREATE INDEX IF NOT EXISTS idx_calendar_events_status ON calendar_events(status)',
+    'CREATE INDEX IF NOT EXISTS idx_calendar_occurrences_event_id ON calendar_occurrences(event_id)',
+    'CREATE INDEX IF NOT EXISTS idx_calendar_occurrences_room_time ON calendar_occurrences(room_id, start_at, end_at)',
+    "CREATE INDEX IF NOT EXISTS idx_calendar_occurrences_active_time ON calendar_occurrences(room_id, start_at, end_at) WHERE status IN ('scheduled', 'tentative')",
+    'CREATE INDEX IF NOT EXISTS idx_calendar_occurrences_booking_schedule_id ON calendar_occurrences(booking_schedule_id)',
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_occurrences_booking_schedule_unique ON calendar_occurrences(booking_schedule_id) WHERE booking_schedule_id IS NOT NULL AND status <> 'cancelled'",
+    'CREATE INDEX IF NOT EXISTS idx_calendar_audit_event_id ON calendar_audit_logs(event_id)',
+    'CREATE INDEX IF NOT EXISTS idx_calendar_audit_created_at ON calendar_audit_logs(created_at)'
+  ];
+
+  try {
+    for (const query of schemaQueries) {
+      await pool.query(query);
+    }
+    console.log('Calendar schema ensured successfully');
+  } catch (err) {
+    console.error('Error ensuring calendar schema:', err);
+    throw err;
+  }
+
+  try {
+    await pool.query('CREATE EXTENSION IF NOT EXISTS btree_gist');
+    await pool.query(`DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM pg_constraint WHERE conname = 'excl_calendar_occurrences_room_overlap'
+       ) THEN
+         ALTER TABLE calendar_occurrences
+         ADD CONSTRAINT excl_calendar_occurrences_room_overlap
+         EXCLUDE USING gist (
+           room_id WITH =,
+           tstzrange(start_at, end_at, '[)') WITH &&
+         )
+         WHERE (room_id IS NOT NULL AND status IN ('scheduled', 'tentative'));
+       END IF;
+     END $$`);
+  } catch (err) {
+    console.warn('Calendar overlap constraint was not installed. Enable PostgreSQL btree_gist to enforce DB-level room conflict prevention.', err.message);
+  }
+};
+
+export const ensureAcademicSchema = async () => {
+  const schemaQueries = [
+    `CREATE OR REPLACE FUNCTION update_updated_at_column()
+     RETURNS TRIGGER AS $$
+     BEGIN
+       NEW.updated_at = NOW();
+       RETURN NEW;
+     END;
+     $$ language 'plpgsql'`,
+    'ALTER TABLE class_schedules ADD COLUMN IF NOT EXISTS lecturer_id VARCHAR(50)',
+    `CREATE TABLE IF NOT EXISTS semester_periods (
+      id VARCHAR(50) PRIMARY KEY,
+      semester VARCHAR(20) NOT NULL,
+      academic_year VARCHAR(20) NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      notes TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by VARCHAR(50),
+      updated_by VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT uq_semester_period UNIQUE (semester, academic_year),
+      CONSTRAINT fk_semester_period_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT fk_semester_period_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT chk_semester_period_semester CHECK (semester IN ('Ganjil', 'Antara', 'Genap')),
+      CONSTRAINT chk_semester_period_academic_year CHECK (academic_year ~ '^\\d{4}/\\d{4}$'),
+      CONSTRAINT chk_semester_period_dates CHECK (end_date >= start_date)
+    )`,
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS semester VARCHAR(20)',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS academic_year VARCHAR(20)',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS start_date DATE',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS end_date DATE',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS notes TEXT',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS created_by VARCHAR(50)',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS updated_by VARCHAR(50)',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+    'ALTER TABLE semester_periods ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_semester_period') THEN
+         ALTER TABLE semester_periods ADD CONSTRAINT uq_semester_period UNIQUE (semester, academic_year);
+       END IF;
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_semester_period_created_by') THEN
+         ALTER TABLE semester_periods ADD CONSTRAINT fk_semester_period_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+       END IF;
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_semester_period_updated_by') THEN
+         ALTER TABLE semester_periods ADD CONSTRAINT fk_semester_period_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+       END IF;
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_semester_period_semester') THEN
+         ALTER TABLE semester_periods ADD CONSTRAINT chk_semester_period_semester CHECK (semester IN ('Ganjil', 'Antara', 'Genap'));
+       END IF;
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_semester_period_academic_year') THEN
+         ALTER TABLE semester_periods ADD CONSTRAINT chk_semester_period_academic_year CHECK (academic_year ~ '^\\d{4}/\\d{4}$');
+       END IF;
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_semester_period_dates') THEN
+         ALTER TABLE semester_periods ADD CONSTRAINT chk_semester_period_dates CHECK (end_date >= start_date);
+       END IF;
+     END $$`,
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_semester_periods_updated_at') THEN
+         CREATE TRIGGER update_semester_periods_updated_at
+         BEFORE UPDATE ON semester_periods
+         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+       END IF;
+     END $$`,
+    `CREATE TABLE IF NOT EXISTS class_schedule_software (
+      class_schedule_id VARCHAR(50) NOT NULL,
+      software_id VARCHAR(50) NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (class_schedule_id, software_id),
+      CONSTRAINT fk_class_schedule_software_schedule FOREIGN KEY (class_schedule_id) REFERENCES class_schedules(id) ON DELETE CASCADE,
+      CONSTRAINT fk_class_schedule_software_software FOREIGN KEY (software_id) REFERENCES software(id) ON DELETE CASCADE
+    )`,
+    'ALTER TABLE class_schedule_software ADD COLUMN IF NOT EXISTS class_schedule_id VARCHAR(50)',
+    'ALTER TABLE class_schedule_software ADD COLUMN IF NOT EXISTS software_id VARCHAR(50)',
+    'ALTER TABLE class_schedule_software ADD COLUMN IF NOT EXISTS notes TEXT',
+    'ALTER TABLE class_schedule_software ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_class_schedule_software_schedule') THEN
+         ALTER TABLE class_schedule_software ADD CONSTRAINT fk_class_schedule_software_schedule FOREIGN KEY (class_schedule_id) REFERENCES class_schedules(id) ON DELETE CASCADE;
+       END IF;
+       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_class_schedule_software_software') THEN
+         ALTER TABLE class_schedule_software ADD CONSTRAINT fk_class_schedule_software_software FOREIGN KEY (software_id) REFERENCES software(id) ON DELETE CASCADE;
+       END IF;
+     END $$`,
+    'CREATE INDEX IF NOT EXISTS idx_semester_periods_lookup ON semester_periods(semester, academic_year)',
+    'CREATE INDEX IF NOT EXISTS idx_semester_periods_active ON semester_periods(is_active)',
+    'CREATE INDEX IF NOT EXISTS idx_class_schedule_software_schedule ON class_schedule_software(class_schedule_id)',
+    'CREATE INDEX IF NOT EXISTS idx_class_schedule_software_software ON class_schedule_software(software_id)'
+  ];
+
+  try {
+    for (const query of schemaQueries) {
+      await pool.query(query);
+    }
+    console.log('Academic schema ensured successfully');
+  } catch (err) {
+    console.error('Error ensuring academic schema:', err);
+    throw err;
+  }
+};
+
 // --- DATABASE INDEXES (Optimizations) ---
 export const createIndexes = async () => {
   const indexes = [

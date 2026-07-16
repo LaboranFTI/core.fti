@@ -3,6 +3,9 @@ import { Role } from '../types';
 
 export interface GoogleEvent {
   id: string;
+  eventId?: string;
+  occurrenceId?: string;
+  sourceId?: string;
   summary: string;
   description?: string;
   start: { dateTime?: string; date?: string };
@@ -27,12 +30,15 @@ export const useGoogleCalendar = (
     isDeletingEvent: googleAuth.isDeletingEvent,
     login: googleAuth.login,
     logout: googleAuth.logout,
+    fetchCoreEvents: googleAuth.fetchCoreEvents,
     fetchEvents: googleAuth.fetchEvents,
     createEvent: googleAuth.createEvent,
     updateEvent: googleAuth.updateEvent,
     deleteEvent: googleAuth.deleteEvent,
     getValidToken: googleAuth.getValidToken,
     calendarConnected: googleAuth.calendarConnected,
+    coreCalendarConnected: googleAuth.coreCalendarConnected,
+    googleCalendarConnected: googleAuth.googleCalendarConnected,
     connectCalendar: googleAuth.connectCalendar,
     calendarPermissions: googleAuth.calendarPermissions,
   };

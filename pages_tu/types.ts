@@ -65,6 +65,12 @@ export interface ResearchLetterData {
   recipientTitle?: string;
   destinationPlace: string;
   destinationAddress: string;
+  addressStreet?: string;
+  addressKecamatan?: string;
+  addressKelurahan?: string;
+  addressCity?: string;
+  addressProvince?: string;
+  addressPostalCode?: string;
   researchPlace: string;
   assignmentType: string;
   researchTitle: string;

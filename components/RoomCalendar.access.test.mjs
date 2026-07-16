@@ -4,26 +4,37 @@ import { test } from 'node:test';
 
 const calendarSource = readFileSync(new URL('./RoomCalendar.tsx', import.meta.url), 'utf8');
 const googleCalendarHookSource = readFileSync(new URL('../hooks/useGoogleCalendar.ts', import.meta.url), 'utf8');
+const authContextSource = readFileSync(new URL('../src/context/GoogleAuthContext.tsx', import.meta.url), 'utf8');
+const bookingManagementSource = readFileSync(new URL('../pages/PesananRuang.tsx', import.meta.url), 'utf8');
 
-test('Admin TU can authenticate to read private room calendars without management access', () => {
+test('room calendar reads CORE Calendar first and keeps Google writes legacy-only', () => {
   assert.match(
     calendarSource,
-    /const canAuthenticate = canManage \|\| role === Role\.ADMIN_TU;/,
-  );
-  assert.match(calendarSource, /\{canAuthenticate && \(\s*<div className="flex items-center">/);
-  assert.doesNotMatch(
-    calendarSource,
-    /const canManage = [^;]*Role\.ADMIN_TU/,
+    /fetchCoreEvents\(selectedRoom\.id, timeMin, timeMax\);/,
   );
   assert.match(
-    googleCalendarHookSource,
-    /role === Role\.ADMIN \|\| role === Role\.LABORAN\) \? SCOPES\.READWRITE : SCOPES\.READONLY/,
+    calendarSource,
+    /const canManageGoogleLegacy = canManage && googleCalendarConnected && !!selectedRoom\?\.googleCalendarUrl;/,
+  );
+  assert.match(
+    calendarSource,
+    /Event dari CORE Calendar bersifat read-only di tampilan ini\./,
   );
 });
 
-test('room calendar reloads events after Google authentication changes', () => {
+test('calendar auth metadata separates CORE Calendar from Google legacy', () => {
+  assert.match(authContextSource, /coreCalendarConnected/);
+  assert.match(authContextSource, /googleCalendarConnected/);
+  assert.match(googleCalendarHookSource, /googleCalendarConnected: googleAuth\.googleCalendarConnected/);
+});
+
+test('booking approval workflow no longer writes to Google Calendar', () => {
+  assert.doesNotMatch(bookingManagementSource, /useGoogleCalendar/);
+  assert.doesNotMatch(bookingManagementSource, /\/api\/calendar\/events/);
+  assert.doesNotMatch(bookingManagementSource, /googleApi\./);
   assert.match(
-    calendarSource,
-    /\[selectedRoom, isGapiInitialized, isAuthenticated, currentDate, viewMode\]/,
+    bookingManagementSource,
+    /api\(`\/api\/bookings\/\$\{id\}\/status`/,
   );
+  assert.match(bookingManagementSource, /CORE Calendar/);
 });

@@ -4,6 +4,9 @@ import { API_BASE_URL } from '../../config';
 
 export interface GoogleEvent {
   id: string;
+  eventId?: string;
+  occurrenceId?: string;
+  sourceId?: string;
   summary: string;
   description?: string;
   start: { dateTime?: string; date?: string };
@@ -15,6 +18,12 @@ export interface GoogleEvent {
 interface CalendarPermissions {
   calendarRead: boolean;
   calendarWrite: boolean;
+  coreCalendarRead?: boolean;
+  coreCalendarWrite?: boolean;
+  googleCalendarRead?: boolean;
+  googleCalendarWrite?: boolean;
+  canConnectCalendar?: boolean;
+  canConnectGoogleCalendar?: boolean;
 }
 
 interface GoogleAuthContextType {
@@ -28,11 +37,14 @@ interface GoogleAuthContextType {
   isCreatingEvent: boolean;
   isDeletingEvent: boolean;
   calendarConnected: boolean;
+  coreCalendarConnected: boolean;
+  googleCalendarConnected: boolean;
   calendarPermissions: CalendarPermissions;
   connectCalendar: () => void;
   login: (onSuccess?: (tokenResponse: any) => void) => void;
   logout: () => void;
   getValidToken: () => Promise<string | null>;
+  fetchCoreEvents: (roomId: string, timeMin: Date, timeMax: Date, maxResults?: number) => Promise<void>;
   fetchEvents: (calendarId: string, timeMin: Date, timeMax: Date) => Promise<void>;
   createEvent: (calendarId: string, eventResource: any) => Promise<boolean>;
   updateEvent: (calendarId: string, eventId: string, eventResource: any) => Promise<boolean>;
@@ -51,6 +63,8 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
+  const [coreCalendarConnected, setCoreCalendarConnected] = useState(false);
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [permissions, setPermissions] = useState<CalendarPermissions>({ calendarRead: false, calendarWrite: false });
 
   // Membaca status login dan permission dari backend /api/auth/me
@@ -61,6 +75,8 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setIsAuthenticated(false);
       setGoogleUserEmail('');
       setCalendarConnected(false);
+      setCoreCalendarConnected(false);
+      setGoogleCalendarConnected(false);
       setPermissions({ calendarRead: false, calendarWrite: false });
       return;
     }
@@ -72,7 +88,9 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (data.success && data.user) {
           setIsAuthenticated(true);
           setGoogleUserEmail(data.user.email || '');
-          setCalendarConnected(!!data.user.calendarConnected);
+          setCoreCalendarConnected(!!data.user.coreCalendarConnected || !!data.user.calendarConnected);
+          setGoogleCalendarConnected(!!data.user.googleCalendarConnected);
+          setCalendarConnected(!!data.user.coreCalendarConnected || !!data.user.calendarConnected);
           setPermissions(data.user.permissions || { calendarRead: true, calendarWrite: false });
           return;
         }
@@ -83,6 +101,8 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     setIsAuthenticated(false);
     setCalendarConnected(false);
+    setCoreCalendarConnected(false);
+    setGoogleCalendarConnected(false);
   }, []);
 
   useEffect(() => {
@@ -120,11 +140,39 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setGoogleUserEmail('');
     setEvents([]);
     setCalendarConnected(false);
+    setCoreCalendarConnected(false);
+    setGoogleCalendarConnected(false);
     setPermissions({ calendarRead: false, calendarWrite: false });
   }, []);
 
   const getValidToken = useCallback(async (): Promise<string | null> => {
     return 'backend-managed';
+  }, []);
+
+  const fetchCoreEvents = useCallback(async (roomId: string, timeMin: Date, timeMax: Date, maxResults = 500) => {
+    setIsLoading(true);
+    try {
+      const query = new URLSearchParams({
+        roomId,
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        maxResults: String(maxResults),
+      });
+      const res = await api(`/api/core-calendar/events?${query.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEvents(data.data?.items || data.items || []);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error("Gagal mengambil event CORE Calendar:", err);
+        setEvents([]);
+      }
+    } catch (e) {
+      console.error("Error saat fetchCoreEvents:", e);
+      setEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // Aksi Google Calendar via Backend Proxy
@@ -237,11 +285,14 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       isCreatingEvent,
       isDeletingEvent,
       calendarConnected,
+      coreCalendarConnected,
+      googleCalendarConnected,
       calendarPermissions: permissions,
       connectCalendar,
       login,
       logout,
       getValidToken,
+      fetchCoreEvents,
       fetchEvents,
       createEvent,
       updateEvent,

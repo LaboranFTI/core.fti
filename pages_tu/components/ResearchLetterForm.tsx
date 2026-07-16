@@ -128,6 +128,12 @@ const createDefaultResearchData = (
   recipientTitle: '',
   destinationPlace: '',
   destinationAddress: '',
+  addressStreet: '',
+  addressKecamatan: '',
+  addressKelurahan: '',
+  addressCity: '',
+  addressProvince: '',
+  addressPostalCode: '',
   researchPlace: '',
   assignmentType: defaults.assignmentType,
   researchTitle: '',
@@ -152,6 +158,11 @@ type ResearchLetterErrorField =
   | 'recipientTitle'
   | 'destinationPlace'
   | 'destinationAddress'
+  | 'addressStreet'
+  | 'addressKelurahan'
+  | 'addressKecamatan'
+  | 'addressCity'
+  | 'addressProvince'
   | 'researchPlace'
   | 'researchTitle'
   | 'permissionPurpose';
@@ -164,7 +175,12 @@ const researchFieldFocusIds: Partial<Record<ResearchLetterErrorField, string>> =
   recipientName: 'recipientName',
   recipientTitle: 'recipientTitle',
   destinationPlace: 'destinationPlace',
-  destinationAddress: 'destinationAddress',
+  destinationAddress: 'addressStreet',
+  addressStreet: 'addressStreet',
+  addressKelurahan: 'addressKelurahan',
+  addressKecamatan: 'addressKecamatan',
+  addressCity: 'addressCity',
+  addressProvince: 'addressProvince',
   researchPlace: 'researchPlace',
   researchTitle: 'researchTitle',
   permissionPurpose: 'permissionPurpose'
@@ -244,11 +260,12 @@ const letterVariantConfig: Record<ResearchLetterVariant, {
 
 interface ResearchLetterFormProps {
   onCompleted?: () => void;
+  onReturnToMenu?: () => void;
   readOnly?: boolean;
   variant?: ResearchLetterVariant;
 }
 
-export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'research' }: ResearchLetterFormProps) {
+export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = false, variant = 'research' }: ResearchLetterFormProps) {
   const variantConfig = letterVariantConfig[variant];
   const [formFeedback, setFormFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ResearchLetterFieldErrors>({});
@@ -419,8 +436,36 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
       }))
       .filter((advisor) => advisor.name);
 
+    const {
+      addressStreet = '',
+      addressKelurahan = '',
+      addressKecamatan = '',
+      addressCity = '',
+      addressProvince = '',
+      addressPostalCode = ''
+    } = values;
+
+    const line1 = addressStreet.trim();
+    
+    const kelKecParts = [];
+    if (addressKelurahan.trim()) kelKecParts.push(`Kel. ${addressKelurahan.trim()}`);
+    if (addressKecamatan.trim()) kelKecParts.push(`Kec. ${addressKecamatan.trim()}`);
+    const line2 = kelKecParts.join(', ');
+
+    const cityProvParts = [];
+    if (addressCity.trim()) cityProvParts.push(addressCity.trim());
+    if (addressProvince.trim()) cityProvParts.push(addressProvince.trim());
+    let line3 = cityProvParts.join(', ');
+    
+    if (addressPostalCode.trim()) {
+      line3 = line3 ? `${line3} ${addressPostalCode.trim()}` : addressPostalCode.trim();
+    }
+
+    const combinedAddress = [line1, line2, line3].filter(Boolean).join('\n');
+
     return {
       ...values,
+      destinationAddress: combinedAddress || values.destinationAddress,
       letterKind: variant,
       recipientTitle: values.recipientTitle?.trim() || '',
       assignmentType: researchDefaults.assignmentType,
@@ -442,7 +487,11 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
     if (!data.studyProgramName) return { field: 'studyProgram' as const, message: 'Program studi wajib dipilih.' };
     if (!data.recipientTitle?.trim()) return { field: 'recipientTitle' as const, message: 'Jabatan penerima surat wajib diisi.' };
     if (!data.destinationPlace.trim()) return { field: 'destinationPlace' as const, message: 'Instansi atau tempat tujuan surat wajib diisi.' };
-    if (!data.destinationAddress.trim()) return { field: 'destinationAddress' as const, message: 'Alamat tujuan surat wajib diisi.' };
+    if (!data.addressStreet?.trim()) return { field: 'addressStreet' as const, message: 'Jalan / Alamat tujuan surat wajib diisi.' };
+    if (!data.addressKelurahan?.trim()) return { field: 'addressKelurahan' as const, message: 'Kelurahan wajib diisi.' };
+    if (!data.addressKecamatan?.trim()) return { field: 'addressKecamatan' as const, message: 'Kecamatan wajib diisi.' };
+    if (!data.addressCity?.trim()) return { field: 'addressCity' as const, message: 'Kota / Kabupaten wajib diisi.' };
+    if (!data.addressProvince?.trim()) return { field: 'addressProvince' as const, message: 'Provinsi wajib diisi.' };
     if (variant === 'permission' && !data.permissionPurpose?.trim()) return { field: 'permissionPurpose' as const, message: 'Keperluan izin wajib diisi.' };
     if (!data.researchPlace.trim()) return { field: 'researchPlace' as const, message: variantConfig.validatePlaceMessage };
     if (!data.researchTitle.trim()) return { field: 'researchTitle' as const, message: variantConfig.validateTitleMessage };
@@ -475,7 +524,8 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
       const res = await api(`${variantConfig.endpointBase}/generate-and-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        timeoutMs: 90000
       });
 
       if (!res.ok) {
@@ -503,6 +553,11 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
           ? `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil diunduh dan diarsipkan. Kode akses: ${accessCode}.`
           : `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil diunduh dan diarsipkan.`
       });
+      if (onReturnToMenu) {
+        setTimeout(() => {
+          onReturnToMenu();
+        }, 1500);
+      }
       onCompleted?.();
     } catch (error) {
       setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal mengunduh PDF ${variantConfig.successLabel}.` });
@@ -521,7 +576,8 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
       const res = await api(`${variantConfig.endpointBase}/generate-qr-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        timeoutMs: 90000
       });
       const json = await res.json().catch(() => ({ error: 'Gagal membuat QR.' }));
       if (!res.ok || !json.success) throw new Error(json.error || 'Gagal membuat QR.');
@@ -559,7 +615,11 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
       const res = await api(`${variantConfig.endpointBase}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, targetEmail: emailToUse })
+        body: JSON.stringify({
+          ...payload,
+          targetEmail: emailToUse
+        }),
+        timeoutMs: 90000
       });
       const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
       if (!res.ok || !json.success) throw new Error(json.error || 'Gagal mengirim email.');
@@ -592,20 +652,6 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {formFeedback && (
-            <div
-              className={`m-6 rounded-lg border px-4 py-3 text-sm ${
-                formFeedback.type === 'success'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300'
-                  : formFeedback.type === 'error'
-                    ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300'
-                    : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-300'
-              }`}
-            >
-              {formFeedback.message}
-            </div>
-          )}
-
           <div className="space-y-0">
             <section className="border-b border-slate-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
               <div className="mb-5 flex items-center gap-2 text-blue-700 dark:text-blue-300">
@@ -628,10 +674,42 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
                   <Input id="destinationPlace" placeholder="Contoh: Dinas Pendidikan Kota Salatiga" disabled={readOnly} aria-invalid={Boolean(fieldErrors.destinationPlace)} {...register('destinationPlace')} />
                   {fieldErrors.destinationPlace && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.destinationPlace}</p>}
                 </div>
-                <div className="space-y-1.5 md:row-span-2">
-                  <Label htmlFor="destinationAddress">Alamat Tujuan Surat <span className="text-red-500">*</span></Label>
-                  <Textarea id="destinationAddress" placeholder="Alamat lengkap instansi atau dinas tujuan" className="min-h-28 resize-y" disabled={readOnly} aria-invalid={Boolean(fieldErrors.destinationAddress)} {...register('destinationAddress')} />
-                  {fieldErrors.destinationAddress && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.destinationAddress}</p>}
+                <div className="space-y-4 md:col-span-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="addressStreet">Alamat Tujuan Surat <span className="text-red-500">*</span></Label>
+                    <Input id="addressStreet" placeholder="Jalan / Alamat Lengkap" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressStreet || fieldErrors.destinationAddress)} {...register('addressStreet')} />
+                    {(fieldErrors.addressStreet || fieldErrors.destinationAddress) && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressStreet || fieldErrors.destinationAddress}</p>}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="addressKelurahan">Kelurahan <span className="text-red-500">*</span></Label>
+                      <Input id="addressKelurahan" placeholder="Kelurahan" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressKelurahan)} {...register('addressKelurahan')} />
+                      {fieldErrors.addressKelurahan && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressKelurahan}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="addressKecamatan">Kecamatan <span className="text-red-500">*</span></Label>
+                      <Input id="addressKecamatan" placeholder="Kecamatan" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressKecamatan)} {...register('addressKecamatan')} />
+                      {fieldErrors.addressKecamatan && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressKecamatan}</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="addressCity">Kota / Kabupaten <span className="text-red-500">*</span></Label>
+                      <Input id="addressCity" placeholder="Kota / Kabupaten" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressCity)} {...register('addressCity')} />
+                      {fieldErrors.addressCity && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressCity}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="addressProvince">Provinsi <span className="text-red-500">*</span></Label>
+                      <Input id="addressProvince" placeholder="Provinsi" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressProvince)} {...register('addressProvince')} />
+                      {fieldErrors.addressProvince && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressProvince}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="addressPostalCode">Kode Pos</Label>
+                      <Input id="addressPostalCode" placeholder="Kode Pos (Opsional)" disabled={readOnly} {...register('addressPostalCode')} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -873,7 +951,22 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
               </Button>
             </section>
 
-            <section className="flex justify-end bg-white p-6 dark:bg-gray-900">
+            <section className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-6 dark:bg-gray-900">
+              <div className="flex-1 w-full">
+                {formFeedback && (
+                  <div
+                    className={`rounded-lg border px-4 py-3 text-sm ${
+                      formFeedback.type === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300'
+                        : formFeedback.type === 'error'
+                          ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300'
+                          : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-300'
+                    }`}
+                  >
+                    {formFeedback.message}
+                  </div>
+                )}
+              </div>
               <LetterActionMenu
                 className="sm:min-w-52"
                 disabled={readOnly}
@@ -899,8 +992,8 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Periksa Kembali</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700">
-              Yakin & Generate
+            <AlertDialogAction type="button" onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700">
+              Yakin &amp; Generate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -928,8 +1021,15 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
               </div>
             </>
           )}
-          <Button type="button" className="w-full bg-blue-600 text-white hover:bg-blue-700" onClick={resetFlow}>
-            Selesai & Buat Surat Baru
+          <Button
+            type="button"
+            className="w-full bg-blue-600 text-white hover:bg-blue-700"
+            onClick={() => {
+              resetFlow();
+              onReturnToMenu?.();
+            }}
+          >
+            Selesai & Kembali ke Menu
           </Button>
         </DialogContent>
       </Dialog>
@@ -941,7 +1041,10 @@ export function ResearchLetterForm({ onCompleted, readOnly = false, variant = 'r
       />
       <EmailSuccessDialog
         open={Boolean(emailSuccessState)}
-        onClose={resetFlow}
+        onClose={() => {
+          resetFlow();
+          onReturnToMenu?.();
+        }}
         recipientEmail={emailSuccessState?.email}
         letterNumber={emailSuccessState?.letterNumber}
         accessCode={emailSuccessState?.accessCode}

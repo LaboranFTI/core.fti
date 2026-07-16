@@ -32,7 +32,11 @@ const buildStudentEmail = (identifier?: string) => {
   return cleanIdentifier ? `${cleanIdentifier}@student.uksw.edu` : '';
 };
 
-export function SuRekForm() {
+interface SuRekFormProps {
+  onReturnToMenu?: () => void;
+}
+
+export function SuRekForm({ onReturnToMenu }: SuRekFormProps) {
   const { register, handleSubmit, reset, watch, setValue } = useForm<SuRekFormValues>({
     defaultValues: {
       name: '',
@@ -256,11 +260,12 @@ export function SuRekForm() {
                 setSubmitSuccess(false);
                 setCreatedRequest(null);
                 resetFormState();
+                onReturnToMenu?.();
               }}
               variant="default"
               className="bg-blue-600 hover:bg-blue-700"
             >
-              Buat Pengajuan Baru
+              Selesai & Kembali ke Menu
             </Button>
             <Button
               onClick={() => {
@@ -320,11 +325,7 @@ export function SuRekForm() {
             {activeFormTab === 'request' ? (
               <div className="p-6">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                {formFeedback && (
-                  <div className={`rounded-xl border px-4 py-3 text-sm ${formFeedback.type === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
-                    {formFeedback.message}
-                  </div>
-                )}
+
 
                 <div className="space-y-1.5">
                   <Label htmlFor="name" className="text-slate-700 dark:text-slate-300 font-medium">Nama Lengkap Mahasiswa</Label>
@@ -383,7 +384,14 @@ export function SuRekForm() {
                   </p>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex-1 w-full">
+                    {formFeedback && (
+                      <div className={`rounded-xl border px-4 py-3 text-sm ${formFeedback.type === 'success' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                        {formFeedback.message}
+                      </div>
+                    )}
+                  </div>
                   <Button type="submit" className="h-11 w-full bg-blue-600 text-base text-white hover:bg-blue-700 sm:w-auto sm:min-w-56" disabled={isSubmitting}>
                     {isSubmitting ? (
                       <>
