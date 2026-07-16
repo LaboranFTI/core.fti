@@ -115,7 +115,9 @@ export async function sendMail({ to, subject, html, text, cc, attachments = [] }
       if (att.content) resendAtt.content = att.content; // Resend menerima Buffer
       if (att.contentType) resendAtt.content_type = att.contentType;
       if (att.cid) {
-        resendAtt.content_id = att.cid; // Resend menggunakan content_id untuk inline (cid)
+        // According to RFC 2392, Content-ID must be enclosed in angle brackets.
+        // Nodemailer does this automatically, but Resend requires it manually.
+        resendAtt.content_id = `<${att.cid}>`;
         resendAtt.disposition = 'inline';
       }
       return resendAtt;
@@ -226,9 +228,9 @@ export function buildProfessionalEmail({ title = 'Pemberitahuan Sistem', content
               <!-- Footer -->
               <tr>
                 <td class="footer">
-                  <p class="system-name">CORE.FTI (Sistem Informasi Laboratorium & Layanan TU)</p>
-                  <p>Gedung FTI UKSW, Jl. Dr. O. Notohamidjojo, Salatiga</p>
-                  <p class="warning">Email ini dikirim otomatis oleh sistem CORE.FTI. Mohon tidak membalas email ini (noreply).</p>
+                  <p class="system-name">CORE.FTI (Campus Operational Resource Environment)</p>
+                  <p>Gedung FTI UKSW, Jl. Dr. O. Notohamidjojo 1-10, Kota Salatiga</p>
+                  <p class="warning">Email ini dikirim otomatis oleh sistem. Mohon tidak membalas email ini.</p>
                 </td>
               </tr>
             </table>
