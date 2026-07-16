@@ -134,7 +134,8 @@ const ensureTuInfrastructure = async () => {
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
-        carbon_copies JSONB DEFAULT '[]'::jsonb,
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -159,7 +160,8 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
@@ -190,7 +192,8 @@ const ensureTuInfrastructure = async () => {
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
-        carbon_copies JSONB DEFAULT '[]'::jsonb,
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -218,7 +221,8 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
@@ -244,7 +248,8 @@ const ensureTuInfrastructure = async () => {
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
-        carbon_copies JSONB DEFAULT '[]'::jsonb,
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -267,7 +272,8 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
@@ -313,7 +319,8 @@ const ensureTuInfrastructure = async () => {
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
-        carbon_copies JSONB DEFAULT '[]'::jsonb,
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -346,7 +353,8 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
@@ -521,7 +529,8 @@ const ensureTuInfrastructure = async () => {
         qr_download_token_hash VARCHAR(64),
         qr_download_token_expires_at TIMESTAMPTZ,
         status VARCHAR(20) DEFAULT 'pending',
-        carbon_copies JSONB DEFAULT '[]'::jsonb,
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -543,7 +552,8 @@ const ensureTuInfrastructure = async () => {
       ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
       ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
@@ -2243,8 +2253,12 @@ const createFinalResearchRequest = async (client, payload, targetStatus, req, le
 
   let requestData = await upsertResearchRequest(client, data, targetStatus);
   const letterType = getResearchLetterType(requestData);
-  requestData = await ensureLetterNumber(client, letterType, requestData);
-  requestData = await ensureLetterValidationToken(client, letterType, requestData);
+  
+  if (targetStatus === 'verified' || targetStatus === 'sent') {
+    requestData = await ensureLetterNumber(client, letterType, requestData);
+    requestData = await ensureLetterValidationToken(client, letterType, requestData);
+  }
+  
   requestData = await ensureResearchAccessCode(client, requestData);
   return requestData;
 };

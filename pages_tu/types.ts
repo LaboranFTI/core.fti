@@ -90,7 +90,7 @@ export interface ResearchLetterData {
 
 export interface ResearchRequest extends ResearchLetterData {
   id: string;
-  status: 'pending' | 'verified' | 'sent';
+  status: 'pending' | 'verified' | 'sent' | 'rejected';
   createdAt: string;
   signatureBase64?: string;
   stampBase64?: string;

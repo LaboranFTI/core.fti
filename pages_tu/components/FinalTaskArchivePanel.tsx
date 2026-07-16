@@ -14,7 +14,8 @@ import {
   ArrowCounterClockwise as RefreshCcw,
   MagnifyingGlass as Search,
   ShieldCheck,
-  Trash as Trash2
+  Trash as Trash2,
+  XCircle
 } from '@phosphor-icons/react';
 import React, { useEffect, useState } from 'react';
 import { ResearchRequest, TULetterBackgrounds, TULetterLayouts } from '../types';
@@ -24,8 +25,10 @@ import { api } from '../../services/api';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { Textarea } from '../../components/ui/textarea';
 import { PageTabs } from '../../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../../components/ui/tabs';
 import { EmailActionOverlay } from './EmailActionOverlay';
@@ -146,6 +149,11 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
   const [selectedInterviewIds, setSelectedInterviewIds] = useState<Set<string>>(new Set());
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<string>>(new Set());
 
+  // Rejection state
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; type: FinalTaskLetterType } | null>(null);
+
   const getStatusBadge = (status: ArchiveStatus) => {
     switch (status) {
       case 'pending':
@@ -154,6 +162,8 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
         return <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300"><CheckCircle className="mr-1 h-3 w-3" /> Terverifikasi</Badge>;
       case 'sent':
         return <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"><Mail className="mr-1 h-3 w-3" /> Terkirim</Badge>;
+      case 'rejected':
+        return <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"><XCircle className="mr-1 h-3 w-3" /> Ditolak</Badge>;
       default:
         return <Badge variant="outline" className="dark:border-gray-700 dark:text-gray-300">{status}</Badge>;
     }
@@ -203,7 +213,6 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
         }
         if (settingsJson.deanName) setDeanName(settingsJson.deanName);
       }
-
       setLastUpdatedAt(new Date().toISOString());
     } catch (error) {
       console.error('Failed to fetch final-task archive data:', error);
@@ -213,6 +222,117 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+    }
+  };
+
+  const handleSendEmail = async (type: FinalTaskLetterType, item: ResearchRequest) => {
+    setIsProcessing(true);
+    setIsSendingEmail(true);
+    setFeedback(null);
+    try {
+      const res = await api(`/api/tu/requests/${type}/${item.id}/send-email`, { method: 'POST' });
+      const resJson = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resJson.error || 'Gagal mengirim email.');
+      const updatedItem = resJson.data;
+      
+      const updateList = (prev: ResearchRequest[]) => prev.map(r => r.id === updatedItem.id ? updatedItem : r);
+      if (type === 'research') setResearchRequests(updateList);
+      else if (type === 'interview') setInterviewRequests(updateList);
+      else if (type === 'permission') setPermissionRequests(updateList);
+      
+      if (selectedLetter?.item.id === updatedItem.id) {
+        setSelectedLetter({ type, item: updatedItem });
+      }
+      
+      setEmailSuccessState({ 
+        email: updatedItem.email, 
+        letterNumber: updatedItem.letterNumber, 
+        title: updatedItem.name || 'Surat Mahasiswa' 
+      });
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal mengirim email.' });
+    } finally {
+      setIsSendingEmail(false);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVerify = async (type: FinalTaskLetterType, item: ResearchRequest) => {
+    setIsProcessing(true);
+    setFeedback(null);
+    try {
+      const res = await api(`/api/tu/requests/ta/${item.id}/verify`, {
+        method: 'PUT',
+        body: JSON.stringify({ letterType: type })
+      });
+      
+      const resJson = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resJson.error || 'Gagal memverifikasi surat.');
+      
+      const updatedItem = resJson.data;
+      
+      const updateList = (prev: ResearchRequest[]) => prev.map(r => r.id === updatedItem.id ? updatedItem : r);
+      if (type === 'research') setResearchRequests(updateList);
+      else if (type === 'interview') setInterviewRequests(updateList);
+      else if (type === 'permission') setPermissionRequests(updateList);
+      
+      if (selectedLetter?.item.id === updatedItem.id) {
+        setSelectedLetter({ type, item: updatedItem });
+      }
+      
+      setFeedback({ type: 'success', message: 'Surat berhasil di-Acc dan nomor surat telah dibuat.' });
+    } catch (error) {
+      console.error('Failed to verify request:', error);
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memverifikasi surat.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOpenRejectDialog = (type: FinalTaskLetterType, item: ResearchRequest) => {
+    setRejectTarget({ id: item.id, type });
+    setRejectReason('');
+    setIsRejectDialogOpen(true);
+  };
+
+  const submitReject = async () => {
+    if (!rejectTarget || !rejectReason.trim()) return;
+    
+    setIsProcessing(true);
+    setFeedback(null);
+    setIsRejectDialogOpen(false);
+    
+    try {
+      const res = await api(`/api/tu/requests/ta/${rejectTarget.id}/reject`, {
+        method: 'PUT',
+        body: JSON.stringify({ 
+          letterType: rejectTarget.type,
+          rejectionReason: rejectReason.trim()
+        })
+      });
+      
+      const resJson = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resJson.error || 'Gagal menolak surat.');
+      
+      const updatedItem = resJson.data;
+      
+      const updateList = (prev: ResearchRequest[]) => prev.map(r => r.id === updatedItem.id ? updatedItem : r);
+      if (rejectTarget.type === 'research') setResearchRequests(updateList);
+      else if (rejectTarget.type === 'interview') setInterviewRequests(updateList);
+      else if (rejectTarget.type === 'permission') setPermissionRequests(updateList);
+      
+      if (selectedLetter?.item.id === updatedItem.id) {
+        setSelectedLetter({ type: rejectTarget.type, item: updatedItem });
+      }
+      
+      setFeedback({ type: 'success', message: 'Surat ditolak dan email penolakan telah dikirim.' });
+    } catch (error) {
+      console.error('Failed to reject request:', error);
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menolak surat.' });
+    } finally {
+      setIsProcessing(false);
+      setRejectTarget(null);
     }
   };
 
@@ -323,29 +443,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     }
   };
 
-  const handleSendEmail = async (type: FinalTaskLetterType, item: ResearchRequest) => {
-    setIsProcessing(true);
-    setIsSendingEmail(true);
-    setFeedback(null);
-    try {
-      const res = await api(`/api/tu/requests/${type}/${item.id}/send-email`, { method: 'POST' });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.error || 'Gagal mengirim email.');
-      }
-      setEmailSuccessState({
-        email: item.email || '',
-        letterNumber: item.letterNumber,
-        title: `${finalTaskTypeLabels[type].title} - ${item.name}`
-      });
-      await fetchArchiveData();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Gagal mengirim email.' });
-    } finally {
-      setIsProcessing(false);
-      setIsSendingEmail(false);
-    }
-  };
+
 
   const getValidationUrl = (token?: string) =>
     token ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${token}` : '';
@@ -550,23 +648,50 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
 
               {/* Actions */}
               <div className="flex flex-col gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                  onClick={() => handleDownload(currentType!, currentItem!)}
-                  disabled={isProcessing}
-                >
-                  <Download className="h-4 w-4" /> Download PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                  onClick={() => handleSendEmail(currentType!, currentItem!)}
-                  disabled={isProcessing || !currentItem?.email}
-                >
-                  {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                  Kirim Email
-                </Button>
+                {currentItem?.status === 'pending' && (
+                  <>
+                    <Button
+                      variant="default"
+                      className="w-full justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleVerify(currentType!, currentItem!)}
+                      disabled={isProcessing}
+                    >
+                      <CheckCircle className="h-4 w-4" /> Acc Surat
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+                      onClick={() => handleOpenRejectDialog(currentType!, currentItem!)}
+                      disabled={isProcessing}
+                    >
+                      <XCircle className="h-4 w-4" /> Tolak Surat
+                    </Button>
+                  </>
+                )}
+                
+                {currentItem?.status !== 'pending' && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                    onClick={() => handleDownload(currentType!, currentItem!)}
+                    disabled={isProcessing}
+                  >
+                    <Download className="h-4 w-4" /> Download PDF
+                  </Button>
+                )}
+                
+                {currentItem?.status === 'verified' && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                    onClick={() => handleSendEmail(currentType!, currentItem!)}
+                    disabled={isProcessing || !currentItem?.email}
+                  >
+                    {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Kirim Email
+                  </Button>
+                )}
+                
                 <Button
                   variant="outline"
                   onClick={() => openDeleteSingle(currentItem!.id, currentType!, currentItem!.name)}
@@ -1018,6 +1143,36 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
           onClose={() => setEmailSuccessState(null)}
         />
       )}
+
+      {/* Reject Dialog */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Tolak Pengajuan Surat</DialogTitle>
+            <DialogDescription>
+              Silakan masukkan alasan penolakan. Alasan ini akan dikirimkan ke email mahasiswa yang bersangkutan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Textarea
+              id="reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Contoh: Lampiran kurang lengkap atau format salah..."
+              className="min-h-[100px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)} disabled={isProcessing}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={submitReject} disabled={!rejectReason.trim() || isProcessing}>
+              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Tolak & Kirim Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Email Sending Overlay */}
       {isSendingEmail && <EmailActionOverlay open={true} />}

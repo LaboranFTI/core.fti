@@ -24,23 +24,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '../../components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '../../components/ui/dialog';
 import SearchableSelect, { SelectOption } from '../../components/SearchableSelect';
 import { useLecturers } from '../../hooks/useLecturers';
 import { useStudyPrograms } from '../../hooks/useStudyPrograms';
 import { api } from '../../services/api';
 import { ResearchLetterData } from '../types';
-import { EmailActionOverlay } from './EmailActionOverlay';
-import { EmailSuccessDialog } from './EmailSuccessDialog';
-import { LetterActionMenu } from './LetterFormControls';
-import { ValidationQrCode } from './ValidationQrCode';
 
 const MAX_RESEARCH_ADVISORS = 2;
 const DEFAULT_RESEARCH_ASSIGNMENT_TYPE = 'Tugas Talenta Unggul';
@@ -269,14 +257,9 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
   const variantConfig = letterVariantConfig[variant];
   const [formFeedback, setFormFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ResearchLetterFieldErrors>({});
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'pdf' | 'qr' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [useStudentEmail, setUseStudentEmail] = useState(false);
-  const [emailSuccessState, setEmailSuccessState] = useState<{ email: string; letterNumber?: string | null; accessCode?: string | null } | null>(null);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [qrAccessCode, setQrAccessCode] = useState<string | null>(null);
   const [selectedProdiId, setSelectedProdiId] = useState('');
   const [researchPlaceSameAsDestination, setResearchPlaceSameAsDestination] = useState(false);
   const [researchDefaults, setResearchDefaults] = useState<ResearchFormDefaults>(() => createDefaultResearchDefaults(variant));
@@ -419,10 +402,7 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
     const defaultData = createDefaultResearchData(researchDefaults, variant, variantConfig.storageKey);
     reset(defaultData);
     setSelectedProdiId('');
-    setQrUrl(null);
-    setQrAccessCode(null);
     setUseStudentEmail(false);
-    setEmailSuccessState(null);
     setResearchPlaceSameAsDestination(false);
     setFormFeedback(null);
     setFieldErrors({});
@@ -514,132 +494,39 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
     return payload;
   };
 
-  const handleDownloadPdf = async () => {
+  const handleSubmitRequest = async () => {
     const payload = ensureValidPayload();
     if (!payload) return;
 
-    setIsDownloadingPdf(true);
+    setIsSubmitting(true);
     setFormFeedback(null);
     try {
-      const res = await api(`${variantConfig.endpointBase}/generate-and-download`, {
+      const res = await api(`${variantConfig.endpointBase}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         timeoutMs: 90000
       });
-
-      if (!res.ok) {
-        const errorJson = await res.json().catch(() => ({ error: 'Gagal mengunduh PDF.' }));
-        throw new Error(errorJson.error);
-      }
-
-      const blob = await res.blob();
-      const accessCode = res.headers.get('X-Research-Access-Code');
-      const filename = `${variantConfig.filenamePrefix}_${safeFilenamePart(payload.researchPlace || payload.name)}.pdf`;
-      const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
-      const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const json = await res.json().catch(() => ({ error: 'Gagal mengajukan surat.' }));
+      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal mengajukan surat.');
 
       localStorage.setItem(variantConfig.storageKey, JSON.stringify(payload.carbonCopies || []));
       setFormFeedback({
         type: 'success',
-        message: accessCode
-          ? `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil diunduh dan diarsipkan. Kode akses: ${accessCode}.`
-          : `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil diunduh dan diarsipkan.`
+        message: json.message || 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.'
       });
+      onCompleted?.();
       if (onReturnToMenu) {
         setTimeout(() => {
           onReturnToMenu();
-        }, 1500);
+        }, 2500);
       }
-      onCompleted?.();
     } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal mengunduh PDF ${variantConfig.successLabel}.` });
+      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal mengajukan ${variantConfig.successLabel}.` });
     } finally {
-      setIsDownloadingPdf(false);
+      setIsSubmitting(false);
+      setConfirmSubmit(false);
     }
-  };
-
-  const handleGenerateQr = async () => {
-    const payload = ensureValidPayload();
-    if (!payload) return;
-
-    setIsGeneratingQr(true);
-    setFormFeedback(null);
-    try {
-      const res = await api(`${variantConfig.endpointBase}/generate-qr-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        timeoutMs: 90000
-      });
-      const json = await res.json().catch(() => ({ error: 'Gagal membuat QR.' }));
-      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal membuat QR.');
-
-      localStorage.setItem(variantConfig.storageKey, JSON.stringify(payload.carbonCopies || []));
-      setQrUrl(json.validationUrl || json.qrUrl || null);
-      setQrAccessCode(json.accessCode || null);
-      setFormFeedback({
-        type: 'success',
-        message: json.accessCode
-          ? `QR validasi ${variantConfig.successLabel} berhasil dibuat. Kode akses: ${json.accessCode}.`
-          : `QR validasi ${variantConfig.successLabel} berhasil dibuat.`
-      });
-      onCompleted?.();
-    } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal membuat QR validasi ${variantConfig.successLabel}.` });
-    } finally {
-      setIsGeneratingQr(false);
-    }
-  };
-
-  const handleSendEmail = async () => {
-    const payload = ensureValidPayload();
-    if (!payload) return;
-
-    const emailToUse = String(payload.email || '').trim();
-    if (!emailToUse || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToUse)) {
-      setFormFeedback({ type: 'error', message: 'Alamat email mahasiswa tidak valid.' });
-      return;
-    }
-
-    setIsSendingEmail(true);
-    setFormFeedback(null);
-    try {
-      const res = await api(`${variantConfig.endpointBase}/send-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          targetEmail: emailToUse
-        }),
-        timeoutMs: 90000
-      });
-      const json = await res.json().catch(() => ({ error: 'Gagal mengirim email.' }));
-      if (!res.ok || !json.success) throw new Error(json.error || 'Gagal mengirim email.');
-
-      localStorage.setItem(variantConfig.storageKey, JSON.stringify(payload.carbonCopies || []));
-      setFormFeedback({ type: 'success', message: `${variantConfig.successLabel.charAt(0).toUpperCase()}${variantConfig.successLabel.slice(1)} berhasil dikirim ke ${emailToUse}.` });
-      setEmailSuccessState({ email: emailToUse, letterNumber: json.letterNumber || null, accessCode: json.accessCode || null });
-      onCompleted?.();
-    } catch (error) {
-      setFormFeedback({ type: 'error', message: error instanceof Error ? error.message : `Gagal mengirim email ${variantConfig.successLabel}.` });
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
-  const handleConfirm = () => {
-    const action = confirmAction;
-    setConfirmAction(null);
-    if (action === 'pdf') handleDownloadPdf();
-    if (action === 'qr') handleGenerateQr();
   };
 
   return (
@@ -967,89 +854,39 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
                   </div>
                 )}
               </div>
-              <LetterActionMenu
-                className="sm:min-w-52"
-                disabled={readOnly}
-                isDownloadingPdf={isDownloadingPdf}
-                isGeneratingQr={isGeneratingQr}
-                isSendingEmail={isSendingEmail}
-                onDownloadPdf={() => setConfirmAction('pdf')}
-                onGenerateQr={() => setConfirmAction('qr')}
-                onSendEmail={handleSendEmail}
-              />
+              <Button
+                type="button"
+                className="sm:min-w-52 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                disabled={readOnly || isSubmitting}
+                onClick={() => setConfirmSubmit(true)}
+              >
+                {isSubmitting ? (
+                  <><span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Mengajukan...</>
+                ) : (
+                  <><FileText className="mr-2 h-4 w-4" /> Ajukan Surat</>
+                )}
+              </Button>
             </section>
           </div>
         </CardContent>
       </Card>
 
-      <AlertDialog open={confirmAction !== null} onOpenChange={(open) => !open && setConfirmAction(null)}>
+      <AlertDialog open={confirmSubmit} onOpenChange={(open) => !open && setConfirmSubmit(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Konfirmasi Pembuatan Surat</AlertDialogTitle>
+            <AlertDialogTitle>Konfirmasi Pengajuan Surat</AlertDialogTitle>
             <AlertDialogDescription>
-              Data akan diberi nomor surat resmi, disimpan ke arsip, dan dibuatkan QR validasi.
+              Data surat akan dikirimkan ke Admin TU untuk diverifikasi. Setelah disetujui, surat akan mendapatkan nomor resmi dan dapat diunduh.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Periksa Kembali</AlertDialogCancel>
-            <AlertDialogAction type="button" onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700">
-              Yakin &amp; Generate
+            <AlertDialogAction type="button" onClick={handleSubmitRequest} className="bg-blue-600 hover:bg-blue-700">
+              Yakin &amp; Ajukan
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog open={Boolean(qrUrl)} onOpenChange={(open) => !open && setQrUrl(null)}>
-        <DialogContent className="text-center sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-xl">QR Validasi Surat</DialogTitle>
-            <DialogDescription>Scan QR untuk membuka halaman validasi publik surat ini.</DialogDescription>
-          </DialogHeader>
-          {qrUrl && (
-            <>
-              <div className="inline-block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <ValidationQrCode value={qrUrl} size={192} className="h-48 w-48" ariaLabel={variantConfig.qrAriaLabel} />
-              </div>
-              {qrAccessCode && (
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-left dark:border-blue-900/50 dark:bg-blue-950/20">
-                  <p className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-300">Kode akses surat</p>
-                  <p className="mt-2 text-center text-xl font-bold text-slate-900 dark:text-white">{qrAccessCode}</p>
-                </div>
-              )}
-              <div className="break-all rounded-lg bg-slate-100 p-3 text-left text-xs text-slate-500 dark:bg-gray-700/50 dark:text-gray-400">
-                {qrUrl}
-              </div>
-            </>
-          )}
-          <Button
-            type="button"
-            className="w-full bg-blue-600 text-white hover:bg-blue-700"
-            onClick={() => {
-              resetFlow();
-              onReturnToMenu?.();
-            }}
-          >
-            Selesai & Kembali ke Menu
-          </Button>
-        </DialogContent>
-      </Dialog>
-
-      <EmailActionOverlay
-        open={isSendingEmail}
-        title={variantConfig.sendOverlayTitle}
-        description="Sistem sedang membuat PDF final lalu mengirimkannya ke email tujuan."
-      />
-      <EmailSuccessDialog
-        open={Boolean(emailSuccessState)}
-        onClose={() => {
-          resetFlow();
-          onReturnToMenu?.();
-        }}
-        recipientEmail={emailSuccessState?.email}
-        letterNumber={emailSuccessState?.letterNumber}
-        accessCode={emailSuccessState?.accessCode}
-        title={variantConfig.sendSuccessTitle}
-      />
     </>
   );
 }

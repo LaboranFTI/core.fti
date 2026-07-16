@@ -358,7 +358,154 @@ router.get('/research-requests', verifyRole(['Admin', 'Admin TU', 'User TU']), a
   }
 });
 
+
+// ─── Approval/Rejection Workflow ──────────────────────────────────────────────
+
+router.post('/tu/research-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    await createFinalResearchRequest(client, req.body, 'pending', req, 'research');
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Gagal mengajukan surat.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/interview-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    await createFinalResearchRequest(client, req.body, 'pending', req, INTERVIEW_LETTER_KIND);
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Gagal mengajukan surat.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/permission-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    await createFinalResearchRequest(client, req.body, 'pending', req, PERMISSION_LETTER_KIND);
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Gagal mengajukan surat.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/tu/requests/ta/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const existingResult = await client.query(`SELECT * FROM ta_letter_requests WHERE id = $1 FOR UPDATE`, [id]);
+    if (existingResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    }
+    
+    let requestData = existingResult.rows[0];
+    const letterType = getResearchLetterType(requestData);
+    requestData = await ensureLetterNumber(client, letterType, requestData);
+    requestData = await ensureLetterValidationToken(client, letterType, requestData);
+    
+    await client.query(
+      `UPDATE ta_letter_requests
+       SET status = 'verified',
+           rejection_reason = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, letterNumber: requestData.letter_number || '', validationToken: requestData.validation_token || '' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Verify TA letter error:', err);
+    res.status(500).json({ error: 'Gagal memverifikasi pengajuan surat.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/tu/requests/ta/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const { rejection_reason } = req.body;
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const existingResult = await client.query(`SELECT * FROM ta_letter_requests WHERE id = $1 FOR UPDATE`, [id]);
+    if (existingResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    }
+    
+    let requestData = existingResult.rows[0];
+    const reason = rejection_reason || 'Tidak ada alasan yang diberikan.';
+    
+    await client.query(
+      `UPDATE ta_letter_requests
+       SET status = 'rejected',
+           rejection_reason = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [reason, id]
+    );
+    await client.query('COMMIT');
+    
+    if (isValidEmailAddress(requestData.email)) {
+       let letterName = 'Penelitian';
+       if (requestData.letter_kind === 'interview') letterName = 'Wawancara';
+       else if (requestData.letter_kind === 'permission') letterName = 'Perizinan';
+       
+       const emailHtml = buildProfessionalEmail({
+         title: 'Penolakan Pengajuan Surat',
+         contentHtml: `
+           <h2>Halo, ${escapeXml(requestData.name)} (${escapeXml(requestData.nim)})</h2>
+           <p>Maaf, pengajuan surat <b>${escapeXml(letterName)}</b> Anda ditolak dengan alasan:</p>
+           <div style="padding: 16px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; margin-top: 16px;">
+             ${escapeXml(reason)}
+           </div>
+           <p style="margin-top: 16px;">Silakan ajukan ulang surat Anda setelah memperbaiki hal tersebut.</p>
+         `
+       });
+       await sendMail({
+         to: requestData.email,
+         subject: 'Pengajuan Surat Ditolak',
+         html: emailHtml
+       }).catch(console.error);
+    }
+    
+    res.json({ success: true, message: 'Surat berhasil ditolak.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => { });
+    console.error('Reject TA letter error:', err);
+    res.status(500).json({ error: 'Gagal menolak pengajuan surat.' });
+  } finally {
+    client.release();
+  }
+});
+
 // ─── Research letter actions ──────────────────────────────────────────────────
+
 
 router.post('/tu/research-letter/generate-and-download', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
   const client = await pool.connect();
