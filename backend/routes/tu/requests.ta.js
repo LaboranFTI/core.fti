@@ -71,6 +71,13 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
         return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
       }
 
+      const status = result.rows[0].status;
+      if (status === 'pending' || status === 'rejected') {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(400).json({ error: 'Hanya surat yang sudah diverifikasi yang dapat dikirim email.' });
+      }
+
       requestData = await ensureLetterNumber(client, type, result.rows[0]);
       requestData = await ensureLetterValidationToken(client, type, requestData);
       await client.query('COMMIT');
@@ -457,6 +464,10 @@ router.put('/tu/requests/ta/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req,
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
     }
+    if (existingResult.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Hanya pengajuan dengan status pending yang dapat ditolak.' });
+    }
     
     let requestData = existingResult.rows[0];
     const reason = rejection_reason || 'Tidak ada alasan yang diberikan.';
@@ -487,10 +498,12 @@ router.put('/tu/requests/ta/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req,
            <p style="margin-top: 16px;">Silakan ajukan ulang surat Anda setelah memperbaiki hal tersebut.</p>
          `
        });
+       const attachments = getStandardEmailAttachments();
        await sendMail({
          to: requestData.email,
          subject: 'Pengajuan Surat Ditolak',
-         html: emailHtml
+         html: emailHtml,
+         attachments
        }).catch(console.error);
     }
     

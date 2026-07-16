@@ -95,6 +95,7 @@ export interface ResearchRequest extends ResearchLetterData {
   signatureBase64?: string;
   stampBase64?: string;
   letterGeneratedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface ObservationRequest {

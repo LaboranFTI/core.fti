@@ -110,13 +110,14 @@ export async function sendMail({ to, subject, html, text, cc, attachments = [] }
     const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@forion.my.id';
     const resendAttachments = attachments.map(att => {
       // Sesuaikan format attachment dari Nodemailer ke Resend
-      if (att.content) {
-        return {
-          filename: att.filename,
-          content: att.content // Resend menerima Buffer secara native di versi terbaru
-        };
+      const resendAtt = {};
+      if (att.filename) resendAtt.filename = att.filename;
+      if (att.content) resendAtt.content = att.content; // Resend menerima Buffer
+      if (att.cid) {
+        resendAtt.content_id = att.cid; // Resend menggunakan content_id untuk inline (cid)
+        resendAtt.disposition = 'inline';
       }
-      return att;
+      return resendAtt;
     });
 
     const payload = {

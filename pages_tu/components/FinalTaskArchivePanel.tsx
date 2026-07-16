@@ -308,7 +308,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
         method: 'PUT',
         body: JSON.stringify({ 
           letterType: rejectTarget.type,
-          rejectionReason: rejectReason.trim()
+          rejection_reason: rejectReason.trim()
         })
       });
       
@@ -636,6 +636,9 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
               {currentItem?.letterGeneratedAt && (
                 <DetailRow label="Tanggal Surat" value={formatArchiveDate(currentItem.letterGeneratedAt)} />
               )}
+              {currentItem?.status === 'rejected' && currentItem?.rejectionReason && (
+                <DetailRow label="Alasan Penolakan" value={currentItem.rejectionReason} />
+              )}
 
               {/* QR Code */}
               {currentItem?.validationToken && (
@@ -656,7 +659,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                       onClick={() => handleVerify(currentType!, currentItem!)}
                       disabled={isProcessing}
                     >
-                      <CheckCircle className="h-4 w-4" /> Acc Surat
+                      <CheckCircle className="h-4 w-4" /> Setuju
                     </Button>
                     <Button
                       variant="outline"
@@ -664,7 +667,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                       onClick={() => handleOpenRejectDialog(currentType!, currentItem!)}
                       disabled={isProcessing}
                     >
-                      <XCircle className="h-4 w-4" /> Tolak Surat
+                      <XCircle className="h-4 w-4" /> Tolak
                     </Button>
                   </>
                 )}

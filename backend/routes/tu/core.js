@@ -894,6 +894,7 @@ const mapResearchRow = (row) => ({
   accessCode: row.access_code,
   letterGeneratedAt: row.letter_generated_at,
   carbonCopies: row.carbon_copies || [],
+  rejectionReason: row.rejection_reason,
   createdAt: row.created_at
 });
 
