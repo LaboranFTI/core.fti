@@ -33,9 +33,9 @@ try {
 
 export function getStandardEmailAttachments() {
   const attachments = [];
-  if (ukswLogo) attachments.push({ filename: 'UKSW.png', content: ukswLogo, cid: 'uksw_logo' });
-  if (ftiLogo) attachments.push({ filename: 'FTI.png', content: ftiLogo, cid: 'fti_logo' });
-  if (nocLogo) attachments.push({ filename: 'noc.png', content: nocLogo, cid: 'noc_logo' });
+  if (ukswLogo) attachments.push({ filename: 'UKSW.png', content: ukswLogo, cid: 'uksw_logo', contentType: 'image/png' });
+  if (ftiLogo) attachments.push({ filename: 'FTI.png', content: ftiLogo, cid: 'fti_logo', contentType: 'image/png' });
+  if (nocLogo) attachments.push({ filename: 'noc.png', content: nocLogo, cid: 'noc_logo', contentType: 'image/png' });
   return attachments;
 }
 
@@ -113,6 +113,7 @@ export async function sendMail({ to, subject, html, text, cc, attachments = [] }
       const resendAtt = {};
       if (att.filename) resendAtt.filename = att.filename;
       if (att.content) resendAtt.content = att.content; // Resend menerima Buffer
+      if (att.contentType) resendAtt.content_type = att.contentType;
       if (att.cid) {
         resendAtt.content_id = att.cid; // Resend menggunakan content_id untuk inline (cid)
         resendAtt.disposition = 'inline';
