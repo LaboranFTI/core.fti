@@ -8,7 +8,8 @@ import {
   Users
 } from '@phosphor-icons/react';
 import React, { useCallback, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, Controller } from 'react-hook-form';
+import { WilayahAddressInput } from './WilayahAddressInput';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -416,32 +417,7 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
       }))
       .filter((advisor) => advisor.name);
 
-    const {
-      addressStreet = '',
-      addressKelurahan = '',
-      addressKecamatan = '',
-      addressCity = '',
-      addressProvince = '',
-      addressPostalCode = ''
-    } = values;
-
-    const line1 = addressStreet.trim();
-    
-    const kelKecParts = [];
-    if (addressKelurahan.trim()) kelKecParts.push(`Kel. ${addressKelurahan.trim()}`);
-    if (addressKecamatan.trim()) kelKecParts.push(`Kec. ${addressKecamatan.trim()}`);
-    const line2 = kelKecParts.join(', ');
-
-    const cityProvParts = [];
-    if (addressCity.trim()) cityProvParts.push(addressCity.trim());
-    if (addressProvince.trim()) cityProvParts.push(addressProvince.trim());
-    let line3 = cityProvParts.join(', ');
-    
-    if (addressPostalCode.trim()) {
-      line3 = line3 ? `${line3} ${addressPostalCode.trim()}` : addressPostalCode.trim();
-    }
-
-    const combinedAddress = [line1, line2, line3].filter(Boolean).join('\n');
+    const combinedAddress = values.destinationAddress?.trim() || '';
 
     return {
       ...values,
@@ -467,11 +443,7 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
     if (!data.studyProgramName) return { field: 'studyProgram' as const, message: 'Program studi wajib dipilih.' };
     if (!data.recipientTitle?.trim()) return { field: 'recipientTitle' as const, message: 'Jabatan penerima surat wajib diisi.' };
     if (!data.destinationPlace.trim()) return { field: 'destinationPlace' as const, message: 'Instansi atau tempat tujuan surat wajib diisi.' };
-    if (!data.addressStreet?.trim()) return { field: 'addressStreet' as const, message: 'Jalan / Alamat tujuan surat wajib diisi.' };
-    if (!data.addressKelurahan?.trim()) return { field: 'addressKelurahan' as const, message: 'Kelurahan wajib diisi.' };
-    if (!data.addressKecamatan?.trim()) return { field: 'addressKecamatan' as const, message: 'Kecamatan wajib diisi.' };
-    if (!data.addressCity?.trim()) return { field: 'addressCity' as const, message: 'Kota / Kabupaten wajib diisi.' };
-    if (!data.addressProvince?.trim()) return { field: 'addressProvince' as const, message: 'Provinsi wajib diisi.' };
+    if (!data.destinationAddress?.trim()) return { field: 'destinationAddress' as const, message: 'Alamat lengkap wajib diisi.' };
     if (variant === 'permission' && !data.permissionPurpose?.trim()) return { field: 'permissionPurpose' as const, message: 'Keperluan izin wajib diisi.' };
     if (!data.researchPlace.trim()) return { field: 'researchPlace' as const, message: variantConfig.validatePlaceMessage };
     if (!data.researchTitle.trim()) return { field: 'researchTitle' as const, message: variantConfig.validateTitleMessage };
@@ -563,39 +535,20 @@ export function ResearchLetterForm({ onCompleted, onReturnToMenu, readOnly = fal
                 </div>
                 <div className="space-y-4 md:col-span-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="addressStreet">Alamat Tujuan Surat <span className="text-red-500">*</span></Label>
-                    <Input id="addressStreet" placeholder="Jalan / Alamat Lengkap" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressStreet || fieldErrors.destinationAddress)} {...register('addressStreet')} />
-                    {(fieldErrors.addressStreet || fieldErrors.destinationAddress) && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressStreet || fieldErrors.destinationAddress}</p>}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="addressKelurahan">Kelurahan <span className="text-red-500">*</span></Label>
-                      <Input id="addressKelurahan" placeholder="Kelurahan" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressKelurahan)} {...register('addressKelurahan')} />
-                      {fieldErrors.addressKelurahan && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressKelurahan}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="addressKecamatan">Kecamatan <span className="text-red-500">*</span></Label>
-                      <Input id="addressKecamatan" placeholder="Kecamatan" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressKecamatan)} {...register('addressKecamatan')} />
-                      {fieldErrors.addressKecamatan && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressKecamatan}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="addressCity">Kota / Kabupaten <span className="text-red-500">*</span></Label>
-                      <Input id="addressCity" placeholder="Kota / Kabupaten" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressCity)} {...register('addressCity')} />
-                      {fieldErrors.addressCity && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressCity}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="addressProvince">Provinsi <span className="text-red-500">*</span></Label>
-                      <Input id="addressProvince" placeholder="Provinsi" disabled={readOnly} aria-invalid={Boolean(fieldErrors.addressProvince)} {...register('addressProvince')} />
-                      {fieldErrors.addressProvince && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.addressProvince}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="addressPostalCode">Kode Pos</Label>
-                      <Input id="addressPostalCode" placeholder="Kode Pos (Opsional)" disabled={readOnly} {...register('addressPostalCode')} />
-                    </div>
+                    <Label htmlFor="destinationAddress">Alamat Tujuan Surat <span className="text-red-500">*</span></Label>
+                    <Controller
+                      name="destinationAddress"
+                      control={control}
+                      render={({ field }) => (
+                        <WilayahAddressInput
+                          id="destinationAddress"
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          disabled={readOnly}
+                        />
+                      )}
+                    />
+                    {fieldErrors.destinationAddress && <p className="text-xs text-red-600 dark:text-red-300">{fieldErrors.destinationAddress}</p>}
                   </div>
                 </div>
               </div>

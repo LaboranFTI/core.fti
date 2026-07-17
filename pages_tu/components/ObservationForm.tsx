@@ -9,12 +9,13 @@ import {
   Trash as Trash2,
   Users
 } from '@phosphor-icons/react';
-import React, { useState, useCallback } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useFieldArray, useForm, Controller } from 'react-hook-form';
 import { ObservationData } from '../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { WilayahAddressInput } from './WilayahAddressInput';
 import { Textarea } from '../../components/ui/textarea';
 import { api } from '../../services/api';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
@@ -618,16 +619,20 @@ export function ObservationForm({ readOnly = false, feedback = null, onReturnToM
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="companyAddress" className="text-slate-700 dark:text-slate-300 font-medium">Alamat Perusahaan</Label>
-                    <Textarea
-                      id="companyAddress"
-                      placeholder="Contoh: Jl. Sudirman No. 123, Jakarta"
-                      className="resize-y bg-white dark:bg-gray-800"
-                      size="sm"
-                      disabled={readOnly}
-                      {...register("companyAddress")}
-                    />
-                  </div>
+                      <Label htmlFor="companyAddress" className="text-slate-700 dark:text-slate-300 font-medium">Alamat Perusahaan</Label>
+                      <Controller
+                        name="companyAddress"
+                        control={control}
+                        render={({ field }) => (
+                          <WilayahAddressInput
+                            id="companyAddress"
+                            value={field.value}
+                            onChange={field.onChange}
+                            disabled={readOnly}
+                          />
+                        )}
+                      />
+                    </div>
                 </div>
               </div>
 

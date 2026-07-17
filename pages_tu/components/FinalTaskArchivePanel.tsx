@@ -443,8 +443,6 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
     }
   };
 
-
-
   const getValidationUrl = (token?: string) =>
     token ? `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/tu/validasi-surat/${token}` : '';
 
@@ -672,6 +670,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                   </>
                 )}
                 
+
                 {currentItem?.status !== 'pending' && (
                   <Button
                     variant="outline"
@@ -682,7 +681,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                     <Download className="h-4 w-4" /> Download PDF
                   </Button>
                 )}
-                
+
                 {currentItem?.status === 'verified' && (
                   <Button
                     variant="outline"
@@ -836,16 +835,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDownload('research', item)}
-                                disabled={isProcessing}
-                                aria-label={`Download ${item.name}`}
-                                className="dark:border-gray-600 dark:text-gray-300"
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -943,16 +933,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDownload('interview', item)}
-                                disabled={isProcessing}
-                                aria-label={`Download ${item.name}`}
-                                className="dark:border-gray-600 dark:text-gray-300"
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1050,16 +1031,7 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDownload('permission', item)}
-                                disabled={isProcessing}
-                                aria-label={`Download ${item.name}`}
-                                className="dark:border-gray-600 dark:text-gray-300"
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"

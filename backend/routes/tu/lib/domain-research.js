@@ -5,8 +5,25 @@ import { buildResearchSignerList } from './signers.js';
 import { ensureLetterValidationToken } from './letter-html.js';
 import { getRecommendationSigner, getDeanSigner, getStudyProgramByNim } from './university.js';
 import { createResearchAccessCode, normalizeResearchAccessCode } from './tokens.js';
-import { RESEARCH_LETTER_KIND, INTERVIEW_LETTER_KIND, PERMISSION_LETTER_KIND } from './constants.js';
+import { 
+  RESEARCH_LETTER_KIND, 
+  INTERVIEW_LETTER_KIND, 
+  PERMISSION_LETTER_KIND,
+  DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+  DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND,
+  DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND
+} from './constants.js';
 import { escapeXml } from './sanitize.js';
+import { formatStudentName } from '../../../utils/activeStudentLetter.js';
 
 const normalizeResearchPayload = async (payload = {}) => {
   const nim = String(payload.nim || '').trim();

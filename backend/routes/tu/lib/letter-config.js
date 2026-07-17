@@ -4,7 +4,7 @@ import { getRecommendationSigner, getDeanSigner, formatFacultyProgram, getStudyP
 import { normalizeResearchDefaults, normalizeInterviewDefaults, normalizePermissionDefaults, getResearchAdvisorTitle, normalizeResearchAdvisors, buildResearchAdvisorText, buildResearchAdvisorSignatureHtml } from './domain-research.js';
 import { DEFAULT_COUNSELING_SUBJECT, DEFAULT_COUNSELING_RECIPIENT_NAME, DEFAULT_COUNSELING_REFERRAL_UNIT } from './constants.js';
 import { escapeXml } from './sanitize.js';
-
+import { buildBirthPlaceAndDate, DEFAULT_FACULTY, DEFAULT_UNIVERSITY } from '../../../utils/activeStudentLetter.js';
 const letterConfig = {
   'active-student': {
     table: 'active_student_requests',

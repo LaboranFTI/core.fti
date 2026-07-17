@@ -579,7 +579,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
     const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
 
     // 2. Baca template HTML dari file
-    const templatePath = path.join(__dirname, '..', 'templates', 'email', config.template);
+    const templatePath = path.join(__dirname, '..', 'lettersTU', config.template);
     let htmlContent = await fs.readFile(templatePath, 'utf-8');
 
     // 3. Ganti placeholder umum

@@ -1,6 +1,9 @@
 import { formatPublicDate, buildPublicValidationUrl } from './url-builders.js';
 import { normalizeResearchAdvisors } from './domain-research.js';
 import { normalizeObservationStudents, buildObservationStudentRowsHtml } from './domain-observation.js';
+import { RESEARCH_LETTER_KIND } from './constants.js';
+import { maskNim, maskEmail, maskDate } from './sanitize.js';
+import { DEFAULT_FACULTY, DEFAULT_UNIVERSITY } from '../../../utils/activeStudentLetter.js';
 
 const mapActiveStudentRow = (row) => ({
   id: row.id,

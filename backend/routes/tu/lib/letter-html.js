@@ -100,7 +100,7 @@ const buildLetterHtml = async (type, requestData, req) => {
   const assetKey = config.assetKey || LETTER_TYPE_TO_CLIENT_KEY[type];
   const backgroundImage = requestData.backgroundImageBase64 || getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
   const letterLayout = requestData.layout || normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
-  const templatePath = path.join(__dirname, '..', '..', 'lettersTU', config.template);
+  const templatePath = path.join(__dirname, '..', '..', '..', 'lettersTU', config.template);
   let htmlContent = await fs.readFile(templatePath, 'utf-8');
 
   const validationToken = requestData.validation_token || requestData.validationToken;

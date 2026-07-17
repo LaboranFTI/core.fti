@@ -12,7 +12,7 @@ import fs from "fs/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const QR_CENTER_LOGO_PATH = path.join(__dirname, '..', '..', '..', 'src', 'assets', 'FTI_nobg.svg');
+const QR_CENTER_LOGO_PATH = path.join(__dirname, '..', '..', '..', '..', 'src', 'assets', 'FTI_nobg.svg');
 let qrCenterLogoDataUrlPromise = null;
 
 const getQrCenterLogoDataUrl = async () => {

@@ -263,29 +263,25 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
 
   const handleDownloadPdf = async () => {
     if (!selectedLetter) return;
-    const { type, item } = selectedLetter;
-    const apiType = getArchiveApiType(type);
-
     setIsProcessing(true);
     setFeedback(null);
     try {
-      const res = await tuApi.downloadLetter(apiType, item.id);
-      if (!res.ok) throw new Error('Gagal mendownload PDF');
-
+      const type = selectedLetter.type === 'active' ? 'active-student' : selectedLetter.type;
+      const res = await tuApi.downloadLetter(type, selectedLetter.item.id);
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || 'Gagal mendownload PDF surat.');
+      }
       const blob = await res.blob();
-      const safeLetterNumber = item.letterNumber ? item.letterNumber.replace(/\//g, '_') : 'Arsip';
-      const filename = `${safeLetterNumber}_${item.nim}.pdf`;
-
-      // Memaksa browser downloader dengan mengubah tipe MIME menjadi octet-stream
-      const forceBrowserDownloadBlob = new Blob([blob], { type: 'application/octet-stream' });
-      const url = window.URL.createObjectURL(forceBrowserDownloadBlob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = `Surat_${type}_${selectedLetter.item.nim}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      setFeedback({ type: 'success', message: 'Berhasil mendownload PDF.' });
     } catch (error) {
       console.error('Failed to download PDF:', error);
       setFeedback({ type: 'error', message: 'Gagal mendownload PDF surat.' });
@@ -351,24 +347,31 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
     }, 500);
   };
 
-  const handleVerifyObservation = async (id: string) => {
+  const handleVerifyRequest = async (id: string, type: 'active' | 'observation' | 'counseling' | 'su-rek') => {
     setIsProcessing(true);
     setFeedback(null);
     try {
-      const isCounselingTarget = selectedLetter?.type === 'counseling';
-      const res = isCounselingTarget
-        ? await tuApi.verifyCounseling(id)
-        : await tuApi.verifyObservation(id);
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.error || `Gagal memverifikasi ${isCounselingTarget ? 'surat konseling' : 'surat observasi'}.`);
+      let res;
+      if (type === 'active') {
+        res = await tuApi.verifyAdminRequest('activeStudent', id);
+      } else if (type === 'observation') {
+        res = await tuApi.verifyObservation(id);
+      } else if (type === 'counseling') {
+        res = await tuApi.verifyCounseling(id);
+      } else if (type === 'su-rek') {
+        res = await tuApi.verifyAdminRequest('suRek', id);
+      }
+
+      const json = res ? await res.json().catch(() => null) : null;
+      if (!res?.ok) {
+        throw new Error(json?.error || `Gagal memverifikasi surat.`);
       }
 
       await fetchArchiveData({ showError: false });
       setSelectedLetter((prev) =>
-        prev && prev.type === 'observation' && prev.item.id === id
+        prev && prev.type === type && prev.item.id === id
           ? {
-              type: 'observation',
+              type: type as any,
               item: {
                 ...prev.item,
                 status: 'verified',
@@ -378,22 +381,9 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             }
           : prev
       );
-      setSelectedLetter((prev) =>
-        prev && prev.type === 'counseling' && prev.item.id === id
-          ? {
-              type: 'counseling',
-              item: {
-                ...prev.item,
-                status: 'verified',
-                letterNumber: json?.letterNumber || prev.item.letterNumber,
-                validationToken: json?.validationToken || prev.item.validationToken
-              }
-            }
-          : prev
-      );
-      setFeedback({ type: 'success', message: `${isCounselingTarget ? 'Surat konseling' : 'Surat observasi'} berhasil diverifikasi dan diberi nomor surat.` });
+      setFeedback({ type: 'success', message: 'Surat berhasil disetujui dan diberi nomor surat.' });
     } catch (error) {
-      console.error('Failed to verify observation:', error);
+      console.error('Failed to verify request:', error);
       setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal memverifikasi surat.' });
     } finally {
       setIsProcessing(false);
@@ -796,42 +786,50 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 <CardDescription className="dark:text-gray-400">{actionHint}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
-                {(isObservation || isCounseling) && item.status === 'pending' && (
-                  <Button onClick={() => handleVerifyObservation(item.id)} disabled={isProcessing} className="w-full justify-center">
-                    <ShieldCheck className="mr-2 h-4 w-4" /> Verifikasi Surat
+                {item.status === 'pending' && (
+                  <Button onClick={() => handleVerifyRequest(item.id, selectedLetter.type)} disabled={isProcessing} className="w-full justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                    <CheckCircle className="h-4 w-4" /> Setuju
                   </Button>
                 )}
-                <Button variant="outline" onClick={handlePrint} disabled={!canSendEmail || isProcessing} className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800">
-                  <Printer className="mr-2 h-4 w-4" /> Cetak Ulang
+                
+                {canSendEmail && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSendEmail(isObservation ? 'observation' : isCounseling ? 'counseling' : isSuRek ? 'su-rek' : 'active-student', item.id)}
+                    disabled={isProcessing || isSendingEmail}
+                    className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Kirim Email
+                  </Button>
+                )}
+                
+                <Button variant="outline" onClick={handlePrint} disabled={!canSendEmail || isProcessing} className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <Printer className="h-4 w-4" /> Cetak Ulang
                 </Button>
-                <Button variant="outline" onClick={handleDownloadPdf} disabled={!canSendEmail || isProcessing} className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800">
-                  <Download className="mr-2 h-4 w-4" /> {canSendEmail ? 'Download PDF' : 'PDF Belum Tersedia'}
+
+                <Button variant="outline" onClick={handleDownloadPdf} disabled={!canSendEmail || isProcessing} className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <Download className="h-4 w-4" /> Download PDF
                 </Button>
-                <Button
-                  onClick={() => handleSendEmail(isObservation ? 'observation' : isCounseling ? 'counseling' : isSuRek ? 'su-rek' : 'active-student', item.id)}
-                  disabled={!canSendEmail || isProcessing || isSendingEmail}
-                  className="w-full justify-center"
-                >
-                  {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                  {isSendingEmail ? 'Mengirim Email...' : canSendEmail ? 'Kirim ke Email' : 'Email Belum Tersedia'}
-                </Button>
+                
                 {(isObservation || isCounseling || isSuRek) && (
                   <Button
                     variant="outline"
                     onClick={() => setEditTarget(isSuRek ? { ...suRekItem, type: 'su-rek' } : isCounseling ? { ...counselingItem, type: 'counseling' } : observationItem)}
                     disabled={isProcessing}
-                    className="w-full justify-center border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                    className="w-full justify-center gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
                   >
-                    <Pencil className="mr-2 h-4 w-4" /> Edit Data Surat
+                    <Pencil className="h-4 w-4" /> Edit Data Surat
                   </Button>
                 )}
+                
                 <Button
                   variant="outline"
-                  onClick={() => openDeleteSingle(item.id, isObservation ? 'observation' : isCounseling ? 'counseling' : isSuRek ? 'su-rek' : 'active', item.name)}
+                  onClick={() => openDeleteSingle(item.id, selectedLetter.type, item.name)}
                   disabled={isProcessing}
-                  className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="w-full justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" /> Hapus Arsip Ini
+                  <Trash2 className="h-4 w-4" /> Hapus Arsip Ini
                 </Button>
               </CardContent>
             </Card>

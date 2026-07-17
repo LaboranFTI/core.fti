@@ -1,5 +1,6 @@
+import { pool } from '../config/database.js';
+
 // Helper function to automatically log errors from API calls
-// Import { pool } from '../config/database.js' in using files
 export const logError = async (error, req, customMessage = null) => {
   try {
     const errorType = error.type || 'API';

@@ -9,7 +9,7 @@
     "calendar:backfill": "node scripts/backfill-core-calendar.js",
     "calendar:backfill:dry-run": "node scripts/backfill-core-calendar.js --dry-run",
     "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --ext js,ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "overrides": {
@@ -20,6 +20,7 @@
     "@base-ui/react": "^1.0.0-alpha.5",
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@fontsource-variable/space-grotesk": "^5.2.10",
+    "@formkit/auto-animate": "^0.10.0",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "bcryptjs": "^2.4.3",

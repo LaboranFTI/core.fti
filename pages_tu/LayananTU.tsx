@@ -1,6 +1,4 @@
 import {
-  ArrowLeft,
-  Layout,
   Archive as PhArchive,
   Buildings as PhBuildings,
   ChatCircleText as PhChatCircleText,
@@ -12,9 +10,14 @@ import {
   Medal as PhMedal,
   MicrophoneStage as PhMicrophoneStage,
   ShieldCheck as PhShieldCheck,
-  Student as PhStudent
+  Student as PhStudent,
+  MagnifyingGlass as PhMagnifyingGlass,
+  House as PhHouse,
+  CaretRight as PhCaretRight,
+  XCircle as PhXCircle
 } from '@phosphor-icons/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { Role } from '../types';
 import { ActiveStudentForm } from './components/ActiveStudentForm';
 import { AdminPanel } from './components/AdminPanel';
@@ -27,52 +30,11 @@ import { SuRekForm } from './components/SuRekForm';
 import { PageTabs, PageTabItem } from '../components/ui/page-tabs';
 import { Tabs, TabsContent } from '../components/ui/tabs';
 import PageHeader from '../components/PageHeader';
-import { api } from '../services/api';
-import { TULetterBackgrounds, TULetterLayouts } from './types';
 import { cn } from '../lib/utils';
 
 interface HalamanTUProps {
   role: Role;
 }
-
-const createEmptyLetterBackgrounds = (): TULetterBackgrounds => ({
-  document: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  activeStudent: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  observation: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  counseling: { imageBase64: '', fileName: '', mimeType: 'image/png' },
-  research: { imageBase64: '', fileName: '', mimeType: 'image/png' }
-});
-
-const createEmptyLetterLayouts = (): TULetterLayouts => ({
-  activeStudent: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  observation: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  counseling: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  research: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 },
-  suRek: { marginTopMm: 40, marginRightMm: 22, marginBottomMm: 26, marginLeftMm: 22 }
-});
-
-const normalizeLetterBackgrounds = (backgrounds?: Partial<TULetterBackgrounds>): TULetterBackgrounds => {
-  const empty = createEmptyLetterBackgrounds();
-  const sharedBackground = backgrounds?.document?.imageBase64
-    ? backgrounds.document
-    : backgrounds?.activeStudent?.imageBase64
-      ? backgrounds.activeStudent
-    : backgrounds?.observation?.imageBase64
-      ? backgrounds.observation
-      : backgrounds?.counseling?.imageBase64
-        ? backgrounds.counseling
-        : backgrounds?.research?.imageBase64
-          ? backgrounds.research
-          : empty.document;
-
-  return {
-    document: { ...empty.document, ...sharedBackground },
-    activeStudent: { ...empty.activeStudent, ...sharedBackground },
-    observation: { ...empty.observation, ...sharedBackground },
-    counseling: { ...empty.counseling, ...sharedBackground },
-    research: { ...empty.research, ...sharedBackground }
-  };
-};
 
 type LetterCategoryId = 'tata-usaha' | 'tugas-akhir';
 type LetterServiceId =
@@ -113,9 +75,12 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
   };
   const [activeServiceId, setActiveServiceId] = useState<LetterServiceId | null>(null);
   const [activeLetterCategory, setActiveLetterCategory] = useState<LetterCategoryId>('tata-usaha');
-  const [letterBackgrounds, setLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
-  const [letterLayouts, setLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
+  const [searchQuery, setSearchQuery] = useState('');
   const [letterArchiveRefreshKey, setLetterArchiveRefreshKey] = useState(0);
+  
+  const [parentGrid] = useAutoAnimate();
+  const [parentList] = useAutoAnimate();
+
   const letterServiceCards: LetterServiceCard[] = [
     {
       value: 'aktif',
@@ -176,26 +141,14 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       category: 'tugas-akhir'
     }
   ];
-  const adminToolCards: LetterServiceCard[] = [
-    {
-      value: 'panel-admin',
-      title: 'Kelola Permohonan',
-      description: 'Buka panel validasi permohonan, pengaturan surat, dan proses pengiriman.',
-      icon: PhShieldCheck,
-      group: 'admin'
-    },
-    {
-      value: 'arsip-surat',
-      title: 'Arsip Surat',
-      description: 'Buka daftar surat tersimpan untuk cetak ulang atau kirim ulang ke email.',
-      icon: PhArchive,
-      group: 'admin'
-    }
-  ];
-  const availableServiceCards = letterServiceCards.filter((item) => {
-    if (item.adminOnly && !isTUAdmin) return false;
-    return !isMahasiswa || item.value === 'observasi';
-  });
+
+  const availableServiceCards = useMemo(() => {
+    return letterServiceCards.filter((item) => {
+      if (item.adminOnly && !isTUAdmin) return false;
+      return true;
+    });
+  }, [isTUAdmin, isMahasiswa]);
+
   const letterCategoryTabs: PageTabItem[] = [
     { value: 'tata-usaha', label: 'Surat Tata Usaha', icon: PhFileText },
     { value: 'tugas-akhir', label: 'Surat Tugas Akhir', icon: PhGraduationCap }
@@ -208,46 +161,15 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
     : null;
 
 
-  const fetchLetterBackgrounds = useCallback(async () => {
-    try {
-      const res = await api('/api/tu/letter-backgrounds');
-      const json = await res.json();
-      if (res.ok && json?.letterBackgrounds) {
-        setLetterBackgrounds(normalizeLetterBackgrounds(json.letterBackgrounds));
-        const defaultLayouts = createEmptyLetterLayouts();
-        const mergedLayouts = {
-          activeStudent: { ...defaultLayouts.activeStudent, ...json.letterLayouts?.activeStudent },
-          observation: { ...defaultLayouts.observation, ...json.letterLayouts?.observation },
-          counseling: { ...defaultLayouts.counseling, ...json.letterLayouts?.counseling },
-          research: { ...defaultLayouts.research, ...json.letterLayouts?.research },
-          suRek: { ...defaultLayouts.suRek, ...json.letterLayouts?.suRek }
-        };
-        setLetterLayouts(mergedLayouts);
-      }
-    } catch (error) {
-      console.error('Failed to fetch TU letter backgrounds:', error);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchLetterBackgrounds();
-  }, [fetchLetterBackgrounds]);
-
   useEffect(() => {
     if (!activeServiceId) {
-      return;
-    }
-
-    if (isMahasiswa && activeServiceId !== 'observasi') {
-      setActiveServiceId(null);
       return;
     }
 
     if (!isTUAdmin && (activeServiceId === 'arsip-surat' || activeServiceId === 'panel-admin')) {
       setActiveServiceId(null);
     }
-
-  }, [activeServiceId, isMahasiswa, isTUAdmin]);
+  }, [activeServiceId, isTUAdmin]);
 
 
 
@@ -265,10 +187,9 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
 
   const adminMainTabs: PageTabItem[] = [
     { value: 'surat', label: 'Surat', icon: PhFileText },
-    { value: 'permohonan', label: 'Kelola Permohonan', icon: PhShieldCheck },
-    { value: 'arsip', label: 'Arsip Surat TU', icon: PhArchive },
-    { value: 'arsip-ta', label: 'Arsip Tugas Akhir', icon: PhGraduationCap },
-    { value: 'konfigurasi', label: 'Konfigurasi Surat', icon: PhGearSix }
+    { value: 'arsip', label: 'Kelola Surat TU', icon: PhArchive },
+    { value: 'arsip-ta', label: 'Kelola Surat TA', icon: PhGraduationCap },
+    { value: 'konfigurasi', label: 'Pengaturan', icon: PhGearSix }
   ];
 
   const renderServiceCard = (item: LetterServiceCard) => {
@@ -297,49 +218,66 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
             : 'border-slate-200 dark:border-gray-700'
         )}
       >
-        <span className="flex min-h-0 flex-col items-start">
+          <span className="flex min-h-0 flex-col items-start">
           <span
             className={cn(
-              'flex h-10 w-10 flex-none items-center justify-center rounded-md border transition-colors',
+              'flex h-12 w-12 flex-none items-center justify-center rounded-xl border transition-colors',
               isComingSoon
                 ? 'border-slate-200 bg-white text-slate-400 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-500'
                 : isActive
                 ? 'border-fti-blue-200 bg-fti-blue-50 text-fti-blue-700 dark:border-fti-blue-300/30 dark:bg-fti-blue-300/10 dark:text-fti-blue-200'
-                : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:text-fti-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300 dark:group-hover:text-fti-blue-200'
+                : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:bg-fti-blue-50 group-hover:border-fti-blue-200 group-hover:text-fti-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300 dark:group-hover:bg-fti-blue-500/10 dark:group-hover:border-fti-blue-300/30 dark:group-hover:text-fti-blue-200'
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-6 w-6" />
           </span>
-          <span className="mt-3 min-w-0">
-            <span className="block text-sm font-semibold text-slate-900 dark:text-white">{item.title}</span>
-            <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">{item.description}</span>
+          <span className="mt-4 min-w-0">
+            <span className="block text-sm font-semibold text-slate-900 dark:text-white transition-colors group-hover:text-fti-blue-700 dark:group-hover:text-fti-blue-200">{item.title}</span>
+            <span className="mt-1.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">{item.description}</span>
           </span>
         </span>
         <span
           className={cn(
-            'mt-4 text-xs font-semibold uppercase text-slate-400 transition-colors dark:text-slate-500',
-            isActive && 'text-fti-blue-700 dark:text-fti-blue-200'
+            'mt-5 text-xs font-semibold uppercase text-slate-400 transition-colors dark:text-slate-500',
+            isActive && 'text-fti-blue-700 dark:text-fti-blue-200',
+            !isComingSoon && !isActive && 'group-hover:text-fti-blue-600 dark:group-hover:text-fti-blue-300'
           )}
         >
-          {isActive ? 'Sedang dibuka' : isComingSoon ? 'Segera tersedia' : 'Buka'}
+          {isActive ? 'Sedang dibuka' : isComingSoon ? 'Segera tersedia' : 'Buka Formulir'}
         </span>
       </button>
     );
   };
 
-  const renderLetterCategoryGrid = (category: LetterCategoryId) => {
-    const cards = availableServiceCards.filter((item) => item.category === category);
+  const renderLetterCategoryGrid = (category?: LetterCategoryId) => {
+    let cards = availableServiceCards;
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      cards = cards.filter(item => 
+        item.title.toLowerCase().includes(query) || 
+        item.description.toLowerCase().includes(query)
+      );
+    } else if (category) {
+      cards = cards.filter((item) => item.category === category);
+    }
 
     if (cards.length === 0) {
       return (
-        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
-          Belum ada layanan surat pada kategori ini.
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center dark:border-slate-700 dark:bg-slate-900/40">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+            <PhFileMagnifyingGlass className="h-6 w-6 text-slate-400" />
+          </div>
+          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200">Tidak ada surat ditemukan</h3>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {searchQuery ? `Tidak ada hasil untuk pencarian "${searchQuery}"` : 'Belum ada layanan surat pada kategori ini.'}
+          </p>
         </div>
       );
     }
 
     return (
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+      <div ref={parentGrid} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
         {cards.map(renderServiceCard)}
       </div>
     );
@@ -366,7 +304,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
       case 'arsip-surat':
         return isTUAdmin ? <LetterArchivePanel refreshKey={letterArchiveRefreshKey} /> : null;
       case 'panel-admin':
-        return isTUAdmin ? <AdminPanel onSettingsSaved={fetchLetterBackgrounds} /> : null;
+        return isTUAdmin ? <AdminPanel /> : null;
       default:
         return null;
     }
@@ -392,65 +330,94 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
           {isTUAdmin && <PageTabs items={adminMainTabs} className="mb-4 print:hidden" />}
 
           <TabsContent value="surat" className="print:m-0 focus:outline-none">
+            <div ref={parentList}>
             {isServiceMenuOpen ? (
-              <div className="space-y-5 print:hidden">
-                <div className="flex flex-col gap-1">
-                  <p className="text-xs font-semibold uppercase text-fti-blue-700 dark:text-fti-blue-200">
-                    Layanan Surat
-                  </p>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Pilih Surat</h2>
+              <div className="space-y-6 print:hidden">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-fti-blue-700 dark:text-fti-blue-200">
+                      Layanan Surat
+                    </p>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pilih Surat</h2>
+                  </div>
+                  
+                  <div className="relative w-full sm:max-w-xs">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <PhMagnifyingGlass className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      aria-label="Cari layanan surat"
+                      placeholder="Cari surat..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="block w-full rounded-lg border-0 py-2 pl-9 pr-10 text-sm text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-fti-blue-600 dark:bg-gray-800 dark:text-white dark:ring-gray-700 dark:placeholder:text-gray-500 dark:focus:ring-fti-blue-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <PhXCircle className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <Tabs value={activeLetterCategory} onValueChange={handleLetterCategoryChange} className="gap-4">
-                  {availableLetterCategoryTabs.length > 1 && (
-                    <PageTabs items={availableLetterCategoryTabs} />
-                  )}
+                <div ref={parentGrid}>
+                {searchQuery.trim() ? (
+                  <div className="pt-2">
+                    <h3 className="mb-4 text-sm font-medium text-slate-500 dark:text-slate-400">Hasil Pencarian</h3>
+                    {renderLetterCategoryGrid()}
+                  </div>
+                ) : (
+                  <Tabs value={activeLetterCategory} onValueChange={handleLetterCategoryChange} className="gap-5">
+                    {availableLetterCategoryTabs.length > 1 && (
+                      <PageTabs items={availableLetterCategoryTabs} />
+                    )}
 
-                  <TabsContent value="tata-usaha" className="focus:outline-none">
-                    {renderLetterCategoryGrid('tata-usaha')}
-                  </TabsContent>
+                    <div className="mt-5">
+                      <TabsContent value="tata-usaha" className="focus:outline-none">
+                        {renderLetterCategoryGrid('tata-usaha')}
+                      </TabsContent>
 
-                  <TabsContent value="tugas-akhir" className="focus:outline-none">
-                    {renderLetterCategoryGrid('tugas-akhir')}
-                  </TabsContent>
-                </Tabs>
+                      <TabsContent value="tugas-akhir" className="focus:outline-none">
+                        {renderLetterCategoryGrid('tugas-akhir')}
+                      </TabsContent>
+                    </div>
+                  </Tabs>
+                )}
+                </div>
               </div>
             ) : (
-              <>
-                <div className="mb-5 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between print:hidden">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-md border border-fti-blue-100 bg-fti-blue-50 text-fti-blue-700 dark:border-fti-blue-300/20 dark:bg-fti-blue-300/10 dark:text-fti-blue-200">
-                      <SelectedServiceIcon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase text-fti-blue-700 dark:text-fti-blue-200">
-                        Formulir Surat
-                      </p>
-                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">{selectedService.title}</h2>
-                    </div>
-                  </div>
+              <div className="space-y-6">
+                {/* Breadcrumb Navigation Header */}
+                <div className="sticky top-0 z-10 mb-6 flex items-center gap-2 border-b border-slate-200 bg-white/95 pb-4 pt-4 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95 print:hidden">
                   <button
-                    type="button"
                     onClick={() => setActiveServiceId(null)}
-                    className="inline-flex w-fit items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-fti-blue-200 hover:text-fti-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fti-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-200 dark:hover:border-fti-blue-300/30 dark:hover:text-fti-blue-200"
+                    className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-fti-blue-600 dark:text-slate-400 dark:hover:text-fti-blue-400"
                   >
-                    <ArrowLeft className="h-4 w-4" />
-                    Kembali ke menu surat
+                    <PhHouse className="h-4 w-4" />
+                    Layanan Surat
                   </button>
+                  <PhCaretRight className="h-4 w-4 text-slate-400" />
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    <SelectedServiceIcon className="h-4 w-4 text-fti-blue-600 dark:text-fti-blue-400" />
+                    {selectedService.title}
+                  </span>
                 </div>
 
                 <div className="print:mt-0">
                   {renderActiveService()}
                 </div>
-              </>
+              </div>
             )}
+            </div>
           </TabsContent>
 
           {isTUAdmin && (
             <>
-              <TabsContent value="permohonan" className="print:m-0 focus:outline-none">
-                <AdminPanel mode="requests" />
-              </TabsContent>
               <TabsContent value="arsip" className="print:m-0 focus:outline-none">
                 <LetterArchivePanel refreshKey={letterArchiveRefreshKey} />
               </TabsContent>
@@ -458,7 +425,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                 <FinalTaskArchivePanel refreshKey={letterArchiveRefreshKey} />
               </TabsContent>
               <TabsContent value="konfigurasi" className="print:m-0 focus:outline-none">
-                <AdminPanel mode="settings" onSettingsSaved={fetchLetterBackgrounds} />
+                <AdminPanel />
               </TabsContent>
             </>
           )}

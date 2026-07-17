@@ -21,6 +21,7 @@ import tuRoutes from './backend/routes/tu.routes.v2.js';
 import lecturerRoutes from './backend/routes/lecturer.routes.js';
 import studyProgramRoutes from './backend/routes/study_program.routes.js';
 import labguardRoutes from './backend/routes/labguard.routes.js';
+import wilayahRoutes from './backend/routes/wilayah.routes.js';
 import { verifyMailer } from './backend/utils/mailer.js';
 
 const app = express();
@@ -58,6 +59,7 @@ app.use(express.json({ limit: '20mb' })); // Tingkatkan limit ke 20mb untuk gamb
 app.use(express.urlencoded({ extended: true, limit: '20mb' })); // Tambahkan juga limit untuk urlencoded
 
 // Terapkan middleware verifikasi token ke semua rute API
+app.use('/api/wilayah', wilayahRoutes);
 app.use('/api', verifyToken);
 
 // --- Rute Khusus Admin ---

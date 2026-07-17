@@ -4,6 +4,8 @@ import { buildLetterBackgroundsPayload, buildLetterLayoutsPayload, getSharedLett
 import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../../utils/mailer.js';
 import { buildPublicAppBaseUrl } from './url-builders.js';
 import { createTuSettingsService } from '../services/settings.service.js';
+import { LETTER_TYPE_TO_CODE } from './constants.js';
+import { escapeXml } from './sanitize.js';
 
 import puppeteer from 'puppeteer';
 
