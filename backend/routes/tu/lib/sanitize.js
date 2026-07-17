@@ -1,3 +1,4 @@
+
 export const escapeXml = (value) =>
   String(value || '')
     .replace(/&/g, '&amp;')

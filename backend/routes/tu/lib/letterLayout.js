@@ -1,7 +1,4 @@
-import {
-  LETTER_TYPE_TO_CLIENT_KEY,
-  SHARED_LETTER_BACKGROUND_TYPE
-} from './constants.js';
+import { LETTER_TYPE_TO_CLIENT_KEY, SHARED_LETTER_BACKGROUND_TYPE } from './constants.js';
 
 export const createEmptyLetterBackgrounds = () => ({
   document: { imageBase64: '', fileName: '', mimeType: 'image/png' },

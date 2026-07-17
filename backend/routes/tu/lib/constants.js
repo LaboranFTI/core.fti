@@ -1,3 +1,4 @@
+
 export const TU_ACCESS_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];
 export const TU_ADMIN_ROLES = ['Admin', 'Admin TU'];
 export const TU_SUBMIT_ROLES = ['Admin', 'Laboran', 'Dosen', 'Supervisor', 'User TU', 'Admin TU'];

@@ -33,9 +33,9 @@ try {
 
 export function getStandardEmailAttachments() {
   const attachments = [];
-  if (ukswLogo) attachments.push({ filename: 'UKSW.png', content: ukswLogo, cid: 'uksw_logo', contentType: 'image/png' });
-  if (ftiLogo) attachments.push({ filename: 'FTI.png', content: ftiLogo, cid: 'fti_logo', contentType: 'image/png' });
-  if (nocLogo) attachments.push({ filename: 'noc.png', content: nocLogo, cid: 'noc_logo', contentType: 'image/png' });
+  if (ukswLogo) attachments.push({ filename: 'UKSW.png', content: ukswLogo, cid: 'uksw_logo@core.fti', contentType: 'image/png', contentDisposition: 'inline' });
+  if (ftiLogo) attachments.push({ filename: 'FTI.png', content: ftiLogo, cid: 'fti_logo@core.fti', contentType: 'image/png', contentDisposition: 'inline' });
+  if (nocLogo) attachments.push({ filename: 'noc.png', content: nocLogo, cid: 'noc_logo@core.fti', contentType: 'image/png', contentDisposition: 'inline' });
   return attachments;
 }
 
@@ -216,9 +216,9 @@ export function buildProfessionalEmail({ title = 'Pemberitahuan Sistem', content
               <tr>
                 <td class="header">
                   <div class="logos">
-                    <img src="cid:uksw_logo" alt="Logo UKSW" />
-                    <img src="cid:fti_logo" alt="Logo FTI" />
-                    <img src="cid:noc_logo" alt="Logo NOC" />
+                    <img src="cid:uksw_logo@core.fti" alt="Logo UKSW" />
+                    <img src="cid:fti_logo@core.fti" alt="Logo FTI" />
+                    <img src="cid:noc_logo@core.fti" alt="Logo NOC" />
                   </div>
                   <h1>${title}</h1>
                   <p>Fakultas Teknologi Informasi UKSW</p>

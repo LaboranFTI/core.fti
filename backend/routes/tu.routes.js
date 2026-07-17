@@ -584,16 +584,16 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(['Admin', 'Admin TU'
 
     // 3. Ganti placeholder umum
     const tanggalSurat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
-    htmlContent = htmlContent.replace(/{{name}}/g, requestData.name)
-                             .replace(/{{nim}}/g, requestData.nim)
-                             .replace(/{{tanggalSurat}}/g, tanggalSurat)
-                             .replace(/{{signatureImage}}/g, requestData.signature_base64 || '')
-                             .replace(/{{stampImage}}/g, requestData.stamp_base64 || '');
+    htmlContent = htmlContent.replace(/{{name}}/g, () => escapeXml(requestData.name || ''))
+                             .replace(/{{nim}}/g, () => escapeXml(requestData.nim || ''))
+                             .replace(/{{tanggalSurat}}/g, () => tanggalSurat)
+                             .replace(/{{signatureImage}}/g, () => requestData.signature_base64 || '')
+                             .replace(/{{stampImage}}/g, () => requestData.stamp_base64 || '');
 
     // 4. Ganti placeholder spesifik per jenis surat
     const specificPlaceholders = await config.getPlaceholders(requestData, semesterMeta);
     for (const key in specificPlaceholders) {
-      htmlContent = htmlContent.replace(new RegExp(key, 'g'), specificPlaceholders[key]);
+      htmlContent = htmlContent.replace(new RegExp(key, 'g'), () => String(specificPlaceholders[key]));
     }
 
     // 5. Render HTML menjadi Buffer PDF dengan Puppeteer

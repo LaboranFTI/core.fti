@@ -126,12 +126,13 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
     await pool.query(`UPDATE ${config.table} SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
 
     res.json({
-      success: true,
-      message: 'Email berhasil dikirim',
-      letterNumber: requestData.letter_number,
-      validationToken: requestData.validation_token,
-      validationUrl
-    });
+        success: true,
+        message: 'Email berhasil dikirim',
+        letterNumber: requestData.letter_number,
+        validationToken: requestData.validation_token,
+        validationUrl,
+        data: requestData
+      });
   } catch (err) {
     console.error('Send email error:', err);
     res.status(500).json({ error: 'Gagal mengirim email. Pastikan konfigurasi SMTP di .env sudah benar.' });
@@ -442,7 +443,7 @@ router.put('/tu/requests/ta/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req,
       [id]
     );
     await client.query('COMMIT');
-    res.json({ success: true, letterNumber: requestData.letter_number || '', validationToken: requestData.validation_token || '' });
+    res.json({ success: true, letterNumber: requestData.letter_number || '', validationToken: requestData.validation_token || '', data: requestData });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
     console.error('Verify TA letter error:', err);

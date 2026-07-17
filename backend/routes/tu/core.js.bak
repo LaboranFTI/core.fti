@@ -1,0 +1,2374 @@
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import puppeteer from 'puppeteer';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import qrcode from 'qr.js';
+import { pool } from '../../config/database.js';
+import { verifyRole } from '../../middleware/auth.js';
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
+import {
+  buildBirthPlaceAndDate,
+  DEFAULT_FACULTY,
+  DEFAULT_UNIVERSITY,
+  formatStudentName,
+  getStudyProgramCodeFromNim,
+  mapStudyProgramRow
+} from '../../utils/activeStudentLetter.js';
+import {
+  DEFAULT_COUNSELING_RECIPIENT_NAME,
+  DEFAULT_COUNSELING_REFERRAL_UNIT,
+  DEFAULT_COUNSELING_SUBJECT,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND,
+  DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND,
+  DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+  DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  INTERVIEW_LETTER_KIND,
+  LETTER_TYPE_TO_CLIENT_KEY,
+  LETTER_TYPE_TO_CODE,
+  OBSERVATION_ACCESS_CODE_ALPHABET,
+  OBSERVATION_ACCESS_CODE_PREFIX,
+  PERMISSION_ACCESS_CODE_PREFIX,
+  PERMISSION_LETTER_KIND,
+  QR_DOWNLOAD_TOKEN_TTL_HOURS,
+  RESEARCH_ACCESS_CODE_PREFIX,
+  RESEARCH_LETTER_KIND,
+  SHARED_LETTER_BACKGROUND_TYPE,
+  SUREK_ACCESS_CODE_PREFIX,
+  TU_ACCESS_ROLES,
+  TU_ADMIN_ROLES,
+  TU_SETTINGS_KEYS,
+  TU_SUBMIT_ROLES,
+  VALIDATION_TOKEN_BYTES
+} from './lib/constants.js';
+import {
+  applyOfficialLetterTypography,
+  buildLetterBackgroundsPayload,
+  buildLetterLayoutsPayload,
+  clampMarginMm,
+  createEmptyLetterBackgrounds,
+  createEmptyLetterLayouts,
+  DEFAULT_LETTER_LAYOUT_MM,
+  getSharedLetterBackground,
+  normalizeLetterLayout,
+  OFFICIAL_LETTER_TYPOGRAPHY_CSS
+} from './lib/letterLayout.js';
+import {
+  createObservationAccessCode,
+  createQrDownloadToken,
+  createResearchAccessCode,
+  createSuRekAccessCode,
+  createValidationToken,
+  getQrDownloadExpiry,
+  hashQrDownloadToken,
+  isValidEmailAddress,
+  normalizeObservationAccessCode,
+  normalizeResearchAccessCode,
+  normalizeSuRekAccessCode,
+  randomAccessCodeSegment
+} from './lib/tokens.js';
+import { escapeXml, maskDate, maskEmail, maskNim } from './lib/sanitize.js';
+import { createTuSettingsService } from './services/settings.service.js';
+
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const QR_CENTER_LOGO_PATH = path.join(__dirname, '..', '..', '..', 'src', 'assets', 'FTI_nobg.svg');
+
+const uploadSessions = new Map();
+const qrDownloadSessions = new Map();
+
+const publicObservationAccessLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak percobaan kode akses. Silakan coba lagi beberapa menit lagi.' }
+});
+const publicValidationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak request validasi. Silakan coba lagi beberapa menit lagi.' }
+});
+let tuInfrastructurePromise = null;
+let qrCenterLogoDataUrlPromise = null;
+
+const ensureTuInfrastructure = async () => {
+  if (tuInfrastructurePromise) {
+    return tuInfrastructurePromise;
+  }
+
+  tuInfrastructurePromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS active_student_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        nim VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        birth_place VARCHAR(100),
+        birth_date VARCHAR(30),
+        study_program_level VARCHAR(100),
+        study_program_name VARCHAR(255),
+        faculty VARCHAR(255),
+        university VARCHAR(255),
+        transcript_base64 TEXT,
+        transcript_name VARCHAR(255),
+        signature_base64 TEXT,
+        stamp_base64 TEXT,
+        letter_number VARCHAR(100),
+        letter_sequence INTEGER,
+        letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
+        status VARCHAR(20) DEFAULT 'pending',
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      ALTER TABLE active_student_requests
+      ADD COLUMN IF NOT EXISTS transcript_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS transcript_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS birth_place VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS birth_date VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS study_program_level VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS study_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS faculty VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS university VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS stamp_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
+      ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS observation_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        nim VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        recipient_name VARCHAR(255),
+        company_address TEXT,
+        purpose TEXT,
+        company VARCHAR(255),
+        course_name VARCHAR(255),
+        lecturer_name VARCHAR(255),
+        head_of_program_name VARCHAR(255),
+        study_program_level VARCHAR(100),
+        study_program_name VARCHAR(255),
+        student_members JSONB NOT NULL DEFAULT '[]'::jsonb,
+        signature_base64 TEXT,
+        stamp_base64 TEXT,
+        letter_number VARCHAR(100),
+        letter_sequence INTEGER,
+        letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
+        access_code VARCHAR(20),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
+        status VARCHAR(20) DEFAULT 'pending',
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      ALTER TABLE observation_requests
+      ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS company_address TEXT,
+      ADD COLUMN IF NOT EXISTS purpose TEXT,
+      ADD COLUMN IF NOT EXISTS company VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS course_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS lecturer_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS head_of_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS study_program_level VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS study_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS student_members JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS stamp_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
+      ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS access_code VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS counseling_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        nim VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        subject VARCHAR(255),
+        recipient_name TEXT,
+        referral_unit VARCHAR(255),
+        study_program_level VARCHAR(100),
+        study_program_name VARCHAR(255),
+        faculty VARCHAR(255),
+        signature_base64 TEXT,
+        stamp_base64 TEXT,
+        letter_number VARCHAR(100),
+        letter_sequence INTEGER,
+        letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
+        status VARCHAR(20) DEFAULT 'pending',
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      ALTER TABLE counseling_requests
+      ADD COLUMN IF NOT EXISTS subject VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS recipient_name TEXT,
+      ADD COLUMN IF NOT EXISTS referral_unit VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS study_program_level VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS study_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS faculty VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS stamp_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
+      ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('ta_letter_requests') IS NULL
+          AND to_regclass('research_requests') IS NOT NULL THEN
+          ALTER TABLE research_requests RENAME TO ta_letter_requests;
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ta_letter_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        nim VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        recipient_name VARCHAR(255),
+        recipient_title VARCHAR(255),
+        destination_place VARCHAR(255),
+        destination_address TEXT,
+        research_place VARCHAR(255),
+        research_address TEXT,
+        assignment_type VARCHAR(255),
+        research_title TEXT,
+        permission_purpose VARCHAR(255),
+        contact_person VARCHAR(255),
+        study_program_level VARCHAR(100),
+        study_program_name VARCHAR(255),
+        letter_kind VARCHAR(30) DEFAULT 'research',
+        advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
+        include_research_place BOOLEAN DEFAULT TRUE,
+        signature_base64 TEXT,
+        stamp_base64 TEXT,
+        letter_number VARCHAR(100),
+        letter_sequence INTEGER,
+        letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
+        access_code VARCHAR(20),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
+        status VARCHAR(20) DEFAULT 'pending',
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      ALTER TABLE ta_letter_requests
+      ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS recipient_title VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS destination_place VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS destination_address TEXT,
+      ADD COLUMN IF NOT EXISTS research_place VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS research_address TEXT,
+      ADD COLUMN IF NOT EXISTS assignment_type VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS research_title TEXT,
+      ADD COLUMN IF NOT EXISTS permission_purpose VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS study_program_level VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS study_program_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS letter_kind VARCHAR(30) DEFAULT 'research',
+      ADD COLUMN IF NOT EXISTS advisors JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS include_research_place BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS stamp_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
+      ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS access_code VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tu_letter_backgrounds (
+        id SERIAL PRIMARY KEY,
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'su-rek')),
+        file_name VARCHAR(255),
+        mime_type VARCHAR(100) DEFAULT 'image/png',
+        image_base64 TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(letter_type)
+      )
+    `);
+
+    await pool.query(`
+      DO $$
+      DECLARE
+        constraint_record record;
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_backgrounds'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+        ) OR EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_backgrounds'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%')
+        ) THEN
+          FOR constraint_record IN
+            SELECT conname
+            FROM pg_constraint
+            WHERE conrelid = 'tu_letter_backgrounds'::regclass
+              AND contype = 'c'
+              AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+          LOOP
+            EXECUTE format('ALTER TABLE tu_letter_backgrounds DROP CONSTRAINT %I', constraint_record.conname);
+          END LOOP;
+
+          ALTER TABLE tu_letter_backgrounds
+            ADD CONSTRAINT tu_letter_backgrounds_letter_type_check
+            CHECK (letter_type IN ('document', 'active-student', 'observation', 'counseling', 'research', 'su-rek'));
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tu_letter_number_counters (
+        id SERIAL PRIMARY KEY,
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek')),
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+        last_sequence INTEGER NOT NULL DEFAULT 0,
+        last_letter_number VARCHAR(100),
+        last_generated_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(letter_type, year, month)
+      )
+    `);
+
+    await pool.query(`
+      DO $$
+      DECLARE
+        constraint_record record;
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_number_counters'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+        ) OR EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_number_counters'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%' OR pg_get_constraintdef(oid) NOT LIKE '%interview%' OR pg_get_constraintdef(oid) NOT LIKE '%permission%')
+        ) THEN
+          FOR constraint_record IN
+            SELECT conname
+            FROM pg_constraint
+            WHERE conrelid = 'tu_letter_number_counters'::regclass
+              AND contype = 'c'
+              AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+          LOOP
+            EXECUTE format('ALTER TABLE tu_letter_number_counters DROP CONSTRAINT %I', constraint_record.conname);
+          END LOOP;
+
+          ALTER TABLE tu_letter_number_counters
+            ADD CONSTRAINT tu_letter_number_counters_letter_type_check
+            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'interview', 'permission', 'su-rek'));
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tu_letter_layouts (
+        id SERIAL PRIMARY KEY,
+        letter_type VARCHAR(50) NOT NULL CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek')),
+        margin_top_mm NUMERIC(6,2) NOT NULL DEFAULT 40,
+        margin_right_mm NUMERIC(6,2) NOT NULL DEFAULT 22,
+        margin_bottom_mm NUMERIC(6,2) NOT NULL DEFAULT 26,
+        margin_left_mm NUMERIC(6,2) NOT NULL DEFAULT 22,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(letter_type)
+      )
+    `);
+
+    await pool.query(`
+      DO $$
+      DECLARE
+        constraint_record record;
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_layouts'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+        ) OR EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'tu_letter_layouts'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+            AND (pg_get_constraintdef(oid) NOT LIKE '%su-rek%' OR pg_get_constraintdef(oid) NOT LIKE '%counseling%' OR pg_get_constraintdef(oid) NOT LIKE '%research%')
+        ) THEN
+          FOR constraint_record IN
+            SELECT conname
+            FROM pg_constraint
+            WHERE conrelid = 'tu_letter_layouts'::regclass
+              AND contype = 'c'
+              AND pg_get_constraintdef(oid) LIKE '%letter_type%'
+          LOOP
+            EXECUTE format('ALTER TABLE tu_letter_layouts DROP CONSTRAINT %I', constraint_record.conname);
+          END LOOP;
+
+          ALTER TABLE tu_letter_layouts
+            ADD CONSTRAINT tu_letter_layouts_letter_type_check
+            CHECK (letter_type IN ('active-student', 'observation', 'counseling', 'research', 'su-rek'));
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS su_rek_requests (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        nim VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        recipient_name TEXT,
+        berdasarkan_no VARCHAR(100),
+        perihal VARCHAR(255),
+        lampiran VARCHAR(100),
+        signature_base64 TEXT,
+        stamp_base64 TEXT,
+        letter_number VARCHAR(100),
+        letter_sequence INTEGER,
+        letter_generated_at TIMESTAMP,
+        validation_token VARCHAR(64),
+        access_code VARCHAR(20),
+        qr_download_token_hash VARCHAR(64),
+        qr_download_token_expires_at TIMESTAMPTZ,
+        status VARCHAR(20) DEFAULT 'pending',
+        rejection_reason TEXT,
+          carbon_copies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      ALTER TABLE su_rek_requests
+      ADD COLUMN IF NOT EXISTS recipient_name TEXT,
+      ADD COLUMN IF NOT EXISTS berdasarkan_no VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS perihal VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS lampiran VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS signature_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS stamp_base64 TEXT,
+      ADD COLUMN IF NOT EXISTS letter_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS letter_sequence INTEGER,
+      ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS validation_token VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS access_code VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS qr_download_token_hash VARCHAR(64),
+      ADD COLUMN IF NOT EXISTS qr_download_token_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS carbon_copies JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_letter_number_unique
+      ON su_rek_requests(letter_number)
+      WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_validation_token_unique
+      ON su_rek_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_su_rek_requests_access_code_unique
+      ON su_rek_requests(access_code)
+      WHERE access_code IS NOT NULL
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('idx_ta_letter_requests_letter_number_unique') IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            WHERE c.relname = 'idx_research_requests_letter_number_unique'
+              AND i.indrelid = 'ta_letter_requests'::regclass
+          ) THEN
+          ALTER INDEX idx_research_requests_letter_number_unique RENAME TO idx_ta_letter_requests_letter_number_unique;
+        END IF;
+
+        IF to_regclass('idx_ta_letter_requests_validation_token_unique') IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            WHERE c.relname = 'idx_research_requests_validation_token_unique'
+              AND i.indrelid = 'ta_letter_requests'::regclass
+          ) THEN
+          ALTER INDEX idx_research_requests_validation_token_unique RENAME TO idx_ta_letter_requests_validation_token_unique;
+        END IF;
+
+        IF to_regclass('idx_ta_letter_requests_access_code_unique') IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            WHERE c.relname = 'idx_research_requests_access_code_unique'
+              AND i.indrelid = 'ta_letter_requests'::regclass
+          ) THEN
+          ALTER INDEX idx_research_requests_access_code_unique RENAME TO idx_ta_letter_requests_access_code_unique;
+        END IF;
+
+        IF to_regclass('idx_ta_letter_requests_qr_download_token_hash') IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            WHERE c.relname = 'idx_research_requests_qr_download_token_hash'
+              AND i.indrelid = 'ta_letter_requests'::regclass
+          ) THEN
+          ALTER INDEX idx_research_requests_qr_download_token_hash RENAME TO idx_ta_letter_requests_qr_download_token_hash;
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ta_letter_requests_letter_number_unique
+      ON ta_letter_requests(letter_number)
+      WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ta_letter_requests_validation_token_unique
+      ON ta_letter_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ta_letter_requests_access_code_unique
+      ON ta_letter_requests(access_code)
+      WHERE access_code IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_active_student_requests_letter_number_unique
+      ON active_student_requests(letter_number)
+      WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_active_student_requests_validation_token_unique
+      ON active_student_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_letter_number_unique
+      ON observation_requests(letter_number)
+      WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_validation_token_unique
+      ON observation_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_counseling_requests_letter_number_unique
+      ON counseling_requests(letter_number)
+      WHERE letter_number IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_counseling_requests_validation_token_unique
+      ON counseling_requests(validation_token)
+      WHERE validation_token IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_counseling_requests_qr_download_token_hash
+      ON counseling_requests(qr_download_token_hash)
+      WHERE qr_download_token_hash IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_observation_requests_qr_download_token_hash
+      ON observation_requests(qr_download_token_hash)
+      WHERE qr_download_token_hash IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ta_letter_requests_qr_download_token_hash
+      ON ta_letter_requests(qr_download_token_hash)
+      WHERE qr_download_token_hash IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_requests_access_code_unique
+      ON observation_requests(access_code)
+      WHERE access_code IS NOT NULL
+    `);
+
+    await pool.query(`
+      INSERT INTO system_settings (key, value) VALUES
+        ('tu_dean_signature_base64', ''),
+        ('tu_faculty_stamp_base64', ''),
+        ('tu_current_semester_code', ''),
+        ('tu_counseling_subject', 'Pengantar Konseling'),
+        ('tu_counseling_recipient_name', 'Pusat Layanan Konseling\nFakultas Psikologi\nUniversitas Kristen Satya Wacana\nSalatiga'),
+        ('tu_counseling_referral_unit', 'Pusat Layanan Psikologi Universitas Kristen Satya Wacana.'),
+        ('tu_su_rek_yang_terhormat', 'Wakil Rektor Bidang Kerjasama dan Kealumnian\nUniversitas Kristen Satya Wacana\ndi tempat'),
+        ('tu_su_rek_berdasarkan_no', '008/WR-KK/02/2025'),
+        ('tu_su_rek_perihal', 'Beasiswa Afirmasi Cemerlang, ACPOS dan ACPA'),
+        ('tu_su_rek_lampiran', '1 bendel'),
+        ('tu_su_rek_tembusan', '[]')
+      ON CONFLICT (key) DO NOTHING
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_active_student_requests_updated_at'
+        ) THEN
+          CREATE TRIGGER update_active_student_requests_updated_at
+          BEFORE UPDATE ON active_student_requests
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_observation_requests_updated_at'
+        ) THEN
+          CREATE TRIGGER update_observation_requests_updated_at
+          BEFORE UPDATE ON observation_requests
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_counseling_requests_updated_at'
+        ) THEN
+          CREATE TRIGGER update_counseling_requests_updated_at
+          BEFORE UPDATE ON counseling_requests
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger
+          WHERE tgname IN ('update_ta_letter_requests_updated_at', 'update_research_requests_updated_at')
+            AND tgrelid = 'ta_letter_requests'::regclass
+        ) THEN
+          CREATE TRIGGER update_ta_letter_requests_updated_at
+          BEFORE UPDATE ON ta_letter_requests
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_su_rek_requests_updated_at'
+        ) THEN
+          CREATE TRIGGER update_su_rek_requests_updated_at
+          BEFORE UPDATE ON su_rek_requests
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_tu_letter_backgrounds_updated_at'
+        ) THEN
+          CREATE TRIGGER update_tu_letter_backgrounds_updated_at
+          BEFORE UPDATE ON tu_letter_backgrounds
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_tu_letter_number_counters_updated_at'
+        ) THEN
+          CREATE TRIGGER update_tu_letter_number_counters_updated_at
+          BEFORE UPDATE ON tu_letter_number_counters
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_tu_letter_layouts_updated_at'
+        ) THEN
+          CREATE TRIGGER update_tu_letter_layouts_updated_at
+          BEFORE UPDATE ON tu_letter_layouts
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+      END $$;
+    `);
+  })().catch((err) => {
+    tuInfrastructurePromise = null;
+    throw err;
+  });
+
+  return tuInfrastructurePromise;
+};
+
+const mapActiveStudentRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  nim: row.nim,
+  email: row.email,
+  status: row.status,
+  birthPlace: row.birth_place,
+  birthDate: row.birth_date,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
+  faculty: row.faculty,
+  university: row.university,
+  transcriptBase64: row.transcript_base64,
+  transcriptName: row.transcript_name,
+  signatureBase64: row.signature_base64,
+  stampBase64: row.stamp_base64,
+  letterNumber: row.letter_number,
+  validationToken: row.validation_token,
+  letterGeneratedAt: row.letter_generated_at,
+  carbonCopies: row.carbon_copies || [],
+  createdAt: row.created_at
+});
+
+const mapObservationRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  nim: row.nim,
+  email: row.email,
+  recipientName: row.recipient_name,
+  companyAddress: row.company_address,
+  purpose: row.purpose,
+  company: row.company,
+  courseName: row.course_name,
+  lecturerName: row.lecturer_name,
+  headOfProgramName: row.head_of_program_name,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
+  students: normalizeObservationStudents(row.student_members),
+  status: row.status,
+  signatureBase64: row.signature_base64,
+  stampBase64: row.stamp_base64,
+  letterNumber: row.letter_number,
+  validationToken: row.validation_token,
+  accessCode: row.access_code,
+  letterGeneratedAt: row.letter_generated_at,
+  carbonCopies: row.carbon_copies || [],
+  createdAt: row.created_at
+});
+
+const mapCounselingRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  nim: row.nim,
+  email: row.email,
+  subject: row.subject,
+  recipientName: row.recipient_name,
+  referralUnit: row.referral_unit,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
+  faculty: row.faculty,
+  status: row.status,
+  signatureBase64: row.signature_base64,
+  stampBase64: row.stamp_base64,
+  letterNumber: row.letter_number,
+  validationToken: row.validation_token,
+  letterGeneratedAt: row.letter_generated_at,
+  carbonCopies: row.carbon_copies || [],
+  createdAt: row.created_at
+});
+
+const mapResearchRow = (row) => ({
+  id: row.id,
+  letterKind: row.letter_kind || RESEARCH_LETTER_KIND,
+  name: row.name,
+  nim: row.nim,
+  email: row.email,
+  recipientName: row.recipient_name,
+  recipientTitle: row.recipient_title,
+  destinationPlace: row.destination_place || row.research_place || '',
+  destinationAddress: row.destination_address || row.research_address || '',
+  researchPlace: row.research_place || '',
+  assignmentType: row.assignment_type,
+  researchTitle: row.research_title,
+  permissionPurpose: row.permission_purpose,
+  contactPerson: row.contact_person,
+  studyProgramLevel: row.study_program_level,
+  studyProgramName: row.study_program_name,
+  advisors: normalizeResearchAdvisors(row.advisors),
+  includeResearchPlace: row.include_research_place !== false,
+  status: row.status,
+  signatureBase64: row.signature_base64,
+  stampBase64: row.stamp_base64,
+  letterNumber: row.letter_number,
+  validationToken: row.validation_token,
+  accessCode: row.access_code,
+  letterGeneratedAt: row.letter_generated_at,
+  carbonCopies: row.carbon_copies || [],
+  rejectionReason: row.rejection_reason,
+  createdAt: row.created_at
+});
+
+const buildObservationAccessPayload = (row) => ({
+  accessCode: row.access_code,
+  letterNumber: row.letter_number,
+  status: row.status,
+  letterGeneratedAt: row.letter_generated_at,
+  data: {
+    recipientName: row.recipient_name || '',
+    companyName: row.company || '',
+    companyAddress: row.company_address || '',
+    courseName: row.course_name || '',
+    lecturerName: row.lecturer_name || '',
+    headOfProgramName: row.head_of_program_name || '',
+    studyProgramName: row.study_program_name || '',
+    studyProgramLevel: row.study_program_level || '',
+    students: normalizeObservationStudents(row.student_members),
+    carbonCopies: row.carbon_copies || []
+  }
+});
+
+const buildResearchAccessPayload = (row) => ({
+  accessCode: row.access_code,
+  letterKind: row.letter_kind || RESEARCH_LETTER_KIND,
+  letterNumber: row.letter_number,
+  status: row.status,
+  letterGeneratedAt: row.letter_generated_at,
+  data: {
+    name: row.name || '',
+    nim: row.nim || '',
+    email: row.email || '',
+    recipientName: row.recipient_name || '',
+    recipientTitle: row.recipient_title || '',
+    destinationPlace: row.destination_place || row.research_place || '',
+    destinationAddress: row.destination_address || row.research_address || '',
+    researchPlace: row.research_place || '',
+    assignmentType: row.assignment_type || '',
+    researchTitle: row.research_title || '',
+    permissionPurpose: row.permission_purpose || '',
+    contactPerson: row.contact_person || '',
+    studyProgramName: row.study_program_name || '',
+    studyProgramLevel: row.study_program_level || '',
+    advisors: normalizeResearchAdvisors(row.advisors),
+    includeResearchPlace: row.include_research_place !== false,
+    letterKind: row.letter_kind || RESEARCH_LETTER_KIND,
+    carbonCopies: row.carbon_copies || []
+  }
+});
+
+const getResearchLetterType = (row = {}) =>
+  row.letter_kind === INTERVIEW_LETTER_KIND
+    ? INTERVIEW_LETTER_KIND
+    : row.letter_kind === PERMISSION_LETTER_KIND
+      ? PERMISSION_LETTER_KIND
+      : RESEARCH_LETTER_KIND;
+
+const formatPublicDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+const buildPublicValidationUrl = (req, token) => {
+  if (!token) return '';
+  const configuredBaseUrl = buildPublicAppBaseUrl(req);
+  return `${configuredBaseUrl}/tu/validasi-surat/${token}`;
+};
+
+const buildPublicAppBaseUrl = (req) => {
+  const configuredBaseUrl =
+    process.env.VITE_PUBLIC_APP_URL ||
+    process.env.PUBLIC_APP_URL ||
+    process.env.FRONTEND_URL ||
+    process.env.APP_BASE_URL ||
+    `${req.protocol}://${req.get('host')}`;
+  return configuredBaseUrl.replace(/\/$/, '');
+};
+
+const getQrCenterLogoDataUrl = async () => {
+  if (!qrCenterLogoDataUrlPromise) {
+    qrCenterLogoDataUrlPromise = fs.readFile(QR_CENTER_LOGO_PATH)
+      .then((buffer) => `data:image/svg+xml;base64,${buffer.toString('base64')}`)
+      .catch((err) => {
+        qrCenterLogoDataUrlPromise = null;
+        console.warn('Failed to load TU QR center logo:', err.message);
+        return '';
+      });
+  }
+
+  return qrCenterLogoDataUrlPromise;
+};
+
+const createQrSvgDataUrl = async (value) => {
+  if (!value) return '';
+
+  const qr = qrcode(value, { errorCorrectLevel: qrcode.ErrorCorrectLevel.H });
+  const moduleCount = qr.getModuleCount();
+  const quietZone = 4;
+  const size = moduleCount + quietZone * 2;
+  const rects = [];
+
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (qr.isDark(row, col)) {
+        rects.push(`<rect x="${col + quietZone}" y="${row + quietZone}" width="1" height="1"/>`);
+      }
+    }
+  }
+
+  const logoDataUrl = await getQrCenterLogoDataUrl();
+  const logoSize = Math.max(8, size * 0.25);
+  const logoPadding = Math.max(1.25, size * 0.045);
+  const logoFrameSize = logoSize + logoPadding * 2;
+  const logoFrameCenter = size / 2;
+  const logoFrameRadius = logoFrameSize / 2;
+  const logoX = (size - logoSize) / 2;
+  const logoMarkup = logoDataUrl
+    ? `<circle cx="${logoFrameCenter}" cy="${logoFrameCenter}" r="${logoFrameRadius}" fill="#fff" shape-rendering="geometricPrecision"/><image href="${logoDataUrl}" x="${logoX}" y="${logoX}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>`
+    : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${size}v${size}H0z"/><g fill="#000">${rects.join('')}</g>${logoMarkup}</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+};
+
+const formatProgramLevelShort = (level) => {
+  const map = {
+    'Diploma Tiga': 'D3',
+    Sarjana: 'S1',
+    Magister: 'S2',
+    Doktor: 'S3'
+  };
+  return map[level] || level || '';
+};
+
+const formatFacultyProgram = ({ faculty, studyProgramLevel, studyProgramName }) => {
+  const facultyLabel = faculty || 'FTI';
+  const programParts = [formatProgramLevelShort(studyProgramLevel), studyProgramName]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return `${facultyLabel}${programParts.length ? ` - ${programParts.join(' ')}` : ''}`;
+};
+
+const buildLetterValidationPayload = (type, row, req) => {
+  const isObservation = type === 'observation';
+  const isCounseling = type === 'counseling';
+  const isResearch = type === 'research';
+  const isInterview = type === 'interview';
+  const isPermission = type === 'permission';
+  const isResearchLike = isResearch || isInterview || isPermission;
+  const isSuRek = type === 'su-rek';
+  const students = isObservation ? normalizeObservationStudents(row.student_members).map(s => ({ ...s, nim: maskNim(s.nim) })) : [];
+  const primaryStudent = students[0] || { name: row.name, nim: maskNim(row.nim) };
+
+  let typeLabel = 'Surat Keterangan Aktif Kuliah';
+  if (isObservation) {
+    typeLabel = 'Surat Pengantar Observasi';
+  } else if (isCounseling) {
+    typeLabel = 'Surat Pengantar Konseling';
+  } else if (isInterview) {
+    typeLabel = 'Surat Izin Wawancara';
+  } else if (isPermission) {
+    typeLabel = 'Surat Perizinan';
+  } else if (isResearch) {
+    typeLabel = 'Rekomendasi Penelitian';
+  } else if (isSuRek) {
+    typeLabel = 'Surat Rekomendasi Afirmasi Cemerlang';
+  }
+
+  return {
+    type,
+    typeLabel,
+    status: row.status,
+    isValid: ['verified', 'sent'].includes(row.status),
+    letterNumber: row.letter_number,
+    validationToken: row.validation_token,
+    validationUrl: buildPublicValidationUrl(req, row.validation_token),
+    issuedAt: formatPublicDate(row.letter_generated_at || row.created_at),
+    createdAt: formatPublicDate(row.created_at),
+    recipient: {
+      name: row.name || primaryStudent.name || '',
+      nim: maskNim(row.nim || primaryStudent.nim || ''),
+      email: maskEmail(row.email || '')
+    },
+    activeStudent: (isObservation || isCounseling || isResearchLike || isSuRek)
+      ? null
+      : {
+          birthPlace: row.birth_place || '',
+          birthDate: maskDate(row.birth_date),
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          faculty: row.faculty || DEFAULT_FACULTY,
+          university: row.university || DEFAULT_UNIVERSITY
+        },
+    observation: isObservation
+      ? {
+          recipientName: row.recipient_name || '',
+          company: row.company || '',
+          companyAddress: row.company_address || '',
+          courseName: row.course_name || '',
+          lecturerName: row.lecturer_name || '',
+          headOfProgramName: row.head_of_program_name || '',
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          students
+      }
+      : null,
+    counseling: isCounseling
+      ? {
+          subject: row.subject || '',
+          recipientName: row.recipient_name || '',
+          referralUnit: row.referral_unit || '',
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          faculty: row.faculty || DEFAULT_FACULTY
+      }
+      : null,
+    research: isResearchLike
+      ? {
+          recipientName: row.recipient_name || '',
+          recipientTitle: row.recipient_title || '',
+          destinationPlace: row.destination_place || row.research_place || '',
+          destinationAddress: row.destination_address || row.research_address || '',
+          researchPlace: row.research_place || '',
+          assignmentType: row.assignment_type || '',
+          researchTitle: row.research_title || '',
+          permissionPurpose: row.permission_purpose || '',
+          contactPerson: row.contact_person || '',
+          studyProgramLevel: row.study_program_level || '',
+          studyProgramName: row.study_program_name || '',
+          advisors: normalizeResearchAdvisors(row.advisors),
+          includeResearchPlace: row.include_research_place !== false,
+          letterKind: row.letter_kind || type
+        }
+      : null,
+    suRek: isSuRek
+      ? {
+          recipientName: row.recipient_name || '',
+          berdasarkanNo: row.berdasarkan_no || '',
+          perihal: row.perihal || '',
+          lampiran: row.lampiran || ''
+        }
+      : null,
+    carbonCopies: row.carbon_copies || []
+  };
+};
+
+const normalizeObservationStudents = (students) => {
+  if (!Array.isArray(students)) return [];
+
+  return students
+    .map((student) => ({
+      name: String(student?.name || '').trim(),
+      nim: String(student?.nim || '').trim()
+    }))
+    .filter((student) => student.name || student.nim);
+};
+
+const normalizeResearchDefaults = (source = {}) => ({
+  assignmentType: String(source.researchAssignmentType || source.tu_research_assignment_type || '').trim() || DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  advisorTitle: String(source.researchAdvisorTitle || source.tu_research_advisor_title || '').trim() || DEFAULT_RESEARCH_ADVISOR_TITLE,
+  advisorTitleFirst: String(source.researchAdvisorTitleFirst || source.tu_research_advisor_title_first || '').trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  advisorTitleSecond: String(source.researchAdvisorTitleSecond || source.tu_research_advisor_title_second || '').trim() || DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND
+});
+
+const normalizeInterviewDefaults = (source = {}) => ({
+  assignmentType: String(source.interviewAssignmentType || source.tu_interview_assignment_type || '').trim() || DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+  advisorTitle: String(source.interviewAdvisorTitle || source.tu_interview_advisor_title || '').trim() || DEFAULT_INTERVIEW_ADVISOR_TITLE,
+  advisorTitleFirst: String(source.interviewAdvisorTitleFirst || source.tu_interview_advisor_title_first || '').trim() || DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+  advisorTitleSecond: String(source.interviewAdvisorTitleSecond || source.tu_interview_advisor_title_second || '').trim() || DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND
+});
+
+const normalizePermissionDefaults = (source = {}) => ({
+  assignmentType: String(source.permissionAssignmentType || source.tu_permission_assignment_type || '').trim() || DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+  advisorTitle: String(source.permissionAdvisorTitle || source.tu_permission_advisor_title || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE,
+  advisorTitleFirst: String(source.permissionAdvisorTitleFirst || source.tu_permission_advisor_title_first || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+  advisorTitleSecond: String(source.permissionPermissionAdvisorTitleSecond || source.tu_permission_advisor_title_second || '').trim() || DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND
+});
+
+const getResearchAdvisorTitle = (index, total, defaults = normalizeResearchDefaults()) => {
+  if (total <= 1) return defaults.advisorTitle;
+  return index === 0 ? defaults.advisorTitleFirst : defaults.advisorTitleSecond;
+};
+
+const isSystemResearchAdvisorTitle = (title, defaults = normalizeResearchDefaults()) => {
+  const normalized = String(title || '').trim();
+  if (!normalized) return true;
+  return new Set([
+    DEFAULT_RESEARCH_ADVISOR_TITLE,
+    DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+    DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+    defaults.advisorTitle,
+    defaults.advisorTitleFirst,
+    defaults.advisorTitleSecond
+  ]).has(normalized);
+};
+
+const normalizeResearchAdvisors = (advisors, defaults = normalizeResearchDefaults(), options = {}) => {
+  if (!Array.isArray(advisors)) return [];
+
+  const { preserveCustomTitle = true } = options;
+  const normalizedAdvisors = advisors
+    .slice(0, 2)
+    .map((advisor) => ({
+      name: String(advisor?.name || advisor?.nama || '').trim(),
+      title: String(advisor?.title || advisor?.jabatan || '').trim()
+    }))
+    .filter((advisor) => advisor.name);
+
+  return normalizedAdvisors.map((advisor, index) => {
+    const defaultTitle = getResearchAdvisorTitle(index, normalizedAdvisors.length, defaults);
+    if (!preserveCustomTitle || isSystemResearchAdvisorTitle(advisor.title, defaults)) {
+      return { ...advisor, title: defaultTitle };
+    }
+    return { ...advisor, title: advisor.title || defaultTitle };
+  });
+};
+
+const buildResearchAdvisorText = (advisors, defaults = normalizeResearchDefaults()) => {
+  const normalizedAdvisors = normalizeResearchAdvisors(advisors, defaults);
+  if (normalizedAdvisors.length === 0) return '';
+
+  return normalizedAdvisors
+    .map((advisor) => `${advisor.name} (${advisor.title})`)
+    .join(', ');
+};
+
+const buildResearchAdvisorSignatureHtml = (advisors, defaults = normalizeResearchDefaults()) => {
+  const normalizedAdvisors = normalizeResearchAdvisors(advisors, defaults);
+  if (normalizedAdvisors.length === 0) return '';
+
+  const advisorItems = normalizedAdvisors
+    .map((advisor, index) => {
+      const title = normalizedAdvisors.length === 1
+        ? (advisor.title || defaults.advisorTitle)
+        : (advisor.title || getResearchAdvisorTitle(index, normalizedAdvisors.length, defaults));
+      return `
+        <div class="advisor-item">
+          <p class="signature-name">${escapeXml(advisor.name)}</p>
+          <p>${escapeXml(title)}</p>
+        </div>
+      `;
+    })
+    .join('');
+
+  return `
+    <div class="signature-content advisor-column">
+      <p>Mengetahui,</p>
+      <div class="advisor-list">${advisorItems}</div>
+    </div>
+  `;
+};
+
+const buildResearchSignerList = async (row) => {
+  const deanSigner = await getRecommendationSigner();
+  const settingsPayload = await getTuSettingsPayload();
+  const advisors = normalizeResearchAdvisors(row.advisors, normalizeResearchDefaults(settingsPayload));
+
+  return [
+    deanSigner,
+    ...advisors.map((advisor) => ({ name: advisor.name, title: advisor.title }))
+  ];
+};
+
+const buildObservationStudentRowsHtml = (students) => {
+  const normalizedStudents = normalizeObservationStudents(students);
+
+  if (normalizedStudents.length === 0) {
+    return `
+      <tr>
+        <td colspan="2" style="font-style: italic; color: gray; padding-top: 0.8mm; padding-bottom: 0.8mm;">Data mahasiswa belum ditambahkan</td>
+      </tr>
+    `;
+  }
+
+  return normalizedStudents
+    .map((student) => `
+      <tr>
+        <td style="padding-top: 0.8mm; padding-bottom: 0.8mm;">${student.name || '-'}</td>
+        <td style="padding-top: 0.8mm; padding-bottom: 0.8mm;">${student.nim || '-'}</td>
+      </tr>
+    `)
+    .join('');
+};
+
+const getSemesterMeta = (semesterCode) => {
+  if (/^\d{4}[123]$/.test(String(semesterCode || ''))) {
+    const year = parseInt(String(semesterCode).slice(0, 4), 10);
+    const type = String(semesterCode).slice(4);
+
+    if (type === '1') return { semesterName: 'Ganjil', academicYear: `${year}/${year + 1}` };
+    if (type === '2') return { semesterName: 'Genap', academicYear: `${year - 1}/${year}` };
+    return { semesterName: 'Antara', academicYear: `${year - 1}/${year}` };
+  }
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  return currentMonth >= 7
+    ? { semesterName: 'Ganjil', academicYear: `${currentYear}/${currentYear + 1}` }
+    : { semesterName: 'Genap', academicYear: `${currentYear - 1}/${currentYear}` };
+};
+
+const getStudyProgramByNim = async (nim, queryable = pool) => {
+  const studyProgramCode = getStudyProgramCodeFromNim(nim);
+  if (!studyProgramCode) return null;
+
+  const result = await queryable.query(
+    'SELECT id, name, level FROM study_programs WHERE id = $1 LIMIT 1',
+    [studyProgramCode]
+  );
+
+  return mapStudyProgramRow(result.rows[0]);
+};
+
+const getRecommendationSigner = async () => {
+  let name = 'Nama Wakil Dekan Belum Diatur';
+  let title = 'Wakil Dekan';
+
+  try {
+    const result = await pool.query(`
+      SELECT nama, jabatan
+      FROM lecturer
+      WHERE jabatan ILIKE 'Wakil Dekan%'
+      ORDER BY nama ASC
+      LIMIT 1
+    `);
+
+    if (result.rows.length > 0) {
+      name = result.rows[0].nama;
+      title = result.rows[0].jabatan;
+    }
+  } catch (e) {
+    console.error('Failed to fetch recommendation signer data:', e);
+  }
+
+  return { name, title };
+};
+
+const getDeanSigner = async () => {
+  let name = 'Nama Dekan Belum Diatur';
+  let title = 'Dekan';
+
+  try {
+    const result = await pool.query(`
+      SELECT nama, jabatan
+      FROM lecturer
+      WHERE jabatan ILIKE 'Dekan%' OR jabatan ILIKE 'Wakil Dekan%'
+      ORDER BY CASE WHEN jabatan ILIKE 'Dekan%' THEN 0 ELSE 1 END, nama ASC
+      LIMIT 1
+    `);
+
+    if (result.rows.length > 0) {
+      name = result.rows[0].nama;
+      title = result.rows[0].jabatan;
+    }
+  } catch (e) {
+    console.error('Failed to fetch Dean data:', e);
+  }
+
+  return { name, title };
+};
+
+const formatLetterNumber = (type, sequence, date) => {
+  const paddedSequence = String(sequence).padStart(3, '0');
+  if (type === 'su-rek') {
+    const month = String(date.getMonth() + 1);
+    return `${paddedSequence}/FTI/Su.Rek/${month}/${date.getFullYear()}`;
+  }
+  if (type === 'counseling') {
+    return `${paddedSequence}/FTI/${date.getMonth() + 1}/${date.getFullYear()}`;
+  }
+  const paddedMonth = String(date.getMonth() + 1).padStart(2, '0');
+  return `${paddedSequence}/${LETTER_TYPE_TO_CODE[type]}/${paddedMonth}/${date.getFullYear()}`;
+};
+
+const reserveLetterNumber = async (client, type, date) => {
+  await ensureTuInfrastructure();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+
+  await client.query(
+    `INSERT INTO tu_letter_number_counters (letter_type, year, month, last_sequence)
+     VALUES ($1, $2, $3, 0)
+     ON CONFLICT (letter_type, year, month) DO NOTHING`,
+    [type, year, month]
+  );
+
+  const counterResult = await client.query(
+    `SELECT last_sequence
+     FROM tu_letter_number_counters
+     WHERE letter_type = $1 AND year = $2 AND month = $3
+     FOR UPDATE`,
+    [type, year, month]
+  );
+
+  const nextSequence = Number(counterResult.rows[0]?.last_sequence || 0) + 1;
+  const letterNumber = formatLetterNumber(type, nextSequence, date);
+
+  await client.query(
+    `UPDATE tu_letter_number_counters
+     SET last_sequence = $4,
+         last_letter_number = $5,
+         last_generated_at = $6,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE letter_type = $1 AND year = $2 AND month = $3`,
+    [type, year, month, nextSequence, letterNumber, date]
+  );
+
+  return { nextSequence, letterNumber };
+};
+
+const {
+  upsertSystemSetting,
+  getTuSettingsPayload,
+  saveLetterBackgrounds,
+  saveLetterLayouts
+} = createTuSettingsService({
+  pool,
+  ensureTuInfrastructure,
+  buildLetterBackgroundsPayload,
+  buildLetterLayoutsPayload,
+  getSharedLetterBackground,
+  normalizeLetterLayout,
+  defaultLetterLayoutMm: DEFAULT_LETTER_LAYOUT_MM
+});
+
+// Helper: Generate PDF Buffer menggunakan Puppeteer
+const generatePdfBuffer = async (htmlContent) => {
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+  await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+  const pdfBuffer = await page.pdf({
+    format: 'A4',
+    printBackground: true,
+    margin: { top: '0', right: '0', bottom: '0', left: '0' }
+  });
+  await browser.close();
+  return pdfBuffer;
+};
+
+const sendSuRekAccessCodeEmail = async (requestData, req) => {
+  const accessCode = requestData.access_code || requestData.accessCode || '';
+  const serviceUrl = `${buildPublicAppBaseUrl(req)}/layanan-tu`;
+
+  const contentHtml = `
+    <h2>Permohonan Surat Rekomendasi Diterima</h2>
+    <p>Halo, <strong>${escapeXml(requestData.name)}</strong>.</p>
+    <p>Permohonan Surat Rekomendasi Afirmasi Cemerlang Anda telah masuk ke sistem Tata Usaha FTI UKSW.</p>
+    <p>Gunakan kode akses berikut untuk mengecek status permohonan dan mengunduh surat setelah diverifikasi:</p>
+    <div style="margin: 24px 0; padding: 20px; border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 8px; text-align: center;">
+      <div style="font-size: 13px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Kode Akses</div>
+      <div style="font-size: 28px; font-weight: 700; letter-spacing: 0.15em; color: #1d4ed8; font-family: Consolas, monospace;">${escapeXml(accessCode)}</div>
+    </div>
+    <p>Buka halaman layanan TU lalu masukkan kode akses tersebut:</p>
+    <p><a href="${serviceUrl}" style="color: #1d4ed8; font-weight: bold; text-decoration: none;">&rarr; Buka Layanan TU</a></p>
+  `;
+
+  await sendMail({
+    to: requestData.email,
+    subject: `Kode Akses Surat Rekomendasi - ${requestData.name}`,
+    html: buildProfessionalEmail({
+      title: 'Permohonan Diterima',
+      contentHtml
+    }),
+    attachments: getStandardEmailAttachments()
+  });
+
+  return { success: true };
+};
+
+const letterConfig = {
+  'active-student': {
+    table: 'active_student_requests',
+    template: 'suratAktifKuliahV2.html',
+    subject: 'Surat Keterangan Aktif Kuliah',
+    pdfFilename: 'Surat_Aktif_Kuliah',
+    emailBody: `
+      <p>Permohonan Surat Keterangan Aktif Kuliah Anda telah disetujui dan diproses oleh Tata Usaha.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, semesterMeta }) => {
+      let deanName = 'Nama Dekan Belum Diatur';
+      let deanTitle = 'Dekan';
+
+      try {
+        const deanResult = await pool.query(`
+          SELECT nama, jabatan
+          FROM lecturer
+          WHERE jabatan ILIKE 'Dekan%' OR jabatan ILIKE 'Wakil Dekan%'
+          ORDER BY CASE WHEN jabatan ILIKE 'Dekan%' THEN 0 ELSE 1 END, nama ASC
+          LIMIT 1
+        `);
+        if (deanResult.rows.length > 0) {
+          deanName = deanResult.rows[0].nama;
+          deanTitle = deanResult.rows[0].jabatan;
+        }
+      } catch (e) {
+        console.error('Failed to fetch Dean data:', e);
+      }
+
+      const studyProgram = data.study_program_level && data.study_program_name
+        ? {
+            studyProgramLevel: data.study_program_level,
+            studyProgramName: data.study_program_name
+          }
+        : await getStudyProgramByNim(data.nim);
+
+      return {
+        '{{tempatTanggalLahir}}': buildBirthPlaceAndDate(data.birth_place || data.birthPlace, data.birth_date || data.birthDate),
+        '{{jenjangProgram}}': data.study_program_level || data.studyProgramLevel || studyProgram?.studyProgramLevel || '',
+        '{{programStudi}}': data.study_program_name || data.studyProgramName || studyProgram?.studyProgramName || '',
+        '{{fakultas}}': data.faculty || data.facultyName || DEFAULT_FACULTY,
+        '{{universitas}}': data.university || DEFAULT_UNIVERSITY,
+        '{{semester}}': semesterMeta.semesterName,
+        '{{tahunAkademik}}': semesterMeta.academicYear,
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Permohonan Surat Aktif Kuliah',
+        '{{lampiran}}': '1 lembar',
+        '{{deanName}}': deanName,
+        '{{deanTitle}}': deanTitle
+      };
+    }
+  },
+  observation: {
+    table: 'observation_requests',
+    template: 'suratObservasiV2.html',
+    subject: 'Surat Pengantar Observasi',
+    pdfFilename: 'Surat_Pengantar_Observasi',
+    emailBody: `
+      <p>Permohonan Surat Pengantar Observasi Anda telah diproses oleh Sistem CORE.FTI.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF.</p>
+    `,
+    getPlaceholders: ({ data, letterNumber }) => {
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        'Sarjana': 'S1',
+        'Magister': 'S2',
+        'Doktor': 'S3'
+      };
+
+      const tanggalSurat = new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date());
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Pengantar Observasi',
+        '{{lampiran}}': '-',
+        '{{recipientName}}': data.recipient_name || data.recipientName || '(tidak disebutkan)',
+        '{{companyAddress}}': data.company_address || data.companyAddress || '(tidak disebutkan)',
+        '{{purpose}}': data.purpose || '(tidak disebutkan)',
+        '{{company}}': data.company || '(tidak disebutkan)',
+        '{{courseName}}': data.course_name || data.courseName || '(tidak disebutkan)',
+        '{{lecturerName}}': data.lecturer_name || data.lecturerName || '(tidak disebutkan)',
+        '{{headOfProgramName}}': data.head_of_program_name || data.headOfProgramName || '(tidak disebutkan)',
+        '{{jenjangProgram}}': map[level] || level,
+        '{{programStudi}}': data.study_program_name || data.studyProgramName || 'Teknik Informatika',
+        '{{studentRows}}': buildObservationStudentRowsHtml(data.student_members || data.students),
+        '{{tanggalSurat}}': tanggalSurat
+      };
+    }
+  },
+  counseling: {
+    table: 'counseling_requests',
+    template: 'suratKonselingV2.html',
+    subject: 'Surat Pengantar Konseling',
+    pdfFilename: 'Surat_Pengantar_Konseling',
+    emailBody: `
+      <p>Surat Pengantar Konseling telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber }) => {
+      const deanSigner = await getDeanSigner();
+      const studyProgram = data.study_program_level && data.study_program_name
+        ? {
+            studyProgramLevel: data.study_program_level,
+            studyProgramName: data.study_program_name
+          }
+        : await getStudyProgramByNim(data.nim);
+      const recipientName = String(data.recipient_name || data.recipientName || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': escapeXml(data.subject || data.subjectName || DEFAULT_COUNSELING_SUBJECT),
+        '{{lampiran}}': '-',
+        '{{recipientName}}': recipientName || DEFAULT_COUNSELING_RECIPIENT_NAME.split('\n').map((line) => escapeXml(line)).join('<br>'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{fakProgdi}}': escapeXml(formatFacultyProgram({
+          faculty: data.faculty || 'FTI',
+          studyProgramLevel: data.study_program_level || data.studyProgramLevel || studyProgram?.studyProgramLevel || '',
+          studyProgramName: data.study_program_name || data.studyProgramName || studyProgram?.studyProgramName || ''
+        })),
+        '{{referralUnit}}': escapeXml(data.referral_unit || data.referralUnit || DEFAULT_COUNSELING_REFERRAL_UNIT),
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title)
+      };
+    }
+  },
+  research: {
+    table: 'ta_letter_requests',
+    template: 'suratPenelitianV2.html',
+    subject: 'Rekomendasi Penelitian',
+    pdfFilename: 'Surat_Rekomendasi_Penelitian',
+    emailBody: `
+      <p>Surat Rekomendasi Penelitian telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, tuSettings }) => {
+      const deanSigner = await getRecommendationSigner();
+      const researchDefaults = normalizeResearchDefaults(tuSettings);
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        Sarjana: 'S1',
+        Magister: 'S2',
+        Doktor: 'S3'
+      };
+      const studyProgramLabel = `${map[level] || level} ${data.study_program_name || data.studyProgramName || ''}`.trim();
+      const rawResearchPlace = data.research_place || data.researchPlace || '';
+      const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
+      const researchPlace = rawResearchPlace || rawDestinationPlace;
+      const researchPlacePhrase = researchPlace ? ` di <strong>${escapeXml(researchPlace)}</strong>` : '';
+      const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+      const advisors = normalizeResearchAdvisors(data.advisors, researchDefaults);
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Rekomendasi Penelitian',
+        '{{lampiran}}': '-',
+        '{{recipientName}}': escapeXml(data.recipient_name || data.recipientName || ''),
+        '{{recipientTitle}}': escapeXml(data.recipient_title || data.recipientTitle || ''),
+        '{{destinationPlace}}': escapeXml(rawDestinationPlace),
+        '{{destinationAddress}}': destinationAddress,
+        '{{researchPlace}}': escapeXml(researchPlace),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || researchDefaults.assignmentType),
+        '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{contactPerson}}': escapeXml(data.contact_person || data.contactPerson || data.nim || ''),
+        '{{researchPlacePhrase}}': researchPlacePhrase,
+        '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
+        '{{advisorParagraph}}': advisors.length > 0
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors, researchDefaults))}.</p>`
+          : '',
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors, researchDefaults),
+        '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
+      };
+    }
+  },
+  interview: {
+    table: 'ta_letter_requests',
+    template: 'suratWawancaraV2.html',
+    subject: 'Surat Izin Wawancara',
+    pdfFilename: 'Surat_Izin_Wawancara',
+    emailBody: `
+      <p>Surat Izin Wawancara telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, tuSettings }) => {
+      const deanSigner = await getRecommendationSigner();
+      const interviewDefaults = normalizeInterviewDefaults(tuSettings);
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        Sarjana: 'S1',
+        Magister: 'S2',
+        Doktor: 'S3'
+      };
+      const studyProgramLabel = `${map[level] || level} ${data.study_program_name || data.studyProgramName || ''}`.trim();
+      const rawResearchPlace = data.research_place || data.researchPlace || '';
+      const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
+      const researchPlace = rawResearchPlace || rawDestinationPlace;
+      const researchPlacePhrase = researchPlace ? ` di <strong>${escapeXml(researchPlace)}</strong>` : '';
+      const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+      const advisors = normalizeResearchAdvisors(data.advisors, interviewDefaults);
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': 'Izin Wawancara',
+        '{{lampiran}}': '-',
+        '{{recipientName}}': escapeXml(data.recipient_name || data.recipientName || ''),
+        '{{recipientTitle}}': escapeXml(data.recipient_title || data.recipientTitle || ''),
+        '{{destinationPlace}}': escapeXml(rawDestinationPlace),
+        '{{destinationAddress}}': destinationAddress,
+        '{{researchPlace}}': escapeXml(researchPlace),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || interviewDefaults.assignmentType),
+        '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{contactPerson}}': escapeXml(data.contact_person || data.contactPerson || data.nim || ''),
+        '{{researchPlacePhrase}}': researchPlacePhrase,
+        '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
+        '{{advisorParagraph}}': advisors.length > 0
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors, interviewDefaults))}.</p>`
+          : '',
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors, interviewDefaults),
+        '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
+      };
+    }
+  },
+  permission: {
+    table: 'ta_letter_requests',
+    template: 'suratPerizinanV2.html',
+    subject: 'Surat Perizinan',
+    pdfFilename: 'Surat_Perizinan',
+    emailBody: `
+      <p>Surat Perizinan telah diproses oleh Tata Usaha FTI UKSW.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah memiliki QR validasi publik.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, tuSettings }) => {
+      const deanSigner = await getRecommendationSigner();
+      const permissionDefaults = normalizePermissionDefaults(tuSettings);
+      const level = data.study_program_level || data.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        Sarjana: 'S1',
+        Magister: 'S2',
+        Doktor: 'S3'
+      };
+      const studyProgramLabel = `${map[level] || level} ${data.study_program_name || data.studyProgramName || ''}`.trim();
+      const rawResearchPlace = data.research_place || data.researchPlace || '';
+      const rawDestinationPlace = data.destination_place || data.destinationPlace || rawResearchPlace;
+      const researchPlace = rawResearchPlace || rawDestinationPlace;
+      const researchPlacePhrase = researchPlace ? ` di <strong>${escapeXml(researchPlace)}</strong>` : '';
+      const destinationAddress = String(data.destination_address || data.destinationAddress || data.research_address || data.researchAddress || '')
+        .split(/\r?\n/)
+        .map((line) => escapeXml(line))
+        .join('<br>');
+      const advisors = normalizeResearchAdvisors(data.advisors, permissionDefaults);
+      const permissionPurpose = String(data.permission_purpose || data.permissionPurpose || '').trim();
+      const permissionPurposeForText = permissionPurpose || 'melakukan kegiatan yang diperlukan';
+      const permissionPurposeForSubject = permissionPurpose || 'Kegiatan Tugas Akhir';
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{letterPurpose}}': `Permohonan Izin ${escapeXml(permissionPurposeForSubject)}`,
+        '{{lampiran}}': '-',
+        '{{recipientName}}': escapeXml(data.recipient_name || data.recipientName || ''),
+        '{{recipientTitle}}': escapeXml(data.recipient_title || data.recipientTitle || ''),
+        '{{destinationPlace}}': escapeXml(rawDestinationPlace),
+        '{{destinationAddress}}': destinationAddress,
+        '{{researchPlace}}': escapeXml(researchPlace),
+        '{{assignmentType}}': escapeXml(data.assignment_type || data.assignmentType || permissionDefaults.assignmentType),
+        '{{programStudi}}': escapeXml(studyProgramLabel || 'Teknik Informatika'),
+        '{{studentName}}': escapeXml(data.name || ''),
+        '{{studentNim}}': escapeXml(data.nim || ''),
+        '{{contactPerson}}': escapeXml(data.contact_person || data.contactPerson || data.nim || ''),
+        '{{researchPlacePhrase}}': researchPlacePhrase,
+        '{{researchTitle}}': escapeXml(data.research_title || data.researchTitle || ''),
+        '{{permissionPurpose}}': escapeXml(permissionPurposeForText),
+        '{{advisorParagraph}}': advisors.length > 0
+          ? `<p>Pembimbing mahasiswa tersebut adalah ${escapeXml(buildResearchAdvisorText(advisors, permissionDefaults))}.</p>`
+          : '',
+        '{{deanName}}': escapeXml(deanSigner.name),
+        '{{deanTitle}}': escapeXml(deanSigner.title),
+        '{{advisorSignatureBlock}}': buildResearchAdvisorSignatureHtml(advisors, permissionDefaults),
+        '{{signatureLineClass}}': advisors.length > 0 ? 'with-advisors' : 'single-signer'
+      };
+    }
+  },
+  'su-rek': {
+    table: 'su_rek_requests',
+    template: 'suratRekomendasiAfirmasiV2.html',
+    subject: 'Surat Rekomendasi Afirmasi Cemerlang',
+    pdfFilename: 'Surat_Rekomendasi_Afirmasi',
+    emailBody: `
+      <p>Permohonan Surat Rekomendasi Afirmasi Cemerlang Anda telah disetujui dan diproses oleh Tata Usaha.</p>
+      <p>Surat tersebut terlampir pada email ini dalam format PDF dan sudah dilegalisir secara digital.</p>
+    `,
+    getPlaceholders: async ({ data, letterNumber, semesterMeta }) => {
+      const recommendationSigner = await getRecommendationSigner();
+
+      const studyProgram = await getStudyProgramByNim(data.nim);
+      const programLevel = studyProgram?.studyProgramLevel || 'Sarjana';
+      const map = {
+        'Diploma Tiga': 'D3',
+        'Sarjana': 'S1',
+        'Magister': 'S2',
+        'Doktor': 'S3'
+      };
+      const formattedProdi = `${map[programLevel] || programLevel} ${studyProgram?.studyProgramName || ''}`.toUpperCase();
+
+      const tanggalSurat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date());
+      const academicYearDashed = (semesterMeta?.academicYear || '2025/2026').replace(/\//g, '-');
+
+      return {
+        '{{nomorSurat}}': letterNumber,
+        '{{lampiran}}': data.lampiran || '1 bendel',
+        '{{recipientName}}': String(data.recipient_name || data.recipientName || '').replace(/\r?\n/g, '<br>'),
+        '{{berdasarkanNo}}': data.berdasarkan_no || data.berdasarkanNo || '',
+        '{{perihal}}': data.perihal || 'Beasiswa Afirmasi Cemerlang, ACPOS dan ACPA',
+        '{{name}}': (data.name || '').toUpperCase(),
+        '{{nim}}': (data.nim || '').toUpperCase(),
+        '{{programStudi}}': formattedProdi,
+        '{{dekanNama}}': escapeXml(recommendationSigner.name),
+        '{{dekanTitle}}': escapeXml(recommendationSigner.title),
+        '{{tanggalSurat}}': tanggalSurat,
+        '{{tahunAkademikDashed}}': academicYearDashed
+      };
+    }
+  }
+};
+
+const ensureLetterNumber = async (client, type, requestData) => {
+  if (requestData.letter_number) {
+    return requestData;
+  }
+
+  const now = new Date();
+  const config = letterConfig[type];
+  const { nextSequence, letterNumber } = await reserveLetterNumber(client, type, now);
+  const updateResult = await client.query(
+    `UPDATE ${config.table}
+     SET letter_number = $1,
+         letter_sequence = $2,
+         letter_generated_at = $3,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $4
+     RETURNING *`,
+    [letterNumber, nextSequence, now, requestData.id]
+  );
+
+  return updateResult.rows[0];
+};
+
+const ensureLetterValidationToken = async (queryable, type, requestData) => {
+  if (requestData.validation_token) {
+    return requestData;
+  }
+
+  const config = letterConfig[type];
+  if (!config) {
+    throw new Error('Jenis surat tidak valid untuk token validasi.');
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const validationToken = createValidationToken();
+      const updateResult = await queryable.query(
+        `UPDATE ${config.table}
+         SET validation_token = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [validationToken, requestData.id]
+      );
+      return updateResult.rows[0];
+    } catch (err) {
+      if (err?.code === '23505') continue;
+      throw err;
+    }
+  }
+
+  throw new Error('Gagal membuat token validasi surat.');
+};
+
+const buildLetterHtml = async (type, requestData, req) => {
+  const config = letterConfig[type];
+  if (!config) {
+    throw new Error('Jenis surat tidak valid.');
+  }
+
+  const tuSettings = await getTuSettingsPayload();
+  const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
+  const assetKey = config.assetKey || LETTER_TYPE_TO_CLIENT_KEY[type];
+  const backgroundImage = requestData.backgroundImageBase64 || getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
+  const letterLayout = requestData.layout || normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);
+  const templatePath = path.join(__dirname, '..', '..', 'lettersTU', config.template);
+  let htmlContent = await fs.readFile(templatePath, 'utf-8');
+
+  const validationToken = requestData.validation_token || requestData.validationToken;
+  const letterNumberVal = requestData.letter_number || requestData.letterNumber;
+  const letterGeneratedAt = requestData.letter_generated_at || requestData.letterGeneratedAt;
+
+  const tanggalSurat = letterGeneratedAt
+    ? new Date(letterGeneratedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' })
+    : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+  const validationUrl = buildPublicValidationUrl(req, validationToken);
+  const validationQrImage = await createQrSvgDataUrl(validationUrl);
+
+  const draftWatermarkHtml = requestData.status === 'pending'
+    ? '<div class="draft-watermark">DRAFT / PENDING</div>'
+    : '';
+
+  const ccRaw = requestData.carbon_copies || requestData.carbonCopies || [];
+  let ccArray = [];
+  if (typeof ccRaw === 'string') {
+    try {
+      ccArray = JSON.parse(ccRaw);
+    } catch (e) {
+      console.error('Failed to parse carbon copies string:', e);
+    }
+  } else if (Array.isArray(ccRaw)) {
+    ccArray = ccRaw;
+  }
+
+  let tembusanHtml = '';
+  if (ccArray && ccArray.length > 0) {
+    const listItems = ccArray
+      .map(cc => `<li style="list-style: none; margin: 0; padding: 0 0 0 2mm; text-indent: -2mm;">- ${cc.role || cc.jabatan || ''}${cc.name || cc.nama ? ` - ${cc.name || cc.nama}` : ''}</li>`)
+      .join('\n');
+    tembusanHtml = `
+      <div class="carbon-copy-block" style="margin-top: 8mm; font-size: 11pt; line-height: 1.5; page-break-inside: avoid;">
+          <p style="margin: 0; font-weight: bold;">Tembusan</p>
+          <ul style="margin: 1mm 0 0 0; padding: 0; list-style: none;">
+              ${listItems}
+          </ul>
+      </div>
+    `;
+  }
+
+  htmlContent = htmlContent
+    .replace(/{{name}}/g, () => escapeXml(requestData.name || ''))
+    .replace(/{{nim}}/g, () => escapeXml(requestData.nim || ''))
+    .replace(/{{tanggalSurat}}/g, () => tanggalSurat)
+    .replace(/{{signatureImage}}/g, () => '')
+    .replace(/{{stampImage}}/g, () => '')
+    .replace(/{{validationUrl}}/g, () => escapeXml(validationUrl))
+    .replace(/{{validationQrImage}}/g, () => validationQrImage)
+    .replace(/{{backgroundImage}}/g, () => backgroundImage)
+    .replace(/{{marginTopMm}}/g, () => String(letterLayout.marginTopMm))
+    .replace(/{{marginRightMm}}/g, () => String(letterLayout.marginRightMm))
+    .replace(/{{marginBottomMm}}/g, () => String(letterLayout.marginBottomMm))
+    .replace(/{{marginLeftMm}}/g, () => String(letterLayout.marginLeftMm))
+    .replace(/{{draftWatermark}}/g, () => draftWatermarkHtml)
+    .replace(/{{tembusanBlock}}/g, () => tembusanHtml);
+
+  const placeholders = config.getPlaceholders({
+    data: requestData,
+    letterNumber: letterNumberVal || '-',
+    semesterMeta,
+    tuSettings
+  });
+
+  const resolvedPlaceholders = await placeholders;
+  for (const key in resolvedPlaceholders) {
+    htmlContent = htmlContent.replace(new RegExp(key, 'g'), () => String(resolvedPlaceholders[key]));
+  }
+
+  return applyOfficialLetterTypography(htmlContent);
+};
+
+const buildLetterPdfBuffer = async (type, requestData, req) => {
+  const htmlContent = await buildLetterHtml(type, requestData, req);
+  return generatePdfBuffer(htmlContent);
+};
+
+const buildObservationPdfBuffer = async (requestData, req) => {
+  const requestWithToken = await ensureLetterValidationToken(pool, 'observation', requestData);
+  return buildLetterPdfBuffer('observation', requestWithToken, req);
+};
+
+const ensureObservationAccessCode = async (client, requestData) => {
+  if (requestData.access_code) {
+    return requestData;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const accessCode = createObservationAccessCode();
+      const updateResult = await client.query(
+        `UPDATE observation_requests
+         SET access_code = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [accessCode, requestData.id]
+      );
+      return updateResult.rows[0];
+    } catch (err) {
+      if (err?.code === '23505') {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('Gagal membuat kode akses surat observasi.');
+};
+
+const upsertObservationRequest = async (client, data, targetStatus) => {
+  const recentDuplicate = await client.query(
+    `SELECT * FROM observation_requests 
+     WHERE nim = $1 
+       AND company IS NOT DISTINCT FROM $2 
+       AND course_name IS NOT DISTINCT FROM $3 
+       AND created_at > NOW() - INTERVAL '1 day'
+     ORDER BY created_at DESC LIMIT 1`,
+    [data.nim, data.company, data.course_name]
+  );
+
+  if (recentDuplicate.rows.length > 0) {
+    const existing = recentDuplicate.rows[0];
+    const statusPriority = { 'pending': 1, 'verified': 2, 'sent': 3 };
+    const currentStatusLevel = statusPriority[existing.status] || 0;
+    const targetStatusLevel = statusPriority[targetStatus] || 0;
+    const newStatus = targetStatusLevel > currentStatusLevel ? targetStatus : existing.status;
+
+    const updateResult = await client.query(
+      `UPDATE observation_requests SET 
+         name = $1, email = $2, recipient_name = $3, company_address = $4,
+         purpose = $5, lecturer_name = $6, head_of_program_name = $7, study_program_level = $8,
+         study_program_name = $9, student_members = $10::jsonb, status = $11, carbon_copies = $12::jsonb, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $13 RETURNING *`,
+      [
+        data.name, data.email, data.recipient_name, data.company_address, data.purpose || null,
+        data.lecturer_name, data.head_of_program_name, data.study_program_level, 
+        data.study_program_name, JSON.stringify(data.student_members || []), newStatus,
+        JSON.stringify(data.carbon_copies || []),
+        existing.id
+      ]
+    );
+    return updateResult.rows[0];
+  } else {
+    const id = `OBS-${Date.now()}`;
+    const insertResult = await client.query(
+      `INSERT INTO observation_requests (
+          id, name, nim, email, recipient_name, company_address, company,
+          purpose, course_name, lecturer_name, head_of_program_name, study_program_level, study_program_name, student_members, status, carbon_copies
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16::jsonb)
+      RETURNING *`,
+      [
+        id, data.name, data.nim, data.email, data.recipient_name, data.company_address, data.company, 
+        data.purpose || null, data.course_name, data.lecturer_name, data.head_of_program_name, data.study_program_level, 
+        data.study_program_name, JSON.stringify(data.student_members || []), targetStatus,
+        JSON.stringify(data.carbon_copies || [])
+      ]
+    );
+    return insertResult.rows[0];
+  }
+};
+
+const normalizeResearchPayload = async (payload = {}) => {
+  const nim = String(payload.nim || '').trim();
+  const studyProgram = nim ? await getStudyProgramByNim(nim) : null;
+  const settingsPayload = await getTuSettingsPayload();
+  const researchDefaults = normalizeResearchDefaults(settingsPayload);
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+  const hasDestinationPlace = hasOwn('destinationPlace') || hasOwn('destination_place');
+  const hasDestinationAddress = hasOwn('destinationAddress') || hasOwn('destination_address');
+  const researchPlace = String(payload.researchPlace || payload.research_place || '').trim();
+  const researchAddress = String(payload.researchAddress || payload.research_address || '').trim();
+  const destinationPlace = hasDestinationPlace
+    ? String(payload.destinationPlace || payload.destination_place || '').trim()
+    : researchPlace;
+  const destinationAddress = hasDestinationAddress
+    ? String(payload.destinationAddress || payload.destination_address || '').trim()
+    : researchAddress;
+  const rawLetterKind = payload.letterKind || payload.letter_kind;
+  const letterKind = rawLetterKind === INTERVIEW_LETTER_KIND
+    ? INTERVIEW_LETTER_KIND
+    : rawLetterKind === PERMISSION_LETTER_KIND
+      ? PERMISSION_LETTER_KIND
+      : RESEARCH_LETTER_KIND;
+
+  return {
+    letter_kind: letterKind,
+    name: formatStudentName(payload.name || ''),
+    nim,
+    email: String(payload.email || '').trim(),
+    recipient_name: String(payload.recipientName || payload.recipient_name || '').trim(),
+    recipient_title: String(payload.recipientTitle || payload.recipient_title || '').trim(),
+    destination_place: destinationPlace,
+    destination_address: destinationAddress,
+    research_place: researchPlace,
+    research_address: researchAddress,
+    assignment_type: researchDefaults.assignmentType,
+    research_title: String(payload.researchTitle || payload.research_title || '').trim(),
+    permission_purpose: String(payload.permissionPurpose || payload.permission_purpose || '').trim(),
+    contact_person: String(payload.contactPerson || payload.contact_person || '').trim(),
+    study_program_level: payload.studyProgramLevel || payload.study_program_level || studyProgram?.studyProgramLevel || null,
+    study_program_name: payload.studyProgramName || payload.study_program_name || studyProgram?.studyProgramName || null,
+    advisors: normalizeResearchAdvisors(payload.advisors, researchDefaults, { preserveCustomTitle: false }),
+    include_research_place: true,
+    carbon_copies: Array.isArray(payload.carbonCopies || payload.carbon_copies) ? (payload.carbonCopies || payload.carbon_copies) : []
+  };
+};
+
+const validateResearchPayload = (data) => {
+  if (!data.name) return 'Nama mahasiswa wajib diisi.';
+  if (!data.nim) return 'NIM mahasiswa wajib diisi.';
+  if (!data.recipient_title) return 'Jabatan penerima surat wajib diisi.';
+  if (!data.destination_place) return 'Instansi atau tempat tujuan surat wajib diisi.';
+  if (!data.destination_address) return 'Alamat tujuan surat wajib diisi.';
+  if (data.letter_kind === PERMISSION_LETTER_KIND && !data.permission_purpose) return 'Keperluan izin wajib diisi.';
+  if (!data.research_place) return data.letter_kind === INTERVIEW_LETTER_KIND ? 'Tempat wawancara wajib diisi.' : data.letter_kind === PERMISSION_LETTER_KIND ? 'Lokasi atau instansi perizinan wajib diisi.' : 'Tempat penelitian wajib diisi.';
+  if (!data.study_program_name) return 'Program studi wajib diisi.';
+  if (!data.research_title) return data.letter_kind === INTERVIEW_LETTER_KIND ? 'Topik atau judul wawancara wajib diisi.' : data.letter_kind === PERMISSION_LETTER_KIND ? 'Judul tugas akhir wajib diisi.' : 'Judul penelitian wajib diisi.';
+  return null;
+};
+
+const ensureResearchAccessCode = async (client, requestData) => {
+  if (requestData.access_code) {
+    return requestData;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const accessCode = createResearchAccessCode(requestData.letter_kind);
+      const updateResult = await client.query(
+        `UPDATE ta_letter_requests
+         SET access_code = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [accessCode, requestData.id]
+      );
+      return updateResult.rows[0];
+    } catch (err) {
+      if (err?.code === '23505') continue;
+      throw err;
+    }
+  }
+
+  throw new Error('Gagal membuat kode akses surat penelitian.');
+};
+
+const upsertResearchRequest = async (client, data, targetStatus) => {
+  const recentDuplicate = await client.query(
+    `SELECT * FROM ta_letter_requests
+     WHERE nim = $1
+       AND letter_kind IS NOT DISTINCT FROM $2
+       AND research_place IS NOT DISTINCT FROM $3
+       AND research_title IS NOT DISTINCT FROM $4
+       AND destination_place IS NOT DISTINCT FROM $5
+       AND permission_purpose IS NOT DISTINCT FROM $6
+       AND created_at > NOW() - INTERVAL '1 day'
+      ORDER BY created_at DESC LIMIT 1`,
+    [data.nim, data.letter_kind, data.research_place, data.research_title, data.destination_place, data.permission_purpose || null]
+  );
+
+  if (recentDuplicate.rows.length > 0) {
+    const existing = recentDuplicate.rows[0];
+    const statusPriority = { pending: 1, verified: 2, sent: 3 };
+    const currentStatusLevel = statusPriority[existing.status] || 0;
+    const targetStatusLevel = statusPriority[targetStatus] || 0;
+    const newStatus = targetStatusLevel > currentStatusLevel ? targetStatus : existing.status;
+
+    const updateResult = await client.query(
+      `UPDATE ta_letter_requests SET
+         name = $1,
+         email = $2,
+         recipient_name = $3,
+         recipient_title = $4,
+         destination_place = $5,
+         destination_address = $6,
+         research_place = $7,
+         research_address = $8,
+         assignment_type = $9,
+         research_title = $10,
+         permission_purpose = $11,
+         contact_person = $12,
+         study_program_level = $13,
+         study_program_name = $14,
+         letter_kind = $15,
+         advisors = $16::jsonb,
+         include_research_place = $17,
+         status = $18,
+         carbon_copies = $19::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $20
+       RETURNING *`,
+      [
+        data.name,
+        data.email,
+        data.recipient_name,
+        data.recipient_title,
+        data.destination_place,
+        data.destination_address,
+        data.research_place,
+        data.research_address,
+        data.assignment_type,
+        data.research_title,
+        data.permission_purpose || null,
+        data.contact_person,
+        data.study_program_level,
+        data.study_program_name,
+        data.letter_kind,
+        JSON.stringify(data.advisors || []),
+        data.include_research_place !== false,
+        newStatus,
+        JSON.stringify(data.carbon_copies || []),
+        existing.id
+      ]
+    );
+    return updateResult.rows[0];
+  }
+
+  const id = `${data.letter_kind === INTERVIEW_LETTER_KIND ? 'WCR' : data.letter_kind === PERMISSION_LETTER_KIND ? 'IZN' : 'PEN'}-${Date.now()}`;
+  const insertResult = await client.query(
+    `INSERT INTO ta_letter_requests (
+       id, name, nim, email, recipient_name, recipient_title, destination_place,
+       destination_address, research_place, research_address, assignment_type,
+       research_title, permission_purpose, contact_person, study_program_level, study_program_name,
+       letter_kind, advisors, include_research_place, status, carbon_copies
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, $20, $21::jsonb)
+      RETURNING *`,
+    [
+      id,
+      data.name,
+      data.nim,
+      data.email,
+      data.recipient_name,
+      data.recipient_title,
+      data.destination_place,
+      data.destination_address,
+      data.research_place,
+      data.research_address,
+      data.assignment_type,
+      data.research_title,
+      data.permission_purpose || null,
+      data.contact_person,
+      data.study_program_level,
+      data.study_program_name,
+      data.letter_kind,
+      JSON.stringify(data.advisors || []),
+      data.include_research_place !== false,
+      targetStatus,
+      JSON.stringify(data.carbon_copies || [])
+    ]
+  );
+
+  return insertResult.rows[0];
+};
+
+const createFinalResearchRequest = async (client, payload, targetStatus, req, letterKind = RESEARCH_LETTER_KIND) => {
+  const normalized = await normalizeResearchPayload({
+    ...payload,
+    letterKind,
+    email: payload.email || req.user?.email || ''
+  });
+  const resolvedEmail = normalized.email || `arsip-${normalized.nim || Date.now()}@core.fti`;
+  const data = { ...normalized, email: resolvedEmail };
+  const validationMessage = validateResearchPayload(data);
+  if (validationMessage) {
+    const error = new Error(validationMessage);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let requestData = await upsertResearchRequest(client, data, targetStatus);
+  const letterType = getResearchLetterType(requestData);
+  
+  if (targetStatus === 'verified' || targetStatus === 'sent') {
+    requestData = await ensureLetterNumber(client, letterType, requestData);
+    requestData = await ensureLetterValidationToken(client, letterType, requestData);
+  }
+  
+  requestData = await ensureResearchAccessCode(client, requestData);
+  return requestData;
+};
+
+
+export {
+  pool,
+  verifyRole,
+  buildBirthPlaceAndDate,
+  DEFAULT_FACULTY,
+  DEFAULT_UNIVERSITY,
+  formatStudentName,
+  getStudyProgramCodeFromNim,
+  mapStudyProgramRow,
+  QR_CENTER_LOGO_PATH,
+  uploadSessions,
+  qrDownloadSessions,
+  TU_ACCESS_ROLES,
+  TU_ADMIN_ROLES,
+  TU_SUBMIT_ROLES,
+  TU_SETTINGS_KEYS,
+  QR_DOWNLOAD_TOKEN_TTL_HOURS,
+  publicObservationAccessLimiter,
+  publicValidationLimiter,
+  LETTER_TYPE_TO_CLIENT_KEY,
+  SHARED_LETTER_BACKGROUND_TYPE,
+  LETTER_TYPE_TO_CODE,
+  DEFAULT_COUNSELING_SUBJECT,
+  DEFAULT_COUNSELING_RECIPIENT_NAME,
+  DEFAULT_COUNSELING_REFERRAL_UNIT,
+  DEFAULT_RESEARCH_ASSIGNMENT_TYPE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_FIRST,
+  DEFAULT_RESEARCH_ADVISOR_TITLE_SECOND,
+  DEFAULT_INTERVIEW_ASSIGNMENT_TYPE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_FIRST,
+  DEFAULT_INTERVIEW_ADVISOR_TITLE_SECOND,
+  DEFAULT_PERMISSION_ASSIGNMENT_TYPE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_FIRST,
+  DEFAULT_PERMISSION_ADVISOR_TITLE_SECOND,
+  RESEARCH_LETTER_KIND,
+  INTERVIEW_LETTER_KIND,
+  PERMISSION_LETTER_KIND,
+  OBSERVATION_ACCESS_CODE_PREFIX,
+  RESEARCH_ACCESS_CODE_PREFIX,
+  PERMISSION_ACCESS_CODE_PREFIX,
+  SUREK_ACCESS_CODE_PREFIX,
+  OBSERVATION_ACCESS_CODE_ALPHABET,
+  VALIDATION_TOKEN_BYTES,
+  createQrDownloadToken,
+  hashQrDownloadToken,
+  getQrDownloadExpiry,
+  createValidationToken,
+  randomAccessCodeSegment,
+  createObservationAccessCode,
+  normalizeObservationAccessCode,
+  createResearchAccessCode,
+  normalizeResearchAccessCode,
+  createSuRekAccessCode,
+  normalizeSuRekAccessCode,
+  isValidEmailAddress,
+  escapeXml,
+  createEmptyLetterBackgrounds,
+  DEFAULT_LETTER_LAYOUT_MM,
+  OFFICIAL_LETTER_TYPOGRAPHY_CSS,
+  createEmptyLetterLayouts,
+  clampMarginMm,
+  normalizeLetterLayout,
+  applyOfficialLetterTypography,
+  ensureTuInfrastructure,
+  getQrCenterLogoDataUrl,
+  createQrSvgDataUrl,
+  maskNim,
+  normalizeObservationStudents,
+  getTuSettingsPayload,
+  getSemesterMeta,
+  getSharedLetterBackground,
+  reserveLetterNumber,
+  formatPublicDate,
+  buildPublicValidationUrl,
+  buildPublicAppBaseUrl,
+  letterConfig,
+  ensureLetterNumber,
+  ensureLetterValidationToken,
+  generatePdfBuffer,
+  buildLetterHtml,
+  getResearchLetterType,
+  ensureResearchAccessCode,
+  upsertResearchRequest,
+  createFinalResearchRequest,
+  upsertSystemSetting,
+  saveLetterBackgrounds,
+  saveLetterLayouts,
+  buildLetterValidationPayload,
+  getDeanSigner,
+  buildResearchSignerList,
+  getRecommendationSigner,
+  buildObservationAccessPayload,
+  buildResearchAccessPayload,
+  buildObservationPdfBuffer,
+  buildLetterPdfBuffer,
+  getStudyProgramByNim,
+  mapActiveStudentRow,
+  mapObservationRow,
+  mapCounselingRow,
+  mapResearchRow,
+  sendSuRekAccessCodeEmail,
+  upsertObservationRequest,
+  ensureObservationAccessCode
+};
