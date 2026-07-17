@@ -6,6 +6,7 @@
  *   await sendMail({ to, subject, html, attachments });
  */
 
+import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import fs from 'fs';
 import path from 'path';
@@ -14,9 +15,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+let transporter = null;
 let resend = null;
 
-// Memuat logo sebagai buffer agar bisa embedded base64 (lebih konsisten daripada cid: untuk Resend)
+// Memuat logo sebagai buffer agar bisa diattach (CID)
 let ukswLogo = null;
 let ftiLogo = null;
 let nocLogo = null;
@@ -29,29 +31,40 @@ try {
   console.warn('[Mailer] Peringatan: Logo PNG tidak ditemukan di src/assets/', err.message);
 }
 
-function toDataUrlPng(buffer) {
-  if (!buffer) return null;
-  const base64 = buffer.toString('base64');
-  return `data:image/png;base64,${base64}`;
-}
-
-export function getLogoDataUrls() {
-  return {
-    uksw: toDataUrlPng(ukswLogo),
-    fti: toDataUrlPng(ftiLogo),
-    noc: toDataUrlPng(nocLogo),
-  };
+export function getStandardEmailAttachments() {
+  const attachments = [];
+  if (ukswLogo) attachments.push({ filename: 'UKSW.png', content: ukswLogo, cid: 'uksw_logo@core.fti', contentType: 'image/png', contentDisposition: 'inline' });
+  if (ftiLogo) attachments.push({ filename: 'FTI.png', content: ftiLogo, cid: 'fti_logo@core.fti', contentType: 'image/png', contentDisposition: 'inline' });
+  if (nocLogo) attachments.push({ filename: 'noc.png', content: nocLogo, cid: 'noc_logo@core.fti', contentType: 'image/png', contentDisposition: 'inline' });
+  return attachments;
 }
 
 // ---------------------------------------------------------------
-// Inisialisasi Mailer (Resend untuk Dev + Prod supaya konsisten)
+// Inisialisasi Mailer (Resend untuk Prod, Ethereal untuk Dev)
 // ---------------------------------------------------------------
-const initMailer = () => {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('[Mailer] RESEND_API_KEY belum diset');
+const initMailer = async () => {
+  if (process.env.NODE_ENV === 'production' && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+    console.log('[Mailer] ✅ Menggunakan Resend API (Production)');
+  } else {
+    // Mode Development: Gunakan Ethereal agar kuota Resend tidak habis
+    console.log('[Mailer] 🛠️ Menggunakan Mock Server (Ethereal) untuk Development');
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass
+        }
+      });
+      console.log(`[Mailer] ✅ Ethereal siap (user: ${testAccount.user})`);
+    } catch (err) {
+      console.error('[Mailer] ❌ Gagal membuat akun Ethereal:', err);
+    }
   }
-  resend = new Resend(process.env.RESEND_API_KEY);
-  console.log('[Mailer] ✅ Menggunakan Resend API (Dev+Prod)');
 };
 
 // Panggil inisialisasi
@@ -62,11 +75,18 @@ initMailer();
  * Dipanggil dari server.js (opsional).
  */
 export async function verifyMailer() {
-  if (!resend) {
-    console.error('[Mailer] ❌ Resend belum diinisialisasi.');
+  if (resend) {
+    console.log('[Mailer] ✅ Resend siap untuk mengirim email.');
     return;
   }
-  console.log('[Mailer] ✅ Resend siap untuk mengirim email.');
+  try {
+    if (transporter) {
+      await transporter.verify();
+      console.log('[Mailer] ✅ Koneksi SMTP Ethereal berhasil diverifikasi.');
+    }
+  } catch (err) {
+    console.error('[Mailer] ❌ Gagal koneksi SMTP:', err.message);
+  }
 }
 
 /**
@@ -84,49 +104,74 @@ export async function verifyMailer() {
  */
 export async function sendMail({ to, subject, html, text, cc, attachments = [] }) {
   const fromName = process.env.EMAIL_FROM_NAME || 'TU FTI UKSW';
-  if (!resend) throw new Error('Resend belum diinisialisasi');
+  
+  if (resend) {
+    // Pengiriman via Resend
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@forion.my.id';
+    const resendAttachments = attachments.map(att => {
+      // Sesuaikan format attachment dari Nodemailer ke Resend
+      const resendAtt = {};
+      if (att.filename) resendAtt.filename = att.filename;
+      
+      // Resend documentation says: "encode your image as Base64 when sending the raw content via the API"
+      if (att.content) {
+        resendAtt.content = Buffer.isBuffer(att.content) ? att.content.toString('base64') : att.content;
+      }
+      
+      if (att.contentType) resendAtt.content_type = att.contentType;
+      
+      if (att.cid) {
+        // Resend SDK does NOT want angle brackets here, just the ID
+        resendAtt.content_id = att.cid;
+        resendAtt.disposition = 'inline';
+      }
+      return resendAtt;
+    });
 
-  // Pengiriman via Resend (Dev + Prod)
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@forion.my.id';
+    const payload = {
+      from: `${fromName} <${fromEmail}>`,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      ...(text && { text }),
+      ...(cc && { cc: Array.isArray(cc) ? cc : [cc] }),
+      ...(resendAttachments.length > 0 && { attachments: resendAttachments }),
+    };
 
-  const resendAttachments = attachments.map(att => {
-    const resendAtt = {};
-    if (att.filename) resendAtt.filename = att.filename;
-
-    if (att.content) {
-      resendAtt.content = Buffer.isBuffer(att.content) ? att.content.toString('base64') : att.content;
+    const data = await resend.emails.send(payload);
+    
+    if (data.error) {
+       console.error('[Mailer] ❌ Resend Error:', data.error);
+       throw new Error(`Resend Error: ${data.error.message}`);
     }
 
-    if (att.contentType) resendAtt.content_type = att.contentType;
+    console.log(`[Mailer] 📧 Email terkirim via Resend ke ${to} | ID: ${data.data?.id}`);
+    return data;
+  } else {
+    // Pengiriman via Nodemailer (Ethereal)
+    const fromEmail = 'noreply@ethereal.email';
+    const mailOptions = {
+      from: `"${fromName}" <${fromEmail}>`,
+      to,
+      subject,
+      html,
+      text: text || html?.replace(/<[^>]+>/g, ''),
+      ...(cc && { cc }),
+      ...(attachments.length > 0 && { attachments }),
+    };
 
-    // Catatan: kita tidak pakai cid untuk header, tapi kalau ada attachment inline lain masih bisa.
-    if (att.cid) {
-      resendAtt.content_id = att.cid;
-      resendAtt.disposition = 'inline';
+    if (!transporter) throw new Error('Transporter belum diinisialisasi');
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[Mailer] 📧 Email terkirim via Ethereal ke ${to} | MessageID: ${info.messageId}`);
+    
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log(`[Mailer] 🔍 PREVIEW EMAIL: ${previewUrl}`);
     }
-
-    return resendAtt;
-  });
-
-  const payload = {
-    from: `${fromName} <${fromEmail}>`,
-    to: Array.isArray(to) ? to : [to],
-    subject,
-    html,
-    ...(text && { text }),
-    ...(cc && { cc: Array.isArray(cc) ? cc : [cc] }),
-    ...(resendAttachments.length > 0 && { attachments: resendAttachments }),
-  };
-
-  const data = await resend.emails.send(payload);
-
-  if (data.error) {
-    console.error('[Mailer] ❌ Resend Error:', data.error);
-    throw new Error(`Resend Error: ${data.error.message}`);
+    
+    return info;
   }
-
-  console.log(`[Mailer] 📧 Email terkirim via Resend ke ${to} | ID: ${data.data?.id}`);
-  return data;
 }
 
 /**
@@ -138,13 +183,6 @@ export async function sendMail({ to, subject, html, text, cc, attachments = [] }
  * @param {string} param.contentHtml - Isi utama dari email (dapat mengandung tag HTML dasar)
  */
 export function buildProfessionalEmail({ title = 'Pemberitahuan Sistem', contentHtml }) {
-  const { uksw, fti, noc } = getLogoDataUrls();
-
-  // fallback: kalau logo tidak ketemu, tetap render tanpa broken image
-  const ukswImg = uksw ? `<img src="${uksw}" alt="Logo UKSW" />` : '';
-  const ftiImg = fti ? `<img src="${fti}" alt="Logo FTI" />` : '';
-  const nocImg = noc ? `<img src="${noc}" alt="Logo NOC" />` : '';
-
   return `
     <!DOCTYPE html>
     <html lang="id">
@@ -178,9 +216,9 @@ export function buildProfessionalEmail({ title = 'Pemberitahuan Sistem', content
               <tr>
                 <td class="header">
                   <div class="logos">
-                    ${ukswImg}
-                    ${ftiImg}
-                    ${nocImg}
+                    <img src="cid:uksw_logo@core.fti" alt="Logo UKSW" />
+                    <img src="cid:fti_logo@core.fti" alt="Logo FTI" />
+                    <img src="cid:noc_logo@core.fti" alt="Logo NOC" />
                   </div>
                   <h1>${title}</h1>
                   <p>Fakultas Teknologi Informasi UKSW</p>
