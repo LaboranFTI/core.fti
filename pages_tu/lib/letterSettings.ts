@@ -122,11 +122,23 @@ export const formatPreviewLetterNumber = (key: LetterLayoutKey, sequence: number
   return `${paddedSequence}/${PREVIEW_LETTER_TYPE_CODES[key]}/${String(month).padStart(2, '0')}/${year}`;
 };
 
-export const formatSemesterLabel = (semesterCode: string) => {
-  if (!/^\d{4}[123]$/.test(semesterCode)) return 'Belum diatur';
+export const getAutoSemesterCode = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
 
-  const year = parseInt(semesterCode.slice(0, 4), 10);
-  const type = semesterCode.slice(4);
+  if (month >= 1 && month <= 6) return `${year - 1}2`;
+  if (month >= 7 && month <= 8) return `${year - 1}3`;
+  return `${year}1`;
+};
+
+export const formatSemesterLabel = (semesterCode: string) => {
+  const code = (!semesterCode || !/^\d{4}[123]$/.test(semesterCode))
+    ? getAutoSemesterCode()
+    : semesterCode;
+
+  const year = parseInt(code.slice(0, 4), 10);
+  const type = code.slice(4);
 
   if (type === '1') return `Ganjil ${year}/${year + 1}`;
   if (type === '2') return `Genap ${year - 1}/${year}`;
@@ -134,11 +146,11 @@ export const formatSemesterLabel = (semesterCode: string) => {
 };
 
 export const getSemesterMeta = (semesterCode: string) => {
-  if (!/^\d{4}[123]$/.test(semesterCode)) {
-    return { semesterName: undefined, academicYear: undefined };
-  }
+  const code = (!semesterCode || !/^\d{4}[123]$/.test(semesterCode))
+    ? getAutoSemesterCode()
+    : semesterCode;
 
-  const label = formatSemesterLabel(semesterCode);
+  const label = formatSemesterLabel(code);
   const [semesterName, academicYear] = label.split(' ');
   return { semesterName, academicYear };
 };
