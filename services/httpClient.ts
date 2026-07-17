@@ -79,6 +79,33 @@ const refreshAuthToken = async () => {
   return refreshPromise;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientStatus = (status: number) => status === 502 || status === 503;
+
+const getErrorSnippet = async (response: Response, maxChars = 4000) => {
+  try {
+    const text = await response.text();
+    if (!text) return '';
+    return text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
+  } catch {
+    return '';
+  }
+};
+
+const isNetworkOrTimeoutError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+
+  const msg = error.message?.toLowerCase?.() ?? '';
+  return (
+    msg.includes('timeout') ||
+    msg.includes('aborted') ||
+    msg.includes('abort') ||
+    msg.includes('network') ||
+    msg.includes('failed to fetch')
+  );
+};
+
 export const api = async (endpoint: string, options: ApiRequest = {}) => {
   const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_BASE_URL}${formattedEndpoint}`;
@@ -112,28 +139,73 @@ export const api = async (endpoint: string, options: ApiRequest = {}) => {
     }
   }
 
-  try {
-    const response = await fetchWithTimeout(url, config, requestTimeoutMs);
-    const shouldSkipRefresh = REFRESH_EXCLUDED_PREFIXES.some((prefix) => formattedEndpoint.startsWith(prefix));
+  const isIdempotentGet = (config.method || 'GET').toUpperCase() === 'GET';
+  const shouldRetry =
+    isIdempotentGet; // only retry GET to avoid unexpected side effects
 
-    if (response.status === 401 && !shouldSkipRefresh) {
-      const newToken = await refreshAuthToken();
+  const maxAttempts = shouldRetry ? 3 : 1;
+  const backoffMs = shouldRetry ? [0, 300, 700] : [0];
 
-      if (newToken) {
-        const newHeaders = {
-          ...config.headers,
-          Authorization: `Bearer ${newToken}`
-        };
-        return fetchWithTimeout(url, { ...config, headers: newHeaders }, requestTimeoutMs);
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) await sleep(backoffMs[attempt] ?? 0);
+
+    try {
+      const response = await fetchWithTimeout(url, config, requestTimeoutMs);
+      const shouldSkipRefresh = REFRESH_EXCLUDED_PREFIXES.some((prefix) => formattedEndpoint.startsWith(prefix));
+
+      if (response.status === 401 && !shouldSkipRefresh) {
+        const newToken = await refreshAuthToken();
+
+        if (newToken) {
+          const newHeaders = {
+            ...config.headers,
+            Authorization: `Bearer ${newToken}`
+          };
+          return fetchWithTimeout(url, { ...config, headers: newHeaders }, requestTimeoutMs);
+        }
+
+        window.dispatchEvent(new Event('auth:unauthorized'));
       }
 
-      window.dispatchEvent(new Event('auth:unauthorized'));
-    }
+      if (shouldRetry && isTransientStatus(response.status) && attempt < maxAttempts - 1) {
+        // Retry transient gateway/service errors
+        continue;
+      }
 
-    return response;
-  } catch (error) {
-    throw error;
+      if (!response.ok) {
+        const snippet = await getErrorSnippet(response);
+        const error = new Error(
+          `API request failed: ${config.method || 'GET'} ${url} -> ${response.status} ${response.statusText}. Body: ${snippet}`
+        );
+        (error as any).status = response.status;
+        (error as any).url = url;
+        throw error;
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error;
+
+      const retryable =
+        shouldRetry && (isNetworkOrTimeoutError(error) || (error instanceof Error && error.message.toLowerCase().includes('502')));
+
+      if (!retryable || attempt >= maxAttempts - 1) {
+        // Re-throw with context if possible
+        if (error instanceof Error) {
+          const enriched = new Error(
+            `API request error: ${config.method || 'GET'} ${url}. Attempts: ${attempt + 1}/${maxAttempts}. Last error: ${error.message}`
+          );
+          (enriched as any).cause = error;
+          throw enriched;
+        }
+        throw error;
+      }
+    }
   }
+
+  throw lastError;
 };
 
 export default api;
