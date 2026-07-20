@@ -35,6 +35,14 @@ app.set('trust proxy', 1);
 // 1. Set various HTTP headers for security
 app.use(helmet());
 
+// Middleware untuk mengizinkan Private Network Access (PNA) dari Google Chrome
+app.use((req, res, next) => {
+  if (req.headers['access-control-request-private-network']) {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
+  next();
+});
+
 // 2. Enable CORS with specific origin
 app.use(cors({
   origin: function (origin, callback) {
