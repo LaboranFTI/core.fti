@@ -911,7 +911,7 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                   <>
                     <DetailRow label="Program Studi" value={activeItem?.studyProgramName || '-'} />
                     <DetailRow label="Fakultas" value={activeItem?.faculty || '-'} />
-                    <DetailRow label="Semester" value={formatSemesterLabel(currentSemesterCode)} />
+                    <DetailRow label="Semester" value={formatSemesterLabel((activeItem as any)?.semester || currentSemesterCode)} />
                   </>
                 )}
               </CardContent>

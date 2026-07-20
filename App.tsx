@@ -2,7 +2,9 @@ import React, { Suspense } from 'react';
 import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import { GoogleAuthProvider } from './src/context/GoogleAuthContext';
-import { BrowserRouter as Router, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
+import PublicLetterValidation from './pages_tu/PublicLetterValidation';
+import PublicValidationHome from './pages_tu/PublicValidationHome';
 import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
 import AppRoutes from './src/router/AppRoutes';
 import { Maintenance, MobileUpload } from './src/router/lazyPages';
@@ -126,12 +128,43 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => (
-  <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-    <GoogleAuthProvider>
-      <AppContent />
-    </GoogleAuthProvider>
-  </Router>
-);
+const App: React.FC = () => {
+  let validationDomain = '';
+  const validationUrl = import.meta.env.VITE_PUBLIC_VALIDATION_URL;
+  if (validationUrl) {
+    try {
+      validationDomain = new URL(validationUrl).hostname;
+    } catch (e) {
+      console.error('Invalid VITE_PUBLIC_VALIDATION_URL:', e);
+    }
+  }
+  
+  // Hanya kunci route jika domain validasi disetel dan diakses via domain tersebut,
+  // ATAU jika diakses melalui port 5001 di localhost untuk keperluan testing.
+  const isValidationDomain = 
+    (validationDomain && window.location.hostname === validationDomain) ||
+    (window.location.hostname === 'localhost' && window.location.port === '5001') ||
+    (window.location.hostname === '127.0.0.1' && window.location.port === '5001');
+
+  if (isValidationDomain) {
+    return (
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Routes>
+          <Route path="/tu/validasi-surat/:token" element={<PublicLetterValidation />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/" element={<PublicValidationHome />} />
+        </Routes>
+      </Router>
+    );
+  }
+
+  return (
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <GoogleAuthProvider>
+        <AppContent />
+      </GoogleAuthProvider>
+    </Router>
+  );
+};
 
 export default App;

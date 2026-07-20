@@ -43,6 +43,7 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
     birthDate,
     faculty,
     university,
+    semester,
     transcriptBase64,
     transcriptName,
     carbonCopies
@@ -78,12 +79,13 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
          study_program_name,
          faculty,
          university,
+         semester,
          transcript_base64,
          transcript_name,
          status,
          carbon_copies
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', $13::jsonb)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', $14::jsonb)`,
       [
         id,
         formatStudentName(name),
@@ -95,6 +97,7 @@ router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => 
         studyProgram.studyProgramName,
         faculty || DEFAULT_FACULTY,
         university || DEFAULT_UNIVERSITY,
+        semester || null,
         transcriptBase64,
         transcriptName,
         JSON.stringify(carbonCopies || [])
@@ -205,16 +208,14 @@ router.put('/active-student/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req,
        SET status = 'verified',
            letter_number = $1,
            letter_sequence = $2,
-           letter_generated_at = $3,
-           validation_token = $4,
-           carbon_copies = $5,
+           validation_token = $3,
+           carbon_copies = $4,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6
+       WHERE id = $5
        RETURNING *`,
       [
         finalizedData.letter_number,
         finalizedData.letter_sequence,
-        finalizedData.letter_generated_at,
         finalizedData.validation_token,
         carbonCopiesJson,
         id

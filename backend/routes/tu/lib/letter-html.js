@@ -96,7 +96,11 @@ const buildLetterHtml = async (type, requestData, req) => {
   }
 
   const tuSettings = await getTuSettingsPayload();
-  const semesterMeta = getSemesterMeta(tuSettings.currentSemesterCode);
+  
+  // Use the semester stored in the request (if any), otherwise fallback to the configured one
+  const semesterToUse = requestData.semester || tuSettings.currentSemesterCode;
+  const semesterMeta = getSemesterMeta(semesterToUse);
+  
   const assetKey = config.assetKey || LETTER_TYPE_TO_CLIENT_KEY[type];
   const backgroundImage = requestData.backgroundImageBase64 || getSharedLetterBackground(tuSettings.letterBackgrounds).imageBase64 || '';
   const letterLayout = requestData.layout || normalizeLetterLayout(tuSettings.letterLayouts?.[assetKey], DEFAULT_LETTER_LAYOUT_MM[assetKey]);

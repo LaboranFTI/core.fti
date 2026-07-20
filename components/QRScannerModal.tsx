@@ -286,26 +286,26 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
   return (
     <div className="mobile-modal-shell fixed inset-0 z-1000 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 sm:p-4">
-      <div className="mobile-modal-panel bg-white dark:bg-gray-900 rounded-[28px] shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-white/60 dark:border-gray-700/80">
+      <div className="mobile-modal-panel bg-white  rounded-[28px] shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-white/60 ">
         
         {/* Header */}
-        <div className="relative overflow-hidden border-b border-slate-200/80 dark:border-gray-700/80 bg-linear-to-r from-slate-50 via-white to-blue-50/70 dark:from-gray-900 dark:via-gray-900 dark:to-slate-800">
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-linear-to-l from-blue-100/60 to-transparent dark:from-blue-500/10 dark:to-transparent" />
+        <div className="relative overflow-hidden border-b border-slate-200/80  bg-linear-to-r from-slate-50 via-white to-blue-50/70   ">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-linear-to-l from-blue-100/60 to-transparent  " />
           <div className="relative flex items-start justify-between gap-4 p-5 sm:p-6">
             <div className="flex items-start gap-3 sm:gap-4">
               <div className="mt-0.5 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 via-sky-500 to-cyan-400 text-white shadow-lg shadow-blue-500/25">
                 <QrCode className="w-6 h-6" />
               </div>
               <div className="min-w-0">
-                <h3 className="mb-2 font-bold text-xl text-gray-900 dark:text-white">{title}</h3>
-                <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+                <h3 className="mb-2 font-bold text-xl text-gray-900 ">{title}</h3>
+                <p className="text-sm leading-6 text-gray-600 ">
                   Posisikan QR code di dalam bingkai. Scanner akan membaca otomatis saat kode terlihat jelas.
                 </p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="shrink-0 rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-700 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+              className="shrink-0 rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-700      "
               aria-label="Close scanner"
             >
               <X className="w-5 h-5" />
@@ -314,10 +314,10 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </div>
 
         {/* Scanner Area */}
-        <div className="mobile-modal-body overflow-y-auto bg-linear-to-b from-slate-100 via-slate-50 to-white p-4 sm:p-6 dark:from-slate-950 dark:via-gray-900 dark:to-gray-900">
+        <div className="mobile-modal-body overflow-y-auto bg-linear-to-b from-slate-100 via-slate-50 to-white p-4 sm:p-6   ">
           <div className="mx-auto w-full max-w-xl space-y-4">
-            <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-3 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.55)] dark:border-gray-700/70 dark:bg-gray-900/90">
-              <div className="relative overflow-hidden rounded-[22px] border border-slate-200/70 bg-slate-950 shadow-inner dark:border-gray-700">
+            <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-3 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.55)]  ">
+              <div className="relative overflow-hidden rounded-[22px] border border-slate-200/70 bg-slate-950 shadow-inner ">
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-slate-950/70 via-slate-950/20 to-transparent" />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-linear-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
 
@@ -352,14 +352,14 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
             {/* Error state */}
             {error ? (
-              <div className="rounded-3xl border border-red-200/80 bg-white p-5 shadow-sm dark:border-red-500/20 dark:bg-gray-900">
+              <div className="rounded-3xl border border-red-200/80 bg-white p-5 shadow-sm  ">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-500 dark:bg-red-500/10 dark:text-red-300">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-500  ">
                     <AlertCircle className="w-7 h-7" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">Scanner Error</h4>
-                    <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{error}</p>
+                    <h4 className="font-semibold text-gray-900 ">Scanner Error</h4>
+                    <p className="mt-1 text-sm leading-6 text-gray-600 ">{error}</p>
                   </div>
                 </div>
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -373,20 +373,20 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
                   </button>
                   <button
                     onClick={handleClose}
-                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-200    "
                   >
                     Input Manual
                   </button>
                 </div>
               </div>
             ) : !hasCamPermission && !isScanning ? (
-              <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+              <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm  ">
                 <div className="flex flex-col items-center text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600  ">
                     <Loader2 className="h-8 w-8 animate-spin" />
                   </div>
-                  <h4 className="mt-4 text-base font-semibold text-slate-900 dark:text-white">Memulai Scanner</h4>
-                  <p className="mt-1 max-w-md text-sm leading-6 text-slate-600 dark:text-gray-300">
+                  <h4 className="mt-4 text-base font-semibold text-slate-900 ">Memulai Scanner</h4>
+                  <p className="mt-1 max-w-md text-sm leading-6 text-slate-600 ">
                     Menunggu akses kamera dari browser dan menyiapkan tampilan scanner di modal ini.
                   </p>
                 </div>
@@ -396,21 +396,21 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="mobile-modal-actions border-t border-slate-200/80 bg-white/95 p-4 dark:border-gray-700/80 dark:bg-gray-900/95">
+        <div className="mobile-modal-actions border-t border-slate-200/80 bg-white/95 p-4  ">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {cameraOptions.length > 1 && (
-              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/80">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3  ">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm  ">
                 <Camera className="w-4 h-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-gray-400">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 ">
                   Pilih Kamera
                 </p>
               <select
                 value={selectedCameraId}
                 onChange={(e) => handleCameraChange(e.target.value)}
-                  className="mt-1 w-full bg-transparent text-sm font-medium text-slate-700 outline-none dark:text-gray-200"
+                  className="mt-1 w-full bg-transparent text-sm font-medium text-slate-700 outline-none "
               >
                 {cameraOptions.map((camera, index) => (
                   <option key={camera.id} value={camera.id}>
@@ -423,7 +423,7 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({
           )}
           <button
             onClick={handleClose}
-              className="sm:ml-auto rounded-2xl border border-slate-200 bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="sm:ml-auto rounded-2xl border border-slate-200 bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-200    "
           >
             Batal
           </button>

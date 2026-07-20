@@ -18,8 +18,12 @@ const buildPublicAppBaseUrl = (req) => {
 
 const buildPublicValidationUrl = (req, token) => {
   if (!token) return '';
-  const configuredBaseUrl = buildPublicAppBaseUrl(req);
-  return `${configuredBaseUrl}/tu/validasi-surat/${token}`;
+  
+  // Gunakan URL khusus validasi jika ada, jika tidak fallback ke base URL utama
+  const validationBaseUrl = process.env.VITE_PUBLIC_VALIDATION_URL || buildPublicAppBaseUrl(req);
+  const baseUrl = validationBaseUrl.replace(/\/$/, '');
+  
+  return `${baseUrl}/tu/validasi-surat/${token}`;
 };
 
 

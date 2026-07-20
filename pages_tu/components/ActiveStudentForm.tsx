@@ -88,6 +88,7 @@ export function ActiveStudentForm({ onReturnToMenu }: ActiveStudentFormProps) {
   const [useStudentEmail, setUseStudentEmail] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const [verifiedSemester, setVerifiedSemester] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [formFeedback, setFormFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const { studyPrograms, fetchStudyPrograms } = useStudyPrograms();
@@ -197,8 +198,10 @@ export function ActiveStudentForm({ onReturnToMenu }: ActiveStudentFormProps) {
       setValue('birthPlaceAndDate', birthPlaceAndDate);
       setValue('studyProgramLevel', derivedStudyProgram.studyProgramLevel);
       setValue('studyProgramName', derivedStudyProgram.studyProgramName);
-      setValue('faculty', DEFAULT_FACULTY);
-      setValue('university', DEFAULT_UNIVERSITY);
+      setValue('faculty', DEFAULT_FACULTY, { shouldValidate: true });
+      setValue('university', DEFAULT_UNIVERSITY, { shouldValidate: true });
+
+      setVerifiedSemester(json.semester?.semesterCode || '');
       setIsVerified(true);
     } catch (error) {
       console.error(error);
@@ -223,7 +226,8 @@ export function ActiveStudentForm({ onReturnToMenu }: ActiveStudentFormProps) {
         studyProgramLevel: data.studyProgramLevel,
         studyProgramName: data.studyProgramName,
         faculty: data.faculty,
-        university: data.university
+        university: data.university,
+        semester: verifiedSemester
       };
 
       const response = await api('/api/active-student', {

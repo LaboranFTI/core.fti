@@ -17,6 +17,7 @@ const mapActiveStudentRow = (row) => ({
   studyProgramName: row.study_program_name,
   faculty: row.faculty,
   university: row.university,
+  semester: row.semester || null,
   transcriptBase64: row.transcript_base64,
   transcriptName: row.transcript_name,
   signatureBase64: row.signature_base64,

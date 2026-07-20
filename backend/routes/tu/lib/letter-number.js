@@ -150,11 +150,11 @@ const ensureLetterNumber = async (client, type, requestData) => {
     `UPDATE ${config.table}
      SET letter_number = $1,
          letter_sequence = $2,
-         letter_generated_at = $3,
+         letter_generated_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP
-     WHERE id = $4
+     WHERE id = $3
      RETURNING *`,
-    [letterNumber, nextSequence, now, requestData.id]
+    [letterNumber, nextSequence, requestData.id]
   );
 
   return updateResult.rows[0];

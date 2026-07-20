@@ -136,12 +136,12 @@ const copyText = async (value: string) => {
 
 function DetailRow({ label, value, icon: Icon }: { label: string; value?: string | null; icon?: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="grid gap-1 border-b border-slate-100 py-3 last:border-b-0 dark:border-slate-800/80 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:items-start sm:gap-4">
-      <span className="flex min-w-0 items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        {Icon && <Icon className="size-4 shrink-0 text-slate-400 dark:text-slate-500" />}
+    <div className="grid gap-1 border-b border-slate-100 py-3 last:border-b-0  sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:items-start sm:gap-4">
+      <span className="flex min-w-0 items-center gap-2 text-sm text-slate-500 ">
+        {Icon && <Icon className="size-4 shrink-0 text-slate-400 " />}
         {label}
       </span>
-      <span className="min-w-0 break-words text-sm font-semibold text-slate-900 dark:text-white sm:text-right">{value || '-'}</span>
+      <span className="min-w-0 break-words text-sm font-semibold text-slate-900  sm:text-right">{value || '-'}</span>
     </div>
   );
 }
@@ -210,16 +210,16 @@ export default function PublicLetterValidation() {
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
-        <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-50 px-4 ">
+        <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm  ">
           <div className="flex items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
-            <span className="font-semibold text-slate-800 dark:text-slate-200">Menghubungkan ke arsip TU...</span>
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600 " />
+            <span className="font-semibold text-slate-800 ">Menghubungkan ke arsip TU...</span>
           </div>
           <div className="space-y-2">
-            <div className="h-4 w-full animate-pulse rounded bg-slate-100 dark:bg-slate-800"></div>
-            <div className="h-3 w-5/6 animate-pulse rounded bg-slate-100 dark:bg-slate-800"></div>
-            <div className="h-3 w-4/6 animate-pulse rounded bg-slate-100 dark:bg-slate-800"></div>
+            <div className="h-4 w-full animate-pulse rounded bg-slate-100 "></div>
+            <div className="h-3 w-5/6 animate-pulse rounded bg-slate-100 "></div>
+            <div className="h-3 w-4/6 animate-pulse rounded bg-slate-100 "></div>
           </div>
         </div>
       </div>
@@ -228,25 +228,25 @@ export default function PublicLetterValidation() {
 
   if (error || !letter) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
-        <Card className="w-full max-w-lg border-red-200 shadow-md dark:border-red-900/50">
+      <div className="flex min-h-dvh items-center justify-center bg-slate-50 px-4 ">
+        <Card className="w-full max-w-lg border-red-200 shadow-md ">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600  ">
               <AlertTriangle className="h-6 w-6" />
             </div>
-            <CardTitle className="text-xl text-red-700 dark:text-red-300">
+            <CardTitle className="text-xl text-red-700 ">
               Validasi Gagal / Tidak Ditemukan
             </CardTitle>
-            <CardDescription className="mt-2 text-slate-600 dark:text-slate-400">
+            <CardDescription className="mt-2 text-slate-600 ">
               {error || 'Token QR validasi tidak terdaftar atau telah kedaluwarsa.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3 text-center border-t border-slate-100 pt-4 dark:border-slate-800">
+          <CardContent className="flex flex-col gap-3 text-center border-t border-slate-100 pt-4 ">
             <p className="text-xs text-slate-500">
               Pastikan Anda memindai kode QR asli yang diterbitkan langsung oleh Tata Usaha FTI UKSW.
             </p>
             <Button 
-              className="mt-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700"
+              className="mt-2 bg-slate-900 hover:bg-slate-800  "
               onClick={() => window.location.reload()}
             >
               Coba Lagi
@@ -263,26 +263,26 @@ export default function PublicLetterValidation() {
   const isSuRek = letter.type === 'su-rek';
   const digitalSigners = letter.signers?.length ? letter.signers : letter.signer ? [letter.signer] : [];
   const tabButtonClass = (tab: 'summary' | 'preview') => cn(
-    'flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:px-4',
+    'flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white  sm:px-4',
     activeTab === tab
-      ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
-      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+      ? 'bg-blue-600 text-white shadow-sm '
+      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950   '
   );
   const renderDownloadCard = (className = '') => (
-    <Card className={cn('border-slate-200 shadow-sm dark:border-slate-800', className)}>
+    <Card className={cn('border-slate-200 shadow-sm ', className)}>
       <CardHeader>
         <CardTitle className="text-base font-bold">Dokumen Resmi</CardTitle>
         <CardDescription>Unduh salinan asli berformat PDF.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <Button
-          className="w-full justify-center bg-blue-600 text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+          className="w-full justify-center bg-blue-600 text-white shadow-sm hover:bg-blue-700  "
           onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
           disabled={!letter.isValid}
         >
           <Download className="mr-2 size-4" /> Unduh Dokumen PDF
         </Button>
-        <p className="text-pretty text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+        <p className="text-pretty text-[11px] leading-relaxed text-slate-500 ">
           Dokumen PDF hanya dapat diunduh untuk surat yang sudah berstatus resmi/terverifikasi.
         </p>
       </CardContent>
@@ -290,22 +290,22 @@ export default function PublicLetterValidation() {
   );
 
   return (
-    <div className="min-h-dvh bg-slate-50/50 pb-12 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-white">
+    <div className="min-h-dvh bg-slate-50/50 pb-12 font-sans text-slate-900 antialiased  ">
       {/* Official Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] dark:border-slate-800 dark:bg-slate-900/95">
+      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)]  ">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex items-center gap-2">
               <img src={ukswLogo} alt="UKSW Logo" className="h-9 w-auto object-contain" />
-              <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
+              <div className="h-6 w-[1px] bg-slate-200 "></div>
               <img src={ftiLogo} alt="FTI Logo" className="h-9 w-auto object-contain" />
             </div>
             <div className="min-w-0">
-              <span className="block truncate text-xs font-bold uppercase text-blue-900 dark:text-blue-400">FAKULTAS TEKNOLOGI INFORMASI</span>
-              <span className="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">Universitas Kristen Satya Wacana Salatiga</span>
+              <span className="block truncate text-xs font-bold uppercase text-blue-900 ">FAKULTAS TEKNOLOGI INFORMASI</span>
+              <span className="block truncate text-[10px] font-semibold text-slate-500 ">Universitas Kristen Satya Wacana Salatiga</span>
             </div>
           </div>
-          <Badge variant="outline" className="hidden sm:inline-flex border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          <Badge variant="outline" className="hidden sm:inline-flex border-slate-200 bg-slate-50 text-slate-600   ">
             CORE.FTI
           </Badge>
         </div>
@@ -322,8 +322,8 @@ export default function PublicLetterValidation() {
             <div className={cn(
               'relative overflow-hidden rounded-2xl border p-6 shadow-sm',
               letter.isValid
-                ? 'border-emerald-200 bg-emerald-50/50 shadow-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/10'
-                : 'border-amber-200 bg-amber-50/50 shadow-amber-50 dark:border-amber-900/40 dark:bg-amber-950/10'
+                ? 'border-emerald-200 bg-emerald-50/50 shadow-emerald-50  '
+                : 'border-amber-200 bg-amber-50/50 shadow-amber-50  '
             )}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-4">
@@ -339,19 +339,19 @@ export default function PublicLetterValidation() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge className={
                         letter.isValid 
-                          ? 'bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500' 
-                          : 'bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-500'
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-600 ' 
+                          : 'bg-amber-600 text-white hover:bg-amber-600 '
                       }>
                         {letter.isValid ? 'Terverifikasi' : 'Draf / Proses'}
                       </Badge>
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300">
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-800  ">
                         {letter.typeLabel}
                       </Badge>
                     </div>
-                    <h1 className="mt-2 text-balance text-xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="mt-2 text-balance text-xl font-bold text-slate-900 ">
                       {letter.isValid ? 'Keaslian Dokumen Terjamin' : 'Dokumen Belum Diresmikan'}
                     </h1>
-                    <p className="mt-1 text-pretty text-sm leading-normal text-slate-600 dark:text-slate-400">
+                    <p className="mt-1 text-pretty text-sm leading-normal text-slate-600 ">
                       {letter.isValid 
                         ? 'QR Code ini merujuk ke data surat resmi yang diterbitkan oleh Tata Usaha FTI UKSW.' 
                         : 'Surat terdaftar di sistem tetapi belum ditandatangani atau disahkan secara resmi oleh dekan.'}
@@ -362,7 +362,7 @@ export default function PublicLetterValidation() {
             </div>
 
             {/* Custom Interactive Tab System */}
-            <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900" role="tablist" aria-label="Tampilan validasi surat">
+            <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm  " role="tablist" aria-label="Tampilan validasi surat">
               <div className="grid grid-cols-2 gap-1">
                 <button
                   id="validation-summary-tab"
@@ -400,49 +400,49 @@ export default function PublicLetterValidation() {
             {/* Tab 1: Ringkasan Informasi */}
             {activeTab === 'summary' && (
               <div id="validation-summary-panel" role="tabpanel" aria-labelledby="validation-summary-tab" className="space-y-6">
-                <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+                <Card className="border-slate-200 shadow-sm ">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base font-bold">
-                      <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Tanda Tangan Digital
+                      <ShieldCheck className="h-5 w-5 text-emerald-600 " /> Tanda Tangan Digital
                     </CardTitle>
                     <CardDescription>Informasi penandatangan dokumen resmi.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <p className="text-sm font-medium text-slate-700 ">
                       Dokumen ini telah ditandatangani oleh:
                     </p>
-                    <div className="space-y-3 rounded-lg bg-slate-50 p-4 border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+                    <div className="space-y-3 rounded-lg bg-slate-50 p-4 border border-slate-100  ">
                       {digitalSigners.length > 0 ? digitalSigners.map((signer, index) => (
                         <div key={`${signer.name}-${index}`} className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2 text-sm">
-                          <span className="text-slate-500 dark:text-slate-400">Nama</span>
-                          <span className="min-w-0 break-words font-bold text-slate-900 dark:text-white">: {signer.name || '-'}</span>
-                          <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
-                          <span className="min-w-0 break-words font-medium text-slate-900 dark:text-white">: {signer.title || '-'}</span>
+                          <span className="text-slate-500 ">Nama</span>
+                          <span className="min-w-0 break-words font-bold text-slate-900 ">: {signer.name || '-'}</span>
+                          <span className="text-slate-500 ">Jabatan</span>
+                          <span className="min-w-0 break-words font-medium text-slate-900 ">: {signer.title || '-'}</span>
                         </div>
                       )) : (
                         <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2 text-sm">
-                          <span className="text-slate-500 dark:text-slate-400">Nama</span>
-                          <span className="font-bold text-slate-900 dark:text-white">: -</span>
-                          <span className="text-slate-500 dark:text-slate-400">Jabatan</span>
-                          <span className="font-medium text-slate-900 dark:text-white">: -</span>
+                          <span className="text-slate-500 ">Nama</span>
+                          <span className="font-bold text-slate-900 ">: -</span>
+                          <span className="text-slate-500 ">Jabatan</span>
+                          <span className="font-medium text-slate-900 ">: -</span>
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                    <p className="text-xs text-slate-500  italic">
                       Jadi QR ini menggantikan tanda tangan digital pihak yang tercantum.
                     </p>
                   </CardContent>
                 </Card>
 
                 {/* Identitas Surat */}
-                <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+                <Card className="border-slate-200 shadow-sm ">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base font-bold">
-                      <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Identitas Surat
+                      <FileText className="h-5 w-5 text-blue-600 " /> Identitas Surat
                     </CardTitle>
                     <CardDescription>Detail nomor resmi dan tanggal terbit surat.</CardDescription>
                   </CardHeader>
-                  <CardContent className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  <CardContent className="divide-y divide-slate-100 ">
                     <DetailRow icon={Hash} label="Nomor Surat" value={letter.letterNumber || 'Belum Diterbitkan'} />
                     <DetailRow icon={Calendar} label="Tanggal Terbit" value={formatDate(letter.issuedAt)} />
                   </CardContent>
@@ -450,15 +450,15 @@ export default function PublicLetterValidation() {
 
                 {/* Tembusan Surat */}
                 {letter.carbonCopies && letter.carbonCopies.length > 0 && (
-                  <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+                  <Card className="border-slate-200 shadow-sm ">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-base font-bold">
-                        <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> Tembusan Surat
+                        <Users className="h-5 w-5 text-indigo-600 " /> Tembusan Surat
                       </CardTitle>
                       <CardDescription>Pihak yang menerima tembusan dokumen resmi ini.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+                      <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700 ">
                         {letter.carbonCopies.map((cc, i) => (
                           <li key={i} className="pl-1">
                             <span className="font-semibold">{cc.role}</span>
@@ -476,10 +476,10 @@ export default function PublicLetterValidation() {
             {activeTab === 'preview' && (
               <div id="validation-preview-panel" role="tabpanel" aria-labelledby="validation-preview-tab" className="space-y-4">
                 {renderDownloadCard('lg:hidden')}
-                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm   sm:p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Pratinjau Dokumen</span>
-                    <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <span className="text-sm font-semibold text-slate-700 ">Pratinjau Dokumen</span>
+                    <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-xs text-slate-600   ">
                       Lembar A4
                     </Badge>
                   </div>
@@ -487,7 +487,7 @@ export default function PublicLetterValidation() {
                     role="region"
                     aria-label="Pratinjau dokumen surat resmi"
                     tabIndex={0}
-                    className="max-h-[75dvh] max-w-full overflow-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-200/70 p-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-800 dark:bg-slate-950/60 dark:focus-visible:ring-offset-slate-900 sm:p-4"
+                    className="max-h-[75dvh] max-w-full overflow-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-200/70 p-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white    sm:p-4"
                   >
                     <div className="mx-auto w-max max-w-none">
                   {isObservation ? (
@@ -627,7 +627,7 @@ export default function PublicLetterValidation() {
             )}
 
             {/* Token QR & Link Card */}
-            <Card className="border-slate-200 shadow-sm dark:border-slate-800">
+            <Card className="border-slate-200 shadow-sm ">
               <CardHeader>
                 <CardTitle className="text-base font-bold">Metadata Keamanan</CardTitle>
                 <CardDescription>Gunakan data di bawah ini untuk verifikasi silang.</CardDescription>
@@ -642,14 +642,14 @@ export default function PublicLetterValidation() {
                       readOnly 
                       value={window.location.href}
                       aria-label="Tautan verifikasi surat"
-                      className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none   "
                     />
                     <Button 
                       size="icon-xs" 
                       variant="outline" 
                       onClick={handleCopyLink}
                       aria-label={copiedLink ? 'Tautan verifikasi tersalin' : 'Salin tautan verifikasi'}
-                      className="shrink-0 dark:border-slate-800 dark:hover:bg-slate-800"
+                      className="shrink-0  "
                     >
                       {copiedLink ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
                     </Button>
@@ -665,14 +665,14 @@ export default function PublicLetterValidation() {
                       readOnly 
                       value={letter.validationToken}
                       aria-label="Token digital surat"
-                      className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[11px] text-slate-600 outline-none   "
                     />
                     <Button 
                       size="icon-xs" 
                       variant="outline" 
                       onClick={handleCopyToken}
                       aria-label={copiedToken ? 'Token digital tersalin' : 'Salin token digital'}
-                      className="shrink-0 dark:border-slate-800 dark:hover:bg-slate-800"
+                      className="shrink-0  "
                     >
                       {copiedToken ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
                     </Button>
