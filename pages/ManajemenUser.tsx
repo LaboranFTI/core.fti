@@ -448,12 +448,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
           <p className="mt-3 text-3xl font-bold text-slate-950 dark:text-white">{userStats.total}</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Seluruh akun {activeTab.toUpperCase()}</p>
         </PageCard>
-        <PageCard className="border-l-4 border-l-emerald-500">
+        <PageCard className="border-l-4 border-l-emerald-500 dark:border-l-emerald-500">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Aktif</p>
           <p className="mt-3 text-3xl font-bold text-slate-950 dark:text-white">{userStats.active}</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Status aktif</p>
         </PageCard>
-        <PageCard className="border-l-4 border-l-amber-500">
+        <PageCard className="border-l-4 border-l-amber-500 dark:border-l-amber-500">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Reset</p>
           <p className="mt-3 text-3xl font-bold text-slate-950 dark:text-white">{userStats.reset}</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Menunggu password baru</p>
