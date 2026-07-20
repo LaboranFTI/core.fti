@@ -177,8 +177,18 @@ export default function PublicLetterValidation() {
     };
 
     fetchLetter();
+
+    // Force light mode for this specific page
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark) {
+      document.documentElement.classList.remove('dark');
+    }
+
     return () => {
       cancelled = true;
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      }
     };
   }, [token]);
 
