@@ -3,11 +3,10 @@ import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import { GoogleAuthProvider } from './src/context/GoogleAuthContext';
 import { BrowserRouter as Router, useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
-import PublicLetterValidation from './pages_tu/PublicLetterValidation';
-import PublicValidationHome from './pages_tu/PublicValidationHome';
-import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
 import AppRoutes from './src/router/AppRoutes';
-import { Maintenance, MobileUpload } from './src/router/lazyPages';
+import { getNavigationLabel, getNavigationItemById } from './lib/navigation';
+import { Maintenance, MobileUpload, PublicLetterValidation } from './src/router/lazyPages';
+const PublicValidationHome = React.lazy(() => import('./pages_tu/PublicValidationHome'));
 import { useAuthSession } from './src/app/useAuthSession';
 import { useNotifications } from './src/app/useNotifications';
 import { useShellState } from './src/app/useShellState';
@@ -149,11 +148,13 @@ const App: React.FC = () => {
   if (isValidationDomain) {
     return (
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Routes>
-          <Route path="/tu/validasi-surat/:token" element={<PublicLetterValidation />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-          <Route path="/" element={<PublicValidationHome />} />
-        </Routes>
+        <Suspense fallback={<LoadingScreen />}>
+          <Routes>
+            <Route path="/tu/validasi-surat/:token" element={<PublicLetterValidation />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/" element={<PublicValidationHome />} />
+          </Routes>
+        </Suspense>
       </Router>
     );
   }
