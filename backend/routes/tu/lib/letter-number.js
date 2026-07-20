@@ -79,6 +79,57 @@ const reserveLetterNumber = async (client, type, date) => {
   return { nextSequence, letterNumber };
 };
 
+/**
+ * Recalculate counter dari data aktual di tabel sumber.
+ * Dipanggil setelah hapus surat agar counter selalu akurat.
+ * Jika semua surat di bulan/tahun tersebut dihapus, counter direset ke 0
+ * sehingga surat berikutnya akan mulai dari 001.
+ *
+ * @param {string} letterType  - e.g. 'active-student', 'observation'
+ * @param {string} sourceTable - nama tabel sumber, e.g. 'active_student_requests'
+ * @param {string|null} letterKind - untuk TA: 'research'|'interview'|'permission'|null
+ * @param {number} year
+ * @param {number} month
+ */
+const recalculateLetterCounter = async (letterType, sourceTable, letterKind, year, month) => {
+  // Hitung jumlah surat yang masih ada di tabel sumber
+  // dengan letter_sequence yang valid (sudah di-generate)
+  let countQuery;
+  let countParams;
+
+  if (letterKind) {
+    // Untuk TA yang punya beberapa letter_kind
+    countQuery = `
+      SELECT COALESCE(MAX(letter_sequence), 0) AS max_seq
+      FROM ${sourceTable}
+      WHERE letter_kind = $1
+        AND letter_sequence IS NOT NULL
+        AND EXTRACT(YEAR  FROM letter_generated_at) = $2
+        AND EXTRACT(MONTH FROM letter_generated_at) = $3`;
+    countParams = [letterKind, year, month];
+  } else {
+    countQuery = `
+      SELECT COALESCE(MAX(letter_sequence), 0) AS max_seq
+      FROM ${sourceTable}
+      WHERE letter_sequence IS NOT NULL
+        AND EXTRACT(YEAR  FROM letter_generated_at) = $1
+        AND EXTRACT(MONTH FROM letter_generated_at) = $2`;
+    countParams = [year, month];
+  }
+
+  const countResult = await pool.query(countQuery, countParams);
+  const maxSeq = Number(countResult.rows[0]?.max_seq || 0);
+
+  // Update atau hapus baris counter sesuai nilai aktual
+  await pool.query(
+    `UPDATE tu_letter_number_counters
+     SET last_sequence = $4,
+         updated_at    = CURRENT_TIMESTAMP
+     WHERE letter_type = $1 AND year = $2 AND month = $3`,
+    [letterType, year, month, maxSeq]
+  );
+};
+
 const {
   upsertSystemSetting,
   getTuSettingsPayload,
@@ -169,6 +220,7 @@ export {
   reserveLetterNumber,
   formatLetterNumber,
   ensureLetterNumber,
+  recalculateLetterCounter,
   generatePdfBuffer,
   getTuSettingsPayload,
   saveLetterBackgrounds,

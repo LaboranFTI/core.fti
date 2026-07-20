@@ -8,7 +8,7 @@ export { normalizeObservationStudents, buildObservationStudentRowsHtml, buildObs
 export { getResearchLetterType, normalizeResearchDefaults, normalizeInterviewDefaults, normalizePermissionDefaults, getResearchAdvisorTitle, isSystemResearchAdvisorTitle, normalizeResearchAdvisors, buildResearchAdvisorText, buildResearchAdvisorSignatureHtml, normalizeResearchPayload, validateResearchPayload, ensureResearchAccessCode, upsertResearchRequest, createFinalResearchRequest } from './lib/domain-research.js';
 export { letterConfig } from './lib/letter-config.js';
 export { ensureLetterValidationToken, buildLetterHtml, buildLetterPdfBuffer } from './lib/letter-html.js';
-export { reserveLetterNumber, formatLetterNumber, ensureLetterNumber, generatePdfBuffer, getTuSettingsPayload, saveLetterBackgrounds, saveLetterLayouts, sendSuRekAccessCodeEmail, upsertSystemSetting } from './lib/letter-number.js';
+export { reserveLetterNumber, formatLetterNumber, ensureLetterNumber, recalculateLetterCounter, generatePdfBuffer, getTuSettingsPayload, saveLetterBackgrounds, saveLetterLayouts, sendSuRekAccessCodeEmail, upsertSystemSetting } from './lib/letter-number.js';
 export { QR_CENTER_LOGO_PATH, getQrCenterLogoDataUrl, createQrSvgDataUrl } from './lib/qr.js';
 export { publicObservationAccessLimiter, publicValidationLimiter } from './lib/rate-limiters.js';
 export { uploadSessions, qrDownloadSessions } from './lib/sessions.js';

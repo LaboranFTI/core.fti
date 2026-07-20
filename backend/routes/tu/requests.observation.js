@@ -13,6 +13,7 @@ import {
   DEFAULT_UNIVERSITY,
   mapObservationRow,
   ensureLetterNumber,
+  recalculateLetterCounter,
   ensureLetterValidationToken,
   buildPublicValidationUrl,
   letterConfig,
@@ -223,11 +224,9 @@ router.delete('/tu/requests/observation/:id', verifyRole(TU_ADMIN_ROLES), async 
     const deletedRow = result.rows[0];
     if (deletedRow.letter_generated_at) {
       const date = new Date(deletedRow.letter_generated_at);
-      await pool.query(
-        `UPDATE tu_letter_number_counters
-         SET last_sequence = GREATEST(last_sequence - 1, 0)
-         WHERE letter_type = 'observation' AND year = $1 AND month = $2`,
-        [date.getFullYear(), date.getMonth() + 1]
+      await recalculateLetterCounter(
+        'observation', 'observation_requests', null,
+        date.getFullYear(), date.getMonth() + 1
       );
     }
     
@@ -250,16 +249,18 @@ router.post('/tu/requests/observation/batch-delete', verifyRole(TU_ADMIN_ROLES),
       [ids]
     );
     
+    const affectedPeriods = new Set();
     for (const row of result.rows) {
       if (row.letter_generated_at) {
         const date = new Date(row.letter_generated_at);
-        await pool.query(
-          `UPDATE tu_letter_number_counters
-           SET last_sequence = GREATEST(last_sequence - 1, 0)
-           WHERE letter_type = 'observation' AND year = $1 AND month = $2`,
-          [date.getFullYear(), date.getMonth() + 1]
-        );
+        affectedPeriods.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
       }
+    }
+    for (const period of affectedPeriods) {
+      const [year, month] = period.split('-').map(Number);
+      await recalculateLetterCounter(
+        'observation', 'observation_requests', null, year, month
+      );
     }
     
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });

@@ -14,6 +14,7 @@ import {
   buildLetterPdfBuffer,
   letterConfig,
   ensureLetterNumber,
+  recalculateLetterCounter,
   ensureLetterValidationToken,
   buildPublicValidationUrl
 } from './core.js';
@@ -120,11 +121,9 @@ router.delete('/tu/requests/active-student/:id', verifyRole(TU_ADMIN_ROLES), asy
     const deletedRow = result.rows[0];
     if (deletedRow.letter_generated_at) {
       const date = new Date(deletedRow.letter_generated_at);
-      await pool.query(
-        `UPDATE tu_letter_number_counters
-         SET last_sequence = GREATEST(last_sequence - 1, 0)
-         WHERE letter_type = 'active-student' AND year = $1 AND month = $2`,
-        [date.getFullYear(), date.getMonth() + 1]
+      await recalculateLetterCounter(
+        'active-student', 'active_student_requests', null,
+        date.getFullYear(), date.getMonth() + 1
       );
     }
     
@@ -147,16 +146,19 @@ router.post('/tu/requests/active-student/batch-delete', verifyRole(TU_ADMIN_ROLE
       [ids]
     );
     
+    // Kumpulkan unik (year, month) yang terdampak dan recalculate sekali per kombinasi
+    const affectedPeriods = new Set();
     for (const row of result.rows) {
       if (row.letter_generated_at) {
         const date = new Date(row.letter_generated_at);
-        await pool.query(
-          `UPDATE tu_letter_number_counters
-           SET last_sequence = GREATEST(last_sequence - 1, 0)
-           WHERE letter_type = 'active-student' AND year = $1 AND month = $2`,
-          [date.getFullYear(), date.getMonth() + 1]
-        );
+        affectedPeriods.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
       }
+    }
+    for (const period of affectedPeriods) {
+      const [year, month] = period.split('-').map(Number);
+      await recalculateLetterCounter(
+        'active-student', 'active_student_requests', null, year, month
+      );
     }
     
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });

@@ -41,7 +41,8 @@ import {
   getSharedLetterBackground,
   LETTER_TYPE_TO_CLIENT_KEY,
   normalizeLetterLayout,
-  DEFAULT_LETTER_LAYOUT_MM
+  DEFAULT_LETTER_LAYOUT_MM,
+  recalculateLetterCounter
 } from './core.js';
 
 const router = express.Router();
@@ -188,11 +189,9 @@ router.delete('/tu/requests/research/:id', verifyRole(TU_ADMIN_ROLES), async (re
     const deletedRow = result.rows[0];
     if (deletedRow.letter_generated_at) {
       const date = new Date(deletedRow.letter_generated_at);
-      await pool.query(
-        `UPDATE tu_letter_number_counters
-         SET last_sequence = GREATEST(last_sequence - 1, 0)
-         WHERE letter_type = 'research' AND year = $1 AND month = $2`,
-        [date.getFullYear(), date.getMonth() + 1]
+      await recalculateLetterCounter(
+        'research', 'ta_letter_requests', 'research',
+        date.getFullYear(), date.getMonth() + 1
       );
     }
     res.json({ success: true, deleted: deletedRow });
@@ -214,16 +213,18 @@ router.post('/tu/requests/research/batch-delete', verifyRole(TU_ADMIN_ROLES), as
       [ids]
     );
 
+    const affectedPeriods = new Set();
     for (const row of result.rows) {
       if (row.letter_generated_at) {
         const date = new Date(row.letter_generated_at);
-        await pool.query(
-          `UPDATE tu_letter_number_counters
-           SET last_sequence = GREATEST(last_sequence - 1, 0)
-           WHERE letter_type = 'research' AND year = $1 AND month = $2`,
-          [date.getFullYear(), date.getMonth() + 1]
-        );
+        affectedPeriods.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
       }
+    }
+    for (const period of affectedPeriods) {
+      const [year, month] = period.split('-').map(Number);
+      await recalculateLetterCounter(
+        'research', 'ta_letter_requests', 'research', year, month
+      );
     }
 
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
@@ -248,11 +249,9 @@ router.delete('/tu/requests/interview/:id', verifyRole(TU_ADMIN_ROLES), async (r
     const deletedRow = result.rows[0];
     if (deletedRow.letter_generated_at) {
       const date = new Date(deletedRow.letter_generated_at);
-      await pool.query(
-        `UPDATE tu_letter_number_counters
-         SET last_sequence = GREATEST(last_sequence - 1, 0)
-         WHERE letter_type = 'interview' AND year = $1 AND month = $2`,
-        [date.getFullYear(), date.getMonth() + 1]
+      await recalculateLetterCounter(
+        'interview', 'ta_letter_requests', 'interview',
+        date.getFullYear(), date.getMonth() + 1
       );
     }
     res.json({ success: true, deleted: deletedRow });
@@ -274,16 +273,18 @@ router.post('/tu/requests/interview/batch-delete', verifyRole(TU_ADMIN_ROLES), a
       [ids]
     );
 
+    const affectedPeriods = new Set();
     for (const row of result.rows) {
       if (row.letter_generated_at) {
         const date = new Date(row.letter_generated_at);
-        await pool.query(
-          `UPDATE tu_letter_number_counters
-           SET last_sequence = GREATEST(last_sequence - 1, 0)
-           WHERE letter_type = 'interview' AND year = $1 AND month = $2`,
-          [date.getFullYear(), date.getMonth() + 1]
-        );
+        affectedPeriods.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
       }
+    }
+    for (const period of affectedPeriods) {
+      const [year, month] = period.split('-').map(Number);
+      await recalculateLetterCounter(
+        'interview', 'ta_letter_requests', 'interview', year, month
+      );
     }
 
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
@@ -308,11 +309,9 @@ router.delete('/tu/requests/permission/:id', verifyRole(TU_ADMIN_ROLES), async (
     const deletedRow = result.rows[0];
     if (deletedRow.letter_generated_at) {
       const date = new Date(deletedRow.letter_generated_at);
-      await pool.query(
-        `UPDATE tu_letter_number_counters
-         SET last_sequence = GREATEST(last_sequence - 1, 0)
-         WHERE letter_type = 'permission' AND year = $1 AND month = $2`,
-        [date.getFullYear(), date.getMonth() + 1]
+      await recalculateLetterCounter(
+        'permission', 'ta_letter_requests', 'permission',
+        date.getFullYear(), date.getMonth() + 1
       );
     }
     res.json({ success: true, deleted: deletedRow });
@@ -334,16 +333,18 @@ router.post('/tu/requests/permission/batch-delete', verifyRole(TU_ADMIN_ROLES), 
       [ids]
     );
 
+    const affectedPeriods = new Set();
     for (const row of result.rows) {
       if (row.letter_generated_at) {
         const date = new Date(row.letter_generated_at);
-        await pool.query(
-          `UPDATE tu_letter_number_counters
-           SET last_sequence = GREATEST(last_sequence - 1, 0)
-           WHERE letter_type = 'permission' AND year = $1 AND month = $2`,
-          [date.getFullYear(), date.getMonth() + 1]
-        );
+        affectedPeriods.add(`${date.getFullYear()}-${date.getMonth() + 1}`);
       }
+    }
+    for (const period of affectedPeriods) {
+      const [year, month] = period.split('-').map(Number);
+      await recalculateLetterCounter(
+        'permission', 'ta_letter_requests', 'permission', year, month
+      );
     }
 
     res.json({ success: true, deletedCount: result.rowCount, deleted: result.rows });
