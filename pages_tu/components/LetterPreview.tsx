@@ -137,12 +137,36 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     finalHtml = finalHtml.replace('<div class="page">', `<div class="page">${guideHtml}`);
   }
 
+  const [scale, setScale] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0]) {
+        const width = entries[0].contentRect.width;
+        // A4 width is ~794px. Leave some padding.
+        if (width > 0 && width < 820) {
+          setScale(width / 820);
+        } else {
+          setScale(1);
+        }
+      }
+    });
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div
-      ref={ref}
-      className="print:block print:w-full print:m-0 print:p-0"
-      dangerouslySetInnerHTML={{ __html: finalHtml }}
-    />
+    <div ref={containerRef} className="w-full flex justify-center max-w-full overflow-x-hidden print:overflow-visible">
+      <div
+        ref={ref}
+        className="print:block print:w-full print:m-0 print:p-0 origin-top flex justify-center"
+        style={{ zoom: scale > 0 ? scale : 1, transform: scale < 1 && typeof CSS !== 'undefined' && !CSS.supports('zoom', '1') ? `scale(${scale})` : 'none', transformOrigin: 'top center' }}
+        dangerouslySetInnerHTML={{ __html: finalHtml }}
+      />
+    </div>
   );
 });
 

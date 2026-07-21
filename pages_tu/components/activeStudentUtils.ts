@@ -59,10 +59,30 @@ export const scopeHtml = (rawHtml: string): string => {
     return '';
   });
 
+  // Extract background image if any
+  const bgImgMatch = rawHtml.match(/<img[^>]*class="background-image"[^>]*src="([^"]+)"/i);
+  const bgImgSrc = bgImgMatch ? bgImgMatch[1] : '';
+
   const nestedCss = `
     ${pageRules.join('\n')}
     .letter-body-wrapper {
       ${cssContent}
+    }
+    
+    /* Simulate continuous pagination on screen */
+    @media screen {
+      .letter-body-wrapper .page {
+        ${bgImgSrc ? `background-image: url("${bgImgSrc}") !important;` : ''}
+        background-repeat: repeat-y !important;
+        background-position: top center !important;
+        background-size: 210mm 297mm !important;
+        height: auto !important;
+        min-height: 297mm !important;
+        overflow: visible !important;
+      }
+      .letter-body-wrapper .background-image {
+        display: none !important;
+      }
     }
   `;
 
@@ -83,8 +103,8 @@ export const scopeHtml = (rawHtml: string): string => {
     <style>
       ${nestedCss}
     </style>
-    <div class="letter-body-wrapper">
-      <div class="page">
+    <div class="letter-body-wrapper flex justify-center w-full overflow-x-auto print:overflow-visible">
+      <div class="page shadow-lg print:shadow-none mb-8 print:mb-0">
         ${pageContent}
       </div>
     </div>
