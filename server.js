@@ -71,26 +71,7 @@ app.use('/api/wilayah', wilayahRoutes);
 app.use('/api', verifyToken);
 
 // --- Rute Khusus Admin ---
-// Endpoint untuk menghapus error log yang sudah diselesaikan (resolved)
-app.delete('/api/error-logs', async (req, res) => {
-  try {
-    // Proteksi tambahan: Pastikan hanya Admin yang bisa menghapus log
-    if (req.user?.role !== 'Admin') {
-      return res.status(403).json({ error: 'Akses ditolak. Hanya Admin yang dapat menghapus log sistem.' });
-    }
 
-    const { resolved } = req.body;
-    if (resolved === true) {
-      const result = await pool.query('DELETE FROM error_logs WHERE is_resolved = true RETURNING id');
-      res.json({ success: true, deleted: result.rowCount });
-    } else {
-      res.status(400).json({ error: 'Parameter tidak valid' });
-    }
-  } catch (err) {
-    console.error('Error deleting resolved logs:', err);
-    res.status(500).json({ error: 'Gagal menghapus log error' });
-  }
-});
 
 // Mount all route modules under /api
 app.use('/api', authRoutes);

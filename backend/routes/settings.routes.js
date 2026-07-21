@@ -173,4 +173,158 @@ router.get('/sso-users', verifyRole(['Admin']), async (req, res) => {
   }
 });
 
+// --- Error Logs Management ---
+
+// Endpoint Get Error Logs
+router.get('/error-logs', verifyRole(['Admin']), async (req, res) => {
+  try {
+    const { type, severity, resolved, startDate, endDate, limit = 50, offset = 0 } = req.query;
+    
+    let query = 'SELECT * FROM error_logs WHERE 1=1';
+    let countQuery = 'SELECT COUNT(*) FROM error_logs WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (type) {
+      query += ` AND error_type = $${paramIndex}`;
+      countQuery += ` AND error_type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+
+    if (severity) {
+      query += ` AND severity = $${paramIndex}`;
+      countQuery += ` AND severity = $${paramIndex}`;
+      params.push(severity);
+      paramIndex++;
+    }
+
+    if (resolved) {
+      query += ` AND is_resolved = $${paramIndex}`;
+      countQuery += ` AND is_resolved = $${paramIndex}`;
+      params.push(resolved === 'true');
+      paramIndex++;
+    }
+
+    if (startDate) {
+      query += ` AND created_at >= $${paramIndex}`;
+      countQuery += ` AND created_at >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND created_at <= $${paramIndex}`;
+      countQuery += ` AND created_at <= $${paramIndex}`;
+      params.push(endDate + ' 23:59:59');
+      paramIndex++;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    
+    const countResult = await pool.query(countQuery, params);
+    
+    const dataParams = [...params, parseInt(limit), parseInt(offset)];
+    const dataResult = await pool.query(query, dataParams);
+
+    res.json({
+      logs: dataResult.rows,
+      total: parseInt(countResult.rows[0].count)
+    });
+  } catch (err) {
+    console.error('Get error logs error:', err);
+    res.status(500).json({ error: 'Gagal mengambil error logs' });
+  }
+});
+
+// Endpoint POST Error Logs
+router.post('/error-logs', async (req, res) => {
+  try {
+    const { type, message, stack, endpoint, method, severity } = req.body;
+    const userId = req.user?.id || null;
+    const userEmail = req.user?.email || null;
+    const browserInfo = req.headers['user-agent'] || 'Unknown';
+    const ipAddress = req.ip || req.connection?.remoteAddress || 'Unknown';
+
+    await pool.query(
+      `INSERT INTO error_logs 
+        (error_type, error_message, error_stack, endpoint, method, user_id, user_email, browser_info, ip_address, severity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [type || 'Frontend', message, stack, endpoint, method, userId, userEmail, browserInfo, ipAddress, severity || 'ERROR']
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Create error log error:', err);
+    res.status(500).json({ error: 'Gagal menyimpan error log.' });
+  }
+});
+
+// Get Error Log Statistics
+router.get('/error-logs/stats', verifyRole(['Admin']), async (req, res) => {
+  try {
+    const typeStats = await pool.query(`SELECT error_type, COUNT(*) as count FROM error_logs GROUP BY error_type ORDER BY count DESC`);
+    const severityStats = await pool.query(`SELECT severity, COUNT(*) as count FROM error_logs GROUP BY severity ORDER BY count DESC`);
+    const unresolvedResult = await pool.query('SELECT COUNT(*) as count FROM error_logs WHERE is_resolved = FALSE');
+    const todayResult = await pool.query(`SELECT COUNT(*) as count FROM error_logs WHERE created_at >= CURRENT_DATE`);
+
+    res.json({
+      byType: typeStats.rows,
+      bySeverity: severityStats.rows,
+      unresolved: parseInt(unresolvedResult.rows[0].count),
+      today: parseInt(todayResult.rows[0].count)
+    });
+  } catch (err) {
+    console.error('Get error log stats error:', err);
+    res.status(500).json({ error: 'Gagal mengambil statistik error logs.' });
+  }
+});
+
+// Resolve Error Log
+router.put('/error-logs/:id/resolve', verifyRole(['Admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    await pool.query(
+      'UPDATE error_logs SET is_resolved = TRUE, resolved_by = $1, resolved_at = NOW() WHERE id = $2',
+      [userId, id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Resolve error log error:', err);
+    res.status(500).json({ error: 'Gagal menyelesaikan error log.' });
+  }
+});
+
+// Delete/Clear Error Logs
+router.delete('/error-logs', verifyRole(['Admin']), async (req, res) => {
+  try {
+    const { resolved, olderThan } = req.body;
+
+    let query = 'DELETE FROM error_logs WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (resolved === true) {
+      query += ` AND is_resolved = $${paramIndex}`;
+      params.push(true);
+      paramIndex++;
+    }
+
+    if (olderThan) {
+      query += ` AND created_at < $${paramIndex}`;
+      params.push(olderThan);
+      paramIndex++;
+    }
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (err) {
+    console.error('Delete error logs error:', err);
+    res.status(500).json({ error: 'Gagal menghapus error logs.' });
+  }
+});
+
 export default router;

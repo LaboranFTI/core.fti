@@ -51,6 +51,20 @@ import {
 
 const router = express.Router();
 
+// ─── GET: Fetch all TA letter requests (Research, Interview, Permission) ─────
+
+router.get('/research-requests', verifyRole(['Admin', 'Admin TU', 'User TU']), async (req, res) => {
+  try {
+    await ensureTuInfrastructure();
+    const result = await pool.query(`SELECT * FROM ta_letter_requests ORDER BY created_at DESC`);
+    res.json({ success: true, data: result.rows.map(mapResearchRow) });
+  } catch (err) {
+    console.error('Get research requests error:', err);
+    res.status(500).json({ error: 'Gagal mengambil data pengajuan surat.' });
+  }
+});
+
+
 // ─── Generic: send-email via DB record ────────────────────────────────────────
 
 function mapGenericRow(type, row) {
@@ -370,6 +384,45 @@ router.post('/tu/requests/permission/batch-delete', verifyRole(TU_ADMIN_ROLES), 
   } catch (err) {
     console.error('Batch delete permission error:', err);
     res.status(500).json({ error: 'Gagal menghapus data perizinan secara batch.' });
+  }
+});
+
+router.put('/tu/requests/ta/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const existingResult = await client.query(`SELECT * FROM ta_letter_requests WHERE id = $1 FOR UPDATE`, [id]);
+
+    if (existingResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    }
+
+    const row = existingResult.rows[0];
+    const letterType = getResearchLetterType(row);
+
+    let numberedRequest = await ensureLetterNumber(client, letterType, row);
+    numberedRequest = await ensureLetterValidationToken(client, letterType, numberedRequest);
+
+    await client.query(
+      `UPDATE ta_letter_requests
+       SET status = 'verified',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, letterNumber: numberedRequest.letter_number || '', validationToken: numberedRequest.validation_token || '' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Verify TA request error:', err);
+    res.status(500).json({ error: 'Gagal memverifikasi pengajuan surat TA.' });
+  } finally {
+    client.release();
   }
 });
 

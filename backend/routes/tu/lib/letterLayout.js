@@ -21,7 +21,7 @@ export const DEFAULT_LETTER_LAYOUT_MM = Object.freeze({
 
 export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         body {
-            font-family: Calibri, Arial, sans-serif;
+            font-family: "Times New Roman", Times, serif;
         }
 
         .content,
@@ -35,8 +35,8 @@ export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         .signature-content,
         .signature-lines,
         .carbon-copy-block {
-            font-family: Calibri, Arial, sans-serif;
-            font-size: 11pt;
+            font-family: "Times New Roman", Times, serif;
+            font-size: 12pt;
             line-height: 1.5;
         }
 
@@ -44,7 +44,7 @@ export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         .content td,
         .content th,
         .content li {
-            font-size: 11pt;
+            font-size: 12pt;
             line-height: 1.5;
             orphans: 3;
             widows: 3;
@@ -60,13 +60,13 @@ export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         }
 
         .research-title {
-            font-size: 11pt;
+            font-size: 12pt;
             font-weight: bold;
             line-height: 1.5;
         }
 
         .validation-qr span {
-            font-size: 7.5pt;
+            font-size: 8pt;
             line-height: 1.1;
         }
 `;
