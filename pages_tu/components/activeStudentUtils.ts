@@ -60,8 +60,14 @@ export const scopeHtml = (rawHtml: string): string => {
   });
 
   // Extract background image if any
-  const bgImgMatch = rawHtml.match(/<img[^>]*class="background-image"[^>]*src="([^"]+)"/i);
-  const bgImgSrc = bgImgMatch ? bgImgMatch[1] : '';
+  const bgImgTagMatch = rawHtml.match(/<img[^>]*class="background-image"[^>]*>|<img[^>]*src="[^"]*"[^>]*class="background-image"[^>]*>/i);
+  let bgImgSrc = '';
+  if (bgImgTagMatch) {
+    const srcMatch = bgImgTagMatch[0].match(/src="([^"]+)"/i);
+    if (srcMatch) {
+      bgImgSrc = srcMatch[1];
+    }
+  }
 
   const nestedCss = `
     ${pageRules.join('\n')}
