@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { LetterLayout, ObservationData } from '../types';
 import { scopeHtml } from './activeStudentUtils';
 import { api } from '../../services/api';
@@ -78,33 +78,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     };
   }, [
     type,
-    data.name,
-    data.nim,
-    data.recipientName,
-    data.recipientTitle,
-    data.berdasarkanNo,
-    data.subject,
-    data.referralUnit,
-    data.perihal,
-    data.lampiran,
-    data.companyName,
-    data.companyAddress,
-    data.destinationPlace,
-    data.destinationAddress,
-    data.researchPlace,
-    data.assignmentType,
-    data.researchTitle,
-    data.permissionPurpose,
-    data.contactPerson,
-    data.courseName,
-    data.lecturerName,
-    data.headOfProgramName,
-    data.studyProgramName,
-    data.studyProgramLevel,
-    data.faculty,
-    data.advisors,
-    data.students,
-    data.html,
+    JSON.stringify(data),
     letterNumber,
     validationToken,
     validationUrl,
@@ -113,6 +87,27 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     layout
   ]);
 
+  const [scale, setScale] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0]) {
+        const width = entries[0].contentRect.width;
+        // A4 width is ~794px. Leave some padding.
+        if (width > 0 && width < 820) {
+          const newScale = width / 820;
+          setScale(prev => (prev !== newScale ? newScale : prev));
+        } else {
+          setScale(prev => (prev !== 1 ? 1 : prev));
+        }
+      }
+    });
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    return () => observer.disconnect();
+  }, []);
   if (loading && !html) {
     return (
       <div
@@ -136,27 +131,6 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     const guideHtml = `<div style="position: absolute; pointer-events: none; border: 2px dashed rgba(59, 130, 246, 0.6); background-color: rgba(59, 130, 246, 0.05); z-index: 50; top: ${layout.marginTopMm}mm; right: ${layout.marginRightMm}mm; bottom: ${layout.marginBottomMm}mm; left: ${layout.marginLeftMm}mm;"></div>`;
     finalHtml = finalHtml.replace('<div class="page">', `<div class="page">${guideHtml}`);
   }
-
-  const [scale, setScale] = useState(1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        const width = entries[0].contentRect.width;
-        // A4 width is ~794px. Leave some padding.
-        if (width > 0 && width < 820) {
-          setScale(width / 820);
-        } else {
-          setScale(1);
-        }
-      }
-    });
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-    return () => observer.disconnect();
-  }, []);
 
   return (
     <div ref={containerRef} className="w-full flex justify-center max-w-full overflow-x-hidden print:overflow-visible">

@@ -296,24 +296,29 @@
                     guna menyelesaikan {{assignmentType}} yang berjudul:</p>
                 <p class="research-title"><strong>&ldquo;{{researchTitle}}&rdquo;</strong></p>
                 {{advisorParagraph}}
-                <p>Demikian surat ini dibuat, atas perhatian dan kerjasamanya kami mengucapkan terima kasih.</p>
             </div>
 
-            <div class="signature-block">
-                <div class="validation-qr">
-                    <img src="{{validationQrImage}}" alt="QR Validasi Surat">
+            <div style="page-break-inside: avoid; break-inside: avoid;">
+                <div class="body-text">
+                    <p>Demikian surat ini dibuat, atas perhatian dan kerjasamanya kami mengucapkan terima kasih.</p>
                 </div>
-                <div class="signature-lines {{signatureLineClass}}">
-                    <div class="signature-content">
-                        <p>Salam hormat,</p>
-                        <p class="signature-name">{{deanName}}</p>
-                        <p>{{deanTitle}}</p>
+
+                <div class="signature-block">
+                    <div class="validation-qr">
+                        <img src="{{validationQrImage}}" alt="QR Validasi Surat">
                     </div>
-                    {{advisorSignatureBlock}}
+                    <div class="signature-lines {{signatureLineClass}}">
+                        <div class="signature-content">
+                            <p>Salam hormat,</p>
+                            <p class="signature-name">{{deanName}}</p>
+                            <p>{{deanTitle}}</p>
+                        </div>
+                        {{advisorSignatureBlock}}
+                    </div>
                 </div>
-            </div>
 
-            {{tembusanBlock}}
+                {{tembusanBlock}}
+            </div>
                         </div>
                     </td>
                 </tr>

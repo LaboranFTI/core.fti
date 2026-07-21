@@ -258,24 +258,29 @@
                     kesediaan Bapak/Ibu memberikan izin untuk dapat melakukan observasi dan wawancara di
                     <strong>{{company}}</strong>.
                 </p>
-                <p>Demikian surat ini kami sampaikan. Atas perhatian dan izin yang diberikan diucapkan terima kasih.
-                    Kiranya
-                    kerja sama ini dapat berlanjut di masa yang akan datang.</p>
             </div>
+            
+            <div style="page-break-inside: avoid; break-inside: avoid;">
+                <div class="body-text">
+                    <p>Demikian surat ini kami sampaikan. Atas perhatian dan izin yang diberikan diucapkan terima kasih.
+                        Kiranya
+                        kerja sama ini dapat berlanjut di masa yang akan datang.</p>
+                </div>
 
-            <div class="signature-block">
-                <div class="validation-qr">
-                    <img src="{{validationQrImage}}" alt="QR Validasi Surat">
+                <div class="signature-block">
+                    <div class="validation-qr">
+                        <img src="{{validationQrImage}}" alt="QR Validasi Surat">
+                    </div>
+                    <div class="signature-content">
+                        <p>Salam,</p>
+                        <div class="signature-space"></div>
+                        <p class="signature-name">{{lecturerName}}</p>
+                        <p>Pengampu Mata Kuliah</p>
+                    </div>
                 </div>
-                <div class="signature-content">
-                    <p>Salam,</p>
-                    <div class="signature-space"></div>
-                    <p class="signature-name">{{lecturerName}}</p>
-                    <p>Pengampu Mata Kuliah</p>
-                </div>
+
+                {{tembusanBlock}}
             </div>
-
-            {{tembusanBlock}}
                         </div>
                     </td>
                 </tr>

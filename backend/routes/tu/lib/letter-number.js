@@ -148,15 +148,20 @@ const {
 // Helper: Generate PDF Buffer menggunakan Puppeteer
 const generatePdfBuffer = async (htmlContent) => {
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-  const page = await browser.newPage();
-  await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-  const pdfBuffer = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-    margin: { top: '0', right: '0', bottom: '0', left: '0' }
-  });
-  await browser.close();
-  return pdfBuffer;
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 }); // Set viewport exactly to A4
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      preferCSSPageSize: true,
+      printBackground: true,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' }
+    });
+    return pdfBuffer;
+  } finally {
+    await browser.close();
+  }
 };
 
 const sendSuRekAccessCodeEmail = async (requestData, req) => {

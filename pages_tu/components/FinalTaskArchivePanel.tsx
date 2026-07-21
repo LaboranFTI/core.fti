@@ -270,15 +270,20 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       const resJson = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(resJson.error || 'Gagal memverifikasi surat.');
       
-      const updatedItem = resJson.data;
+      const updatedItem = {
+        ...item,
+        status: 'verified',
+        letterNumber: resJson.letterNumber || item.letterNumber,
+        validationToken: resJson.validationToken || item.validationToken
+      };
       
       const updateList = (prev: ResearchRequest[]) => prev.map(r => r?.id === updatedItem.id ? updatedItem : r);
-      if (type === 'research') setResearchRequests(updateList);
-      else if (type === 'interview') setInterviewRequests(updateList);
-      else if (type === 'permission') setPermissionRequests(updateList);
+      if (type === 'research') setResearchRequests(updateList as any);
+      else if (type === 'interview') setInterviewRequests(updateList as any);
+      else if (type === 'permission') setPermissionRequests(updateList as any);
       
       if (selectedLetter?.item.id === updatedItem.id) {
-        setSelectedLetter({ type, item: updatedItem });
+        setSelectedLetter({ type, item: updatedItem as any });
       }
       
       setFeedback({ type: 'success', message: 'Surat berhasil di-Acc dan nomor surat telah dibuat.' });
@@ -315,15 +320,26 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
       const resJson = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(resJson.error || 'Gagal menolak surat.');
       
-      const updatedItem = resJson.data;
+      const targetItem = 
+        rejectTarget.type === 'research' ? researchRequests.find(r => r.id === rejectTarget.id) :
+        rejectTarget.type === 'interview' ? interviewRequests.find(r => r.id === rejectTarget.id) :
+        permissionRequests.find(r => r.id === rejectTarget.id);
+        
+      if (!targetItem) throw new Error('Data surat tidak ditemukan di layar.');
+      
+      const updatedItem = {
+        ...targetItem,
+        status: 'rejected',
+        rejectionReason: rejectReason.trim()
+      };
       
       const updateList = (prev: ResearchRequest[]) => prev.map(r => r?.id === updatedItem.id ? updatedItem : r);
-      if (rejectTarget.type === 'research') setResearchRequests(updateList);
-      else if (rejectTarget.type === 'interview') setInterviewRequests(updateList);
-      else if (rejectTarget.type === 'permission') setPermissionRequests(updateList);
+      if (rejectTarget.type === 'research') setResearchRequests(updateList as any);
+      else if (rejectTarget.type === 'interview') setInterviewRequests(updateList as any);
+      else if (rejectTarget.type === 'permission') setPermissionRequests(updateList as any);
       
       if (selectedLetter?.item.id === updatedItem.id) {
-        setSelectedLetter({ type: rejectTarget.type, item: updatedItem });
+        setSelectedLetter({ type: rejectTarget.type, item: updatedItem as any });
       }
       
       setFeedback({ type: 'success', message: 'Surat ditolak dan email penolakan telah dikirim.' });
