@@ -40,6 +40,7 @@ import {
   escapeXml,
   INTERVIEW_LETTER_KIND,
   PERMISSION_LETTER_KIND,
+  RESEARCH_LETTER_KIND,
   getTuSettingsPayload,
   getSharedLetterBackground,
   LETTER_TYPE_TO_CLIENT_KEY,
@@ -438,6 +439,59 @@ router.put('/tu/requests/ta/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req,
 });
 
 // ─── Research letter actions ──────────────────────────────────────────────────
+
+router.post('/tu/research-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'pending', req, RESEARCH_LETTER_KIND);
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, requestData, message: 'Surat penelitian berhasil diajukan.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Submit research letter error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal mengajukan surat penelitian.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/interview-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'pending', req, INTERVIEW_LETTER_KIND);
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, requestData, message: 'Surat wawancara berhasil diajukan.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Submit interview letter error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal mengajukan surat wawancara.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/tu/permission-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+    const requestData = await createFinalResearchRequest(client, req.body, 'pending', req, PERMISSION_LETTER_KIND);
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, requestData, message: 'Surat perizinan berhasil diajukan.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Submit permission letter error:', err);
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Gagal mengajukan surat perizinan.' });
+  } finally {
+    client.release();
+  }
+});
+
+
 
 
 router.post('/tu/research-letter/generate-and-download', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
