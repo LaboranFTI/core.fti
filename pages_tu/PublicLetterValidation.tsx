@@ -496,6 +496,7 @@ export default function PublicLetterValidation() {
                     <div className="mx-auto w-max max-w-none">
                   {isObservation ? (
                     <LetterPreview
+                      pdfUrl={`/api/tu/public/letter-validation/${letter.validationToken}/preview-pdf`}
                       data={{
                         recipientName: letter.observation?.recipientName || '',
                         companyName: letter.observation?.company || '',
@@ -518,6 +519,7 @@ export default function PublicLetterValidation() {
                     />
                   ) : isCounseling ? (
                     <LetterPreview
+                      pdfUrl={`/api/tu/public/letter-validation/${letter.validationToken}/preview-pdf`}
                       type="counseling"
                       data={{
                         name: letter.recipient.name,
@@ -540,6 +542,7 @@ export default function PublicLetterValidation() {
                     />
                   ) : isResearch ? (
                     <LetterPreview
+                      pdfUrl={`/api/tu/public/letter-validation/${letter.validationToken}/preview-pdf`}
                       type="research"
                       data={{
                         name: letter.recipient.name,
@@ -568,6 +571,7 @@ export default function PublicLetterValidation() {
                     />
                   ) : isSuRek ? (
                     <LetterPreview
+                      pdfUrl={`/api/tu/public/letter-validation/${letter.validationToken}/preview-pdf`}
                       type="su-rek"
                       data={{
                         name: letter.recipient.name,

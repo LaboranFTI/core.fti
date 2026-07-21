@@ -81,6 +81,44 @@ router.get('/tu/public/letter-validation/:token/preview-html', publicValidationL
   }
 });
 
+router.get('/tu/public/letter-validation/:token/preview-pdf', publicValidationLimiter, async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {
+    return res.status(400).send('Token validasi tidak valid.');
+  }
+  try {
+    await ensureTuInfrastructure();
+    const [activeResult, observationResult, counselingResult, researchResult, suRekResult] = await Promise.all([
+      pool.query(`SELECT * FROM active_student_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM observation_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM counseling_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM ta_letter_requests WHERE validation_token = $1 LIMIT 1`, [token]),
+      pool.query(`SELECT * FROM su_rek_requests WHERE validation_token = $1 LIMIT 1`, [token])
+    ]);
+    const type = activeResult.rows.length > 0
+      ? 'active-student'
+      : observationResult.rows.length > 0
+        ? 'observation'
+        : counselingResult.rows.length > 0
+          ? 'counseling'
+          : researchResult.rows.length > 0
+            ? getResearchLetterType(researchResult.rows[0])
+            : suRekResult.rows.length > 0
+              ? 'su-rek'
+              : null;
+    const requestData = activeResult.rows[0] || observationResult.rows[0] || counselingResult.rows[0] || researchResult.rows[0] || suRekResult.rows[0];
+    if (!type || !requestData) {
+      return res.status(404).send('Surat tidak ditemukan atau token validasi tidak terdaftar.');
+    }
+    const pdfBuffer = await buildLetterPdfBuffer(type, requestData, req);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Public validation preview PDF error:', err);
+    res.status(500).send('Gagal memvalidasi surat.');
+  }
+});
+
 router.get('/tu/public/letter-validation/:token', publicValidationLimiter, async (req, res) => {
   const token = String(req.params.token || '').trim();
   if (!/^[A-Za-z0-9_-]{24,80}$/.test(token)) {

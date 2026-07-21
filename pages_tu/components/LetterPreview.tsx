@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { LetterLayout, ObservationData } from '../types';
-import { scopeHtml } from './activeStudentUtils';
+import { LetterLayout } from '../types';
 import { api } from '../../services/api';
 
 interface LetterPreviewProps {
   type?: 'observation' | 'active-student' | 'counseling' | 'research' | 'interview' | 'permission' | 'su-rek';
-  data: any & { html?: string };
+  data?: any;
   backgroundImageBase64?: string;
   layout?: LetterLayout;
   showLayoutGuide?: boolean;
@@ -13,6 +12,7 @@ interface LetterPreviewProps {
   validationToken?: string;
   validationUrl?: string;
   letterDate?: string;
+  pdfUrl?: string;
 }
 
 export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps>(({
@@ -24,23 +24,29 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   letterNumber,
   validationToken,
   validationUrl,
-  letterDate
+  letterDate,
+  pdfUrl: propPdfUrl
 }, ref) => {
-  const [html, setHtml] = useState<string>(data.html || '');
-  const [loading, setLoading] = useState<boolean>(!data.html);
+  const [pdfUrl, setPdfUrl] = useState<string>(propPdfUrl || '');
+  const [loading, setLoading] = useState<boolean>(!propPdfUrl);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (data.html) {
-      setHtml(data.html);
+    if (propPdfUrl) {
+      setPdfUrl(propPdfUrl);
       setLoading(false);
       return;
     }
 
+    if (!data) return;
+
     let active = true;
-    const fetchHtml = async () => {
+    let objectUrl = '';
+    
+    const fetchPdf = async () => {
       setLoading(true);
       try {
-        const res = await api('/api/tu/preview-html', {
+        const res = await api('/api/tu/preview-pdf', {
           method: 'POST',
           data: {
             type,
@@ -55,13 +61,19 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
             }
           }
         });
-        const text = await res.text();
+        
+        if (!res.ok) {
+           throw new Error('Failed to fetch PDF');
+        }
+
+        const blob = await res.blob();
         if (active) {
-          setHtml(text);
+          objectUrl = URL.createObjectURL(blob);
+          setPdfUrl(objectUrl);
           setLoading(false);
         }
       } catch (err) {
-        console.error('Failed to fetch letter preview:', err);
+        console.error('Failed to fetch letter preview PDF:', err);
         if (active) {
           setLoading(false);
         }
@@ -69,16 +81,20 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     };
 
     const timer = setTimeout(() => {
-      fetchHtml();
-    }, 300);
+      fetchPdf();
+    }, 500);
 
     return () => {
       active = false;
       clearTimeout(timer);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [
+    propPdfUrl,
     type,
-    JSON.stringify(data),
+    data ? JSON.stringify(data) : '',
     letterNumber,
     validationToken,
     validationUrl,
@@ -87,59 +103,27 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     layout
   ]);
 
-  const [scale, setScale] = useState(1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        const width = entries[0].contentRect.width;
-        // A4 width is ~794px. Leave some padding.
-        if (width > 0 && width < 820) {
-          const newScale = width / 820;
-          setScale(prev => (prev !== newScale ? newScale : prev));
-        } else {
-          setScale(prev => (prev !== 1 ? 1 : prev));
-        }
-      }
-    });
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-    return () => observer.disconnect();
-  }, []);
-  if (loading && !html) {
-    return (
-      <div
-        ref={ref}
-        className="relative mx-auto h-[297mm] w-[210mm] flex items-center justify-center bg-white shadow-lg text-slate-500 font-sans"
-      >
-        <div className="flex flex-col items-center gap-2">
-          <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <span className="text-sm font-semibold">Memuat pratinjau surat...</span>
-        </div>
-      </div>
-    );
-  }
-
-  let finalHtml = scopeHtml(html);
-
-  if (showLayoutGuide && layout) {
-    const guideHtml = `<div style="position: absolute; pointer-events: none; border: 2px dashed rgba(59, 130, 246, 0.6); background-color: rgba(59, 130, 246, 0.05); z-index: 50; top: ${layout.marginTopMm}mm; right: ${layout.marginRightMm}mm; bottom: ${layout.marginBottomMm}mm; left: ${layout.marginLeftMm}mm;"></div>`;
-    finalHtml = finalHtml.replace('<div class="page">', `<div class="page">${guideHtml}`);
-  }
-
   return (
-    <div ref={containerRef} className="w-full flex justify-center max-w-full overflow-x-hidden print:overflow-visible">
-      <div
-        ref={ref}
-        className="print:block print:w-full print:m-0 print:p-0 origin-top flex justify-center"
-        style={{ zoom: scale > 0 ? scale : 1, transform: scale < 1 && typeof CSS !== 'undefined' && !CSS.supports('zoom', '1') ? `scale(${scale})` : 'none', transformOrigin: 'top center' }}
-        dangerouslySetInnerHTML={{ __html: finalHtml }}
-      />
+    <div ref={containerRef} className="w-full flex justify-center max-w-full relative h-[600px] md:h-[800px] bg-slate-100 rounded border border-slate-200">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+          <div className="flex flex-col items-center gap-2">
+            <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm font-semibold text-slate-600">Memuat pratinjau PDF...</span>
+          </div>
+        </div>
+      )}
+      {pdfUrl && (
+        <iframe
+          ref={ref as any}
+          src={pdfUrl + '#toolbar=0&navpanes=0&scrollbar=0'}
+          className="w-full h-full border-0 rounded shadow-lg"
+          title="Pratinjau Surat PDF"
+        />
+      )}
     </div>
   );
 });

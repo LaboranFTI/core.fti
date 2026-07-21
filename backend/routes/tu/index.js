@@ -66,6 +66,21 @@ router.post('/tu/preview-html', verifyRole([...TU_ACCESS_ROLES, 'Mahasiswa']), a
   }
 });
 
+router.post('/tu/preview-pdf', verifyRole([...TU_ACCESS_ROLES, 'Mahasiswa']), async (req, res) => {
+  const { type, data } = req.body;
+  if (!type || !data) {
+    return res.status(400).send('Parameter type dan data diperlukan.');
+  }
+  try {
+    const pdfBuffer = await buildLetterPdfBuffer(type, data, req);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Preview PDF error:', err);
+    res.status(500).send('Gagal membuat pratinjau surat.');
+  }
+});
+
 // ─── Generic: preview saved request as HTML ──────────────────────────────────
 
 router.get('/tu/requests/:type/:id/preview-html', verifyRole(TU_ACCESS_ROLES), async (req, res) => {
