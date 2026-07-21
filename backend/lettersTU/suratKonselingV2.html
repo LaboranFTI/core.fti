@@ -32,7 +32,7 @@
         }
 
         .background-image {
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
             width: 210mm;
@@ -161,6 +161,9 @@
         }
 
         @media print {
+            .background-image {
+                position: fixed !important;
+            }
             .draft-watermark {
                 display: none !important;
             }
