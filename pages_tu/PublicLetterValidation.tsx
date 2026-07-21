@@ -278,26 +278,7 @@ export default function PublicLetterValidation() {
       ? 'bg-blue-600 text-white shadow-sm '
       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950   '
   );
-  const renderDownloadCard = (className = '') => (
-    <Card className={cn('border-slate-200 shadow-sm ', className)}>
-      <CardHeader>
-        <CardTitle className="text-base font-bold">Dokumen Resmi</CardTitle>
-        <CardDescription>Unduh salinan asli berformat PDF.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Button
-          className="w-full justify-center bg-blue-600 text-white shadow-sm hover:bg-blue-700  "
-          onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
-          disabled={!letter.isValid}
-        >
-          <Download className="mr-2 size-4" /> Unduh Dokumen PDF
-        </Button>
-        <p className="text-pretty text-[11px] leading-relaxed text-slate-500 ">
-          Dokumen PDF hanya dapat diunduh untuk surat yang sudah berstatus resmi/terverifikasi.
-        </p>
-      </CardContent>
-    </Card>
-  );
+
 
   return (
     <div className="min-h-dvh bg-slate-50/50 pb-12 font-sans text-slate-900 antialiased  ">
@@ -485,13 +466,26 @@ export default function PublicLetterValidation() {
             {/* Tab 2: Pratinjau Dokumen (Official Component Preview) */}
             {activeTab === 'preview' && (
               <div id="validation-preview-panel" role="tabpanel" aria-labelledby="validation-preview-tab" className="space-y-4">
-                {renderDownloadCard('lg:hidden')}
+
                 <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm   sm:p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-slate-700 ">Pratinjau Dokumen</span>
-                    <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-xs text-slate-600   ">
-                      Lembar A4
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 gap-1.5 border-slate-200 text-blue-600 hover:bg-blue-50 px-2.5 shadow-sm"
+                        onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
+                        disabled={!letter.isValid}
+                        title={!letter.isValid ? 'Hanya surat resmi/terverifikasi yang dapat diunduh.' : 'Unduh dokumen PDF'}
+                      >
+                        <Download className="size-3.5" />
+                        <span className="text-[11px] font-semibold">Unduh PDF</span>
+                      </Button>
+                      <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-[11px] text-slate-600 font-medium">
+                        Lembar A4
+                      </Badge>
+                    </div>
                   </div>
                   <div
                     role="region"
@@ -631,10 +625,6 @@ export default function PublicLetterValidation() {
           {/* Right Column: Actions & Token Info */}
           <aside className="min-w-0 space-y-6 lg:sticky lg:top-24 lg:self-start">
             
-            {/* Download PDF Card */}
-            {activeTab === 'preview' && (
-              renderDownloadCard('hidden lg:block')
-            )}
 
             {/* Token QR & Link Card */}
             <Card className="border-slate-200 shadow-sm ">

@@ -118,12 +118,11 @@ export async function sendMail({ to, subject, html, text, cc, attachments = [] }
         resendAtt.content = Buffer.isBuffer(att.content) ? att.content.toString('base64') : att.content;
       }
       
-      if (att.contentType) resendAtt.content_type = att.contentType;
+      if (att.contentType) resendAtt.contentType = att.contentType;
       
       if (att.cid) {
         // Resend SDK does NOT want angle brackets here, just the ID
-        resendAtt.content_id = att.cid;
-        resendAtt.disposition = 'inline';
+        resendAtt.contentId = att.cid;
       }
       return resendAtt;
     });

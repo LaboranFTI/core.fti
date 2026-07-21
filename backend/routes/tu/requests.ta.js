@@ -32,6 +32,9 @@ import {
   buildResearchAccessPayload,
   buildResearchSignerList,
   mapResearchRow,
+  mapActiveStudentRow,
+  mapObservationRow,
+  mapCounselingRow,
   
   isValidEmailAddress,
   escapeXml,
@@ -48,6 +51,20 @@ import {
 const router = express.Router();
 
 // ─── Generic: send-email via DB record ────────────────────────────────────────
+
+function mapGenericRow(type, row) {
+  if (!row) return row;
+  switch (type) {
+    case 'active-student': return mapActiveStudentRow(row);
+    case 'observation': return mapObservationRow(row);
+    case 'counseling': return mapCounselingRow(row);
+    case 'research':
+    case 'interview':
+    case 'permission':
+    case 'ta': return mapResearchRow(row);
+    default: return row;
+  }
+}
 
 router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
   const { type, id } = req.params;
@@ -132,7 +149,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
         letterNumber: requestData.letter_number,
         validationToken: requestData.validation_token,
         validationUrl,
-        data: requestData
+        data: mapGenericRow(type, requestData)
       });
   } catch (err) {
     console.error('Send email error:', err);
@@ -166,7 +183,8 @@ router.post('/tu/requests/:type/:id/validation-token', verifyRole(TU_ADMIN_ROLES
     res.json({
       success: true,
       validationToken: requestData.validation_token,
-      validationUrl: buildPublicValidationUrl(req, requestData.validation_token)
+      validationUrl: buildPublicValidationUrl(req, requestData.validation_token),
+      data: mapGenericRow(type, requestData)
     });
   } catch (err) {
     console.error('Create validation token error:', err);
@@ -351,106 +369,6 @@ router.post('/tu/requests/permission/batch-delete', verifyRole(TU_ADMIN_ROLES), 
   } catch (err) {
     console.error('Batch delete permission error:', err);
     res.status(500).json({ error: 'Gagal menghapus data perizinan secara batch.' });
-  }
-});
-
-// ─── List all research/interview/permission requests ─────────────────────────
-
-router.get('/research-requests', verifyRole(['Admin', 'Admin TU', 'User TU']), async (req, res) => {
-  try {
-    await ensureTuInfrastructure();
-    const result = await pool.query(`SELECT * FROM ta_letter_requests ORDER BY created_at DESC`);
-    res.json({ success: true, data: result.rows.map(mapResearchRow) });
-  } catch (err) {
-    console.error('Get research requests error:', err);
-    res.status(500).json({ error: 'Gagal mengambil data surat penelitian.' });
-  }
-});
-
-
-// ─── Approval/Rejection Workflow ──────────────────────────────────────────────
-
-router.post('/tu/research-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await ensureTuInfrastructure();
-    await client.query('BEGIN');
-    await createFinalResearchRequest(client, req.body, 'pending', req, 'research');
-    await client.query('COMMIT');
-    res.json({ success: true, message: 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.' });
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => { });
-    res.status(err.statusCode || 500).json({ error: err.message || 'Gagal mengajukan surat.' });
-  } finally {
-    client.release();
-  }
-});
-
-router.post('/tu/interview-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await ensureTuInfrastructure();
-    await client.query('BEGIN');
-    await createFinalResearchRequest(client, req.body, 'pending', req, INTERVIEW_LETTER_KIND);
-    await client.query('COMMIT');
-    res.json({ success: true, message: 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.' });
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => { });
-    res.status(err.statusCode || 500).json({ error: err.message || 'Gagal mengajukan surat.' });
-  } finally {
-    client.release();
-  }
-});
-
-router.post('/tu/permission-letter/submit', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await ensureTuInfrastructure();
-    await client.query('BEGIN');
-    await createFinalResearchRequest(client, req.body, 'pending', req, PERMISSION_LETTER_KIND);
-    await client.query('COMMIT');
-    res.json({ success: true, message: 'Surat berhasil diajukan dan sedang menunggu persetujuan Admin TU.' });
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => { });
-    res.status(err.statusCode || 500).json({ error: err.message || 'Gagal mengajukan surat.' });
-  } finally {
-    client.release();
-  }
-});
-
-router.put('/tu/requests/ta/:id/verify', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
-  const { id } = req.params;
-  const client = await pool.connect();
-  try {
-    await ensureTuInfrastructure();
-    await client.query('BEGIN');
-    const existingResult = await client.query(`SELECT * FROM ta_letter_requests WHERE id = $1 FOR UPDATE`, [id]);
-    if (existingResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
-    }
-    
-    let requestData = existingResult.rows[0];
-    const letterType = getResearchLetterType(requestData);
-    requestData = await ensureLetterNumber(client, letterType, requestData);
-    requestData = await ensureLetterValidationToken(client, letterType, requestData);
-    
-    await client.query(
-      `UPDATE ta_letter_requests
-       SET status = 'verified',
-           rejection_reason = NULL,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [id]
-    );
-    await client.query('COMMIT');
-    res.json({ success: true, letterNumber: requestData.letter_number || '', validationToken: requestData.validation_token || '', data: requestData });
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => { });
-    console.error('Verify TA letter error:', err);
-    res.status(500).json({ error: 'Gagal memverifikasi pengajuan surat.' });
-  } finally {
-    client.release();
   }
 });
 

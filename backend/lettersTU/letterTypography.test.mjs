@@ -17,7 +17,7 @@ const templates = templateNames.map((name) => ({
 }));
 
 const layoutSource = readFileSync(new URL('../routes/tu/lib/letterLayout.js', import.meta.url), 'utf8');
-const coreSource = readFileSync(new URL('../routes/tu/core.js', import.meta.url), 'utf8');
+const htmlSource = readFileSync(new URL('../routes/tu/lib/letter-html.js', import.meta.url), 'utf8');
 
 describe('official TU letter typography', () => {
   it('uses Calibri as the document font in every letter template', () => {
@@ -36,7 +36,7 @@ describe('official TU letter typography', () => {
 
   it('applies the shared typography guard to all rendered preview and PDF HTML', () => {
     assert.match(layoutSource, /const applyOfficialLetterTypography\s*=/);
-    assert.match(coreSource, /return applyOfficialLetterTypography\(htmlContent\);/);
-    assert.match(coreSource, /const buildLetterPdfBuffer\s*=\s*async[\s\S]*?buildLetterHtml\(type, requestData, req\)/);
+    assert.match(htmlSource, /return applyOfficialLetterTypography\(htmlContent\);/);
+    assert.match(htmlSource, /const buildLetterPdfBuffer\s*=\s*async[\s\S]*?buildLetterHtml\(type, requestData, req\)/);
   });
 });

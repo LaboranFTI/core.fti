@@ -130,13 +130,18 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
     );
   }
 
-  const scopedHtml = scopeHtml(html);
+  let finalHtml = scopeHtml(html);
+
+  if (showLayoutGuide && layout) {
+    const guideHtml = `<div style="position: absolute; pointer-events: none; border: 2px dashed rgba(59, 130, 246, 0.6); background-color: rgba(59, 130, 246, 0.05); z-index: 50; top: ${layout.marginTopMm}mm; right: ${layout.marginRightMm}mm; bottom: ${layout.marginBottomMm}mm; left: ${layout.marginLeftMm}mm;"></div>`;
+    finalHtml = finalHtml.replace('<div class="page">', `<div class="page">${guideHtml}`);
+  }
 
   return (
     <div
       ref={ref}
       className="print:block print:w-full print:m-0 print:p-0"
-      dangerouslySetInnerHTML={{ __html: scopedHtml }}
+      dangerouslySetInnerHTML={{ __html: finalHtml }}
     />
   );
 });

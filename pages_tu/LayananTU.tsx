@@ -393,7 +393,7 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
             ) : (
               <div className="space-y-6">
                 {/* Breadcrumb Navigation Header */}
-                <div className="sticky top-0 z-10 mb-6 flex items-center gap-2 border-b border-slate-200 bg-white/95 pb-4 pt-4 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95 print:hidden">
+                <div className="mb-8 inline-flex items-center gap-2.5 rounded-full border border-slate-200/60 bg-slate-50/80 px-5 py-2.5 shadow-sm backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-800/60 print:hidden">
                   <button
                     onClick={() => setActiveServiceId(null)}
                     className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-fti-blue-600 dark:text-slate-400 dark:hover:text-fti-blue-400"
@@ -401,8 +401,8 @@ const HalamanTU: React.FC<HalamanTUProps> = ({ role }) => {
                     <PhHouse className="h-4 w-4" />
                     Layanan Surat
                   </button>
-                  <PhCaretRight className="h-4 w-4 text-slate-400" />
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                  <PhCaretRight className="h-3.5 w-3.5 text-slate-400/70 dark:text-slate-500" />
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                     <SelectedServiceIcon className="h-4 w-4 text-fti-blue-600 dark:text-fti-blue-400" />
                     {selectedService.title}
                   </span>
