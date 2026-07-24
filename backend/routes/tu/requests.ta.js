@@ -157,6 +157,7 @@ router.post('/tu/requests/:type/:id/send-email', verifyRole(TU_ADMIN_ROLES), asy
     console.log(`[Mailer] Email terkirim ke ${requestData.email}`);
 
     await pool.query(`UPDATE ${config.table} SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
+    requestData.status = 'sent';
 
     res.json({
         success: true,

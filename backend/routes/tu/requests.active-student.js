@@ -16,24 +16,14 @@ import {
   ensureLetterNumber,
   recalculateLetterCounter,
   ensureLetterValidationToken,
-  buildPublicValidationUrl
+  buildPublicValidationUrl,
+  escapeXml
 } from './core.js';
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
 
 const router = express.Router();
 
-const escapeXml = (unsafe) => {
-  return String(unsafe || '')
-    .replace(/[<>&'"]/g, (c) => {
-      switch (c) {
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '&': return '&amp;';
-        case '\'': return '&apos;';
-        case '"': return '&quot;';
-        default: return c;
-      }
-    });
-};
+
 
 router.post('/active-student', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
   const {
@@ -258,6 +248,75 @@ router.get('/active-student/summary', verifyRole(['Admin', 'Admin TU', 'User TU'
   } catch (err) {
     console.error('Get active student summary error:', err);
     res.status(500).json({ error: 'Gagal mengambil data ringkasan.' });
+  }
+});
+
+router.put('/tu/requests/active-student/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const { rejection_reason } = req.body;
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+
+    const selectResult = await client.query(`SELECT * FROM active_student_requests WHERE id = $1 FOR UPDATE`, [id]);
+    if (selectResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+    }
+
+    const currentData = selectResult.rows[0];
+    if (currentData.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Hanya pengajuan berstatus pending yang dapat ditolak.' });
+    }
+
+    const reason = rejection_reason || 'Tidak ada alasan yang diberikan.';
+
+    const updateResult = await client.query(
+      `UPDATE active_student_requests
+       SET status = 'rejected',
+           rejection_reason = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [reason, id]
+    );
+
+    await client.query('COMMIT');
+
+    if (isValidEmailAddress(currentData.email)) {
+      try {
+        const emailHtml = buildProfessionalEmail({
+          title: 'Penolakan Pengajuan Surat Aktif Kuliah',
+          contentHtml: `
+            <h2>Halo, ${escapeXml(currentData.name)} (${escapeXml(currentData.nim)})</h2>
+            <p>Mohon maaf, pengajuan <b>Surat Keterangan Aktif Kuliah</b> Anda ditolak dengan alasan:</p>
+            <div style="padding: 16px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; margin-top: 16px;">
+              ${escapeXml(reason)}
+            </div>
+            <p style="margin-top: 16px;">Silakan ajukan ulang surat Anda setelah memperbarui data tersebut.</p>
+          `
+        });
+        await sendMail({
+          to: currentData.email,
+          subject: '[TU FTI UKSW] Notifikasi Penolakan Surat Aktif Kuliah',
+          html: emailHtml,
+          attachments: getStandardEmailAttachments()
+        });
+      } catch (mailErr) {
+        console.error('Failed to send active student rejection email:', mailErr);
+      }
+    }
+
+    res.json({ success: true, data: mapActiveStudentRow(updateResult.rows[0]) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Reject active student request error:', err);
+    res.status(500).json({ error: 'Gagal menolak pengajuan.' });
+  } finally {
+    client.release();
   }
 });
 

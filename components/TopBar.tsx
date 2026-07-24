@@ -13,11 +13,13 @@ import {
   UserCircle,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { Notification } from '../types';
-import { APP_NAME } from '../config';
+import { Notification, Role } from '../types';
+import { isRoleMatch } from '../src/app/roles';
+import { APP_NAME, APP_FULL_NAME } from '../config';
 import nocLogo from "../src/assets/NOC.svg";
 
 interface TopBarProps {
+  currentRole?: Role | string;
   onToggleSidebar: () => void;
   showSidebarToggle: boolean;
   isVisible?: boolean;
@@ -36,8 +38,9 @@ interface TopBarProps {
 }
 
 const TopBar: React.FC<TopBarProps> = ({ 
-  onToggleSidebar, showSidebarToggle, isVisible = true, isDarkMode, toggleDarkMode, pageLabel, userName, userEmail, onLogout, notifications, onMarkAsRead, onMarkAllAsRead, onClearAllNotifications, onNavigate, isMaintenanceMode
+  currentRole, onToggleSidebar, showSidebarToggle, isVisible = true, isDarkMode, toggleDarkMode, pageLabel, userName, userEmail, onLogout, notifications, onMarkAsRead, onMarkAllAsRead, onClearAllNotifications, onNavigate, isMaintenanceMode
 }) => {
+  const isUserTu = currentRole ? isRoleMatch(currentRole, Role.USER_TU) : false;
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   
@@ -67,7 +70,6 @@ const TopBar: React.FC<TopBarProps> = ({
   // Handler untuk Infinite Scroll
   const handleNotifScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    // Jika scroll sudah mendekati bawah (threshold 10px)
     if (scrollHeight - scrollTop <= clientHeight + 10) {
       if (visibleNotifCount < filteredNotifications.length) {
         setVisibleNotifCount(prev => prev + 5);
@@ -90,34 +92,32 @@ const TopBar: React.FC<TopBarProps> = ({
           </button>
         )}
 
-        <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-fti-blue-100 bg-white/60 shadow-sm shadow-fti-blue-900/5 backdrop-blur-sm dark:border-fti-blue-300/20 dark:bg-slate-950/50 md:size-12 md:rounded-xl">
+        <div className="flex min-w-0 items-center gap-3 md:gap-3.5">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-fti-blue-100 bg-white/80 shadow-sm shadow-fti-blue-900/5 backdrop-blur-sm dark:border-white/20 dark:bg-white/10 md:size-11 md:rounded-xl">
             <img
               src={nocLogo}
               alt="NOC Logo"
-              className="size-7 object-contain md:size-9"
+              className="size-7 object-contain md:size-8"
             />
           </div>
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col justify-center">
             <p
-              className="truncate text-sm font-black text-slate-900 dark:text-white min-[380px]:text-base md:text-lg lg:text-xl"
+              className="truncate text-base font-extrabold tracking-tight text-slate-900 dark:text-white md:text-lg lg:text-xl leading-none"
               style={{ fontFamily: "'Inter', sans-serif" }}
             >
               {APP_NAME}
             </p>
-            <p className="truncate text-[0.62rem] font-medium text-slate-500 dark:text-slate-400 md:hidden">
+            <p className="truncate text-[0.62rem] font-medium text-slate-500 dark:text-slate-400 md:hidden mt-0.5">
               {pageLabel}
             </p>
             <p
-              className="hidden truncate text-[0.68rem] font-bold uppercase text-slate-500 dark:text-slate-400 md:block"
+              className="hidden md:block truncate text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-blue-200/80 mt-1 leading-none"
               style={{ fontFamily: "'Inter', sans-serif" }}
             >
-              Sarana dan Prasarana
+              {APP_FULL_NAME}
             </p>
           </div>
         </div>
-
-
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:gap-2.5">
@@ -130,7 +130,8 @@ const TopBar: React.FC<TopBarProps> = ({
         )}
 
         {/* Notifications */}
-        <div className="relative">
+        {!isUserTu && (
+          <div className="relative">
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-transparent text-slate-500 transition-colors hover:border-fti-blue-100 hover:bg-fti-blue-50 hover:text-fti-blue-700 dark:text-slate-400 dark:hover:border-fti-blue-300/20 dark:hover:bg-fti-blue-500/10 dark:hover:text-fti-blue-200"
@@ -204,7 +205,8 @@ const TopBar: React.FC<TopBarProps> = ({
                 </div>
               </>
             )}
-        </div>
+          </div>
+        )}
 
         <button
           onClick={toggleDarkMode}
@@ -239,15 +241,17 @@ const TopBar: React.FC<TopBarProps> = ({
                   <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">{userName}</p>
                   <p className="truncate text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{userEmail}</p>
                 </div>
-                <button
-                   onClick={() => {
-                     onNavigate('profil');
-                     setIsProfileOpen(false);
-                   }}
-                   className="flex w-full items-center px-4 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50/80 dark:text-slate-300 dark:hover:bg-slate-900/50 transition-colors"
-                >
-                   <UserCircle className="mr-2 h-4 w-4 text-slate-400" weight="duotone" /> Profile
-                </button>
+                {!isUserTu && (
+                  <button
+                     onClick={() => {
+                       onNavigate('profil');
+                       setIsProfileOpen(false);
+                     }}
+                     className="flex w-full items-center px-4 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50/80 dark:text-slate-300 dark:hover:bg-slate-900/50 transition-colors"
+                  >
+                     <UserCircle className="mr-2 h-4 w-4 text-slate-400" weight="duotone" /> Profile
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onLogout();

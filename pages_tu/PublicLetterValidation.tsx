@@ -28,7 +28,7 @@ import { LetterPreview } from './components/LetterPreview';
 import { LetterLayout } from './types';
 
 type ValidationLetter = {
-  type: 'active-student' | 'observation' | 'counseling' | 'research' | 'su-rek';
+  type: 'active-student' | 'observation' | 'counseling' | 'research' | 'interview' | 'permission' | 'su-rek';
   typeLabel: string;
   status: 'pending' | 'verified' | 'sent';
   isValid: boolean;
@@ -269,7 +269,7 @@ export default function PublicLetterValidation() {
 
   const isObservation = letter.type === 'observation';
   const isCounseling = letter.type === 'counseling';
-  const isResearch = letter.type === 'research';
+  const isResearch = letter.type === 'research' || letter.type === 'interview' || letter.type === 'permission';
   const isSuRek = letter.type === 'su-rek';
   const digitalSigners = letter.signers?.length ? letter.signers : letter.signer ? [letter.signer] : [];
   const tabButtonClass = (tab: 'summary' | 'preview') => cn(

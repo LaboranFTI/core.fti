@@ -150,7 +150,23 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const maxSizeBytes = 5 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      setSettingsFeedback({
+        type: 'error',
+        message: `Ukuran file background terlalu besar (${(file.size / (1024 * 1024)).toFixed(2)} MB). Maksimal 5 MB.`
+      });
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      setSettingsFeedback({
+        type: 'error',
+        message: 'Gagal membaca file gambar background.'
+      });
+    };
     reader.onloadend = () => {
       const nextAsset = {
         imageBase64: reader.result as string,

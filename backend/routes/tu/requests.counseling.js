@@ -15,8 +15,10 @@ import {
   mapCounselingRow,
   ensureLetterNumber,
   recalculateLetterCounter,
-  ensureLetterValidationToken
+  ensureLetterValidationToken,
+  escapeXml
 } from './core.js';
+import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
 
 const router = express.Router();
 
@@ -257,6 +259,75 @@ router.post('/tu/requests/counseling/batch-delete', verifyRole(TU_ADMIN_ROLES), 
   } catch (err) {
     console.error('Batch delete counseling error:', err);
     res.status(500).json({ error: 'Gagal menghapus data konseling secara batch.' });
+  }
+});
+
+router.put('/tu/requests/counseling/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const { rejection_reason } = req.body;
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+
+    const selectResult = await client.query(`SELECT * FROM counseling_requests WHERE id = $1 FOR UPDATE`, [id]);
+    if (selectResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Surat konseling tidak ditemukan.' });
+    }
+
+    const currentData = selectResult.rows[0];
+    if (currentData.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Hanya pengajuan berstatus pending yang dapat ditolak.' });
+    }
+
+    const reason = rejection_reason || 'Tidak ada alasan yang diberikan.';
+
+    const updateResult = await client.query(
+      `UPDATE counseling_requests
+       SET status = 'rejected',
+           rejection_reason = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [reason, id]
+    );
+
+    await client.query('COMMIT');
+
+    if (isValidEmailAddress(currentData.email)) {
+      try {
+        const emailHtml = buildProfessionalEmail({
+          title: 'Penolakan Pengajuan Surat Pengantar Konseling',
+          contentHtml: `
+            <h2>Halo, ${escapeXml(currentData.name)} (${escapeXml(currentData.nim)})</h2>
+            <p>Mohon maaf, pengajuan <b>Surat Pengantar Konseling</b> Anda ditolak dengan alasan:</p>
+            <div style="padding: 16px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; margin-top: 16px;">
+              ${escapeXml(reason)}
+            </div>
+            <p style="margin-top: 16px;">Silakan ajukan ulang surat Anda setelah memperbarui data tersebut.</p>
+          `
+        });
+        await sendMail({
+          to: currentData.email,
+          subject: '[TU FTI UKSW] Notifikasi Penolakan Surat Pengantar Konseling',
+          html: emailHtml,
+          attachments: getStandardEmailAttachments()
+        });
+      } catch (mailErr) {
+        console.error('Failed to send counseling rejection email:', mailErr);
+      }
+    }
+
+    res.json({ success: true, data: mapCounselingRow(updateResult.rows[0]) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Reject counseling request error:', err);
+    res.status(500).json({ error: 'Gagal menolak pengajuan.' });
+  } finally {
+    client.release();
   }
 });
 

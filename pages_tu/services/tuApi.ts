@@ -2,7 +2,7 @@ import { api } from '../../services/api';
 
 export type AdminRequestType = 'activeStudent' | 'observation' | 'counseling' | 'suRek';
 export type ArchiveRequestType = 'active' | 'observation' | 'counseling' | 'su-rek';
-export type TuApiRequestType = 'active-student' | 'observation' | 'counseling' | 'su-rek';
+export type TuApiRequestType = 'active-student' | 'observation' | 'counseling' | 'su-rek' | 'research' | 'interview' | 'permission';
 
 export const getAdminRequestEndpoint = (type: AdminRequestType) => {
   if (type === 'observation') return '/api/observation-requests';
@@ -41,6 +41,8 @@ export const tuApi = {
     api(`/api/tu/requests/${type}/${id}/validation-token`, { method: 'POST' }),
   deleteLetter: (type: TuApiRequestType, id: string) =>
     api(`/api/tu/requests/${type}/${id}`, { method: 'DELETE' }),
+  rejectLetter: (type: TuApiRequestType, id: string, rejection_reason?: string) =>
+    api(`/api/tu/requests/${type}/${id}/reject`, { method: 'PUT', data: { rejection_reason } }),
   batchDeleteLetters: (type: TuApiRequestType, ids: string[]) =>
     api(`/api/tu/requests/${type}/batch-delete`, { method: 'POST', data: { ids } }),
   updateObservation: (id: string, data: Record<string, unknown>) =>

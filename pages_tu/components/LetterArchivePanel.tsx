@@ -43,6 +43,7 @@ import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
 import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
 import { ArchiveStatusBadge } from './archive/ArchiveStatusBadge';
+import { ArchiveDetailView } from './archive/ArchiveDetailView';
 import { DetailRow } from './archive/DetailRow';
 import {
   countArchiveStatuses,
@@ -58,7 +59,7 @@ import {
   normalizeLetterLayouts
 } from '../lib/letterSettings';
 import { formatArchiveDate } from '../lib/archiveFormatting';
-import { getArchiveApiType, getArchiveTitle, tuApi } from '../services/tuApi';
+import { getArchiveApiType, getArchiveTitle, tuApi, TuApiRequestType } from '../services/tuApi';
 
 type ArchiveSelection =
   | { type: 'active'; item: ActiveStudentRequest }
@@ -109,6 +110,32 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   const [selectedSuRekIds, setSelectedSuRekIds] = useState<Set<string>>(new Set());
   // Edit observation state
   const [editTarget, setEditTarget] = useState<any | null>(null);
+  // Rejection state
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; type: TuApiRequestType; name: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handleOpenReject = (id: string, type: TuApiRequestType, name: string) => {
+    setRejectTarget({ id, type, name });
+    setRejectReason('');
+  };
+
+  const handleExecuteReject = async () => {
+    if (!rejectTarget) return;
+    setIsProcessing(true);
+    try {
+      const res = await tuApi.rejectLetter(rejectTarget.type, rejectTarget.id, rejectReason);
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Gagal menolak surat.');
+      setRejectTarget(null);
+      setSelectedLetter(null);
+      await fetchArchiveData({ showError: false });
+      setFeedback({ type: 'success', message: `Pengajuan surat ${rejectTarget.name} telah ditolak.` });
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal menolak surat.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const fetchArchiveData = async ({
     showLoader = false,
@@ -615,30 +642,6 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
   );
 
   if (selectedLetter) {
-    const semesterMeta = getSemesterMeta(currentSemesterCode);
-    const isObservation = selectedLetter.type === 'observation';
-    const isCounseling = selectedLetter.type === 'counseling';
-    const isSuRek = selectedLetter.type === 'su-rek';
-    const observationItem = selectedLetter.type === 'observation' ? selectedLetter.item : null;
-    const counselingItem = selectedLetter.type === 'counseling' ? selectedLetter.item : null;
-    const activeItem = selectedLetter.type === 'active' ? selectedLetter.item : null;
-    const suRekItem = selectedLetter.type === 'su-rek' ? selectedLetter.item : null;
-    const item = selectedLetter.item;
-    const canSendEmail = item.status === 'verified' || item.status === 'sent';
-    const validationUrl = getPublicValidationUrl(item.validationToken);
-    const actionHint =
-      item.status === 'pending'
-        ? isObservation
-          ? 'Verifikasi surat observasi untuk membuat nomor surat dan mengaktifkan pengiriman email.'
-          : isCounseling
-            ? 'Verifikasi surat konseling untuk membuat nomor surat dan mengaktifkan pengiriman email.'
-            : isSuRek
-              ? 'Surat rekomendasi masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
-              : 'Surat aktif kuliah masih menunggu verifikasi dari Panel Admin sebelum dapat dikirim ke email.'
-        : item.status === 'verified'
-          ? 'Surat sudah siap dicetak ulang atau dikirim langsung ke email mahasiswa.'
-          : 'Surat sudah pernah dikirim dan tetap bisa dicetak ulang atau dikirim kembali kapan saja.';
-
     return (
       <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
         {feedback && (
@@ -646,290 +649,28 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
             {feedback.message}
           </div>
         )}
-
-        <div className="rounded-3xl border border-slate-200 dark:border-gray-700 bg-gradient-to-br from-white via-slate-50 to-sky-50 dark:from-gray-900 dark:via-gray-800 dark:to-sky-900/20 p-5 shadow-sm print:hidden">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedLetter(null)} className="w-fit dark:hover:bg-gray-800 dark:text-gray-300">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke daftar arsip
-              </Button>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300">
-                    {isObservation ? 'Surat Observasi' : isCounseling ? 'Surat Konseling' : isSuRek ? 'Rekomendasi Afirmasi' : 'Surat Aktif Kuliah'}
-                  </Badge>
-                  <ArchiveStatusBadge status={item.status} />
-                </div>
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-                  {isObservation ? 'Detail Arsip Surat Observasi' : isCounseling ? 'Detail Arsip Surat Konseling' : isSuRek ? 'Detail Arsip Surat Rekomendasi' : 'Detail Arsip Surat Aktif Kuliah'}
-                </h2>
-                <p className="text-sm text-slate-600 dark:text-gray-400">
-                  {item.name} ({item.nim}){item.email ? ` | ${item.email}` : ''}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
-              <div className="rounded-2xl border border-white/80 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">
-                  <CalendarDays className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                  Dibuat
-                </div>
-                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{formatArchiveDate(item.createdAt)}</p>
-              </div>
-              <div className="rounded-2xl border border-white/80 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-gray-400">
-                  <FileText className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                  Nomor Surat
-                </div>
-                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{item.letterNumber || 'Belum dibuat'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="print:block print:w-full print:m-0 print:p-0">
-            <Card className="h-full border-slate-200 dark:border-gray-700 shadow-sm print:border-0 print:shadow-none">
-              <CardHeader className="border-b dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 py-4 print:hidden">
-                <CardTitle className="flex items-center gap-2 text-lg text-slate-800 dark:text-white">
-                  <Printer className="h-5 w-5 text-slate-600" /> Preview Surat
-                </CardTitle>
-                <CardDescription className="dark:text-gray-400">
-                  Data arsip diambil dari database. PDF akan digenerate hanya saat dicetak atau dikirim ulang.
-                </CardDescription>
-              </CardHeader>
-              <CardContent id="print-area-archive" className="flex min-h-200 justify-center overflow-auto print:overflow-visible bg-slate-200/50 p-6 print:bg-white print:p-0">
-                {isObservation ? (
-                  <LetterPreview
-                    data={{
-                      recipientName: observationItem?.recipientName || '',
-                      companyName: observationItem?.company || '',
-                      companyAddress: observationItem?.companyAddress || '',
-                      courseName: observationItem?.courseName || '',
-                      lecturerName: observationItem?.lecturerName || '',
-                      headOfProgramName: observationItem?.headOfProgramName || '',
-                      studyProgramName: (observationItem as any)?.studyProgramName,
-                      studyProgramLevel: (observationItem as any)?.studyProgramLevel,
-                      students: observationItem?.students || []
-                    }}
-                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
-                    layout={letterLayouts.observation}
-                    showLayoutGuide={false}
-                    letterNumber={observationItem?.letterNumber}
-                    validationToken={observationItem?.validationToken}
-                    validationUrl={validationUrl}
-                    letterDate={observationItem?.letterGeneratedAt || observationItem?.createdAt}
-                  />
-                ) : isCounseling ? (
-                  <LetterPreview
-                    type="counseling"
-                    data={{
-                      ...counselingItem,
-                      subject: counselingItem?.subject || 'Pengantar Konseling',
-                      recipientName: counselingItem?.recipientName || '',
-                      referralUnit: counselingItem?.referralUnit || '',
-                      studyProgramName: counselingItem?.studyProgramName,
-                      studyProgramLevel: counselingItem?.studyProgramLevel,
-                      faculty: counselingItem?.faculty || 'FTI',
-                      status: counselingItem?.status
-                    }}
-                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
-                    layout={letterLayouts.counseling}
-                    showLayoutGuide={false}
-                    letterNumber={counselingItem?.letterNumber}
-                    validationToken={counselingItem?.validationToken}
-                    validationUrl={validationUrl}
-                    letterDate={counselingItem?.letterGeneratedAt || counselingItem?.createdAt}
-                  />
-                ) : isSuRek ? (
-                  <LetterPreview
-                    type="su-rek"
-                    data={{
-                      ...suRekItem,
-                      recipientName: suRekItem?.recipientName || '',
-                      berdasarkanNo: suRekItem?.berdasarkanNo || '',
-                      perihal: suRekItem?.perihal || '',
-                      lampiran: suRekItem?.lampiran || '',
-                      status: suRekItem?.status
-                    }}
-                    backgroundImageBase64={letterBackgrounds.document.imageBase64}
-                    layout={letterLayouts.suRek}
-                    showLayoutGuide={false}
-                    letterNumber={suRekItem?.letterNumber}
-                    validationToken={suRekItem?.validationToken}
-                    validationUrl={validationUrl}
-                    letterDate={suRekItem?.letterGeneratedAt || suRekItem?.createdAt}
-                  />
-                ) : (
-                  <ActiveStudentLetter
-                    data={{
-                      ...activeItem!,
-                      semesterCode: currentSemesterCode,
-                      semesterName: semesterMeta.semesterName,
-                      academicYear: semesterMeta.academicYear,
-                      backgroundImageBase64: letterBackgrounds.document.imageBase64,
-                      layout: letterLayouts.activeStudent,
-                      deanName: deanName,
-                      validationUrl
-                    }}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4 print:hidden">
-            <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
-              <CardHeader className="border-b border-slate-100 dark:border-gray-700">
-                <CardTitle className="text-base text-slate-800 dark:text-white">Aksi Cepat</CardTitle>
-                <CardDescription className="dark:text-gray-400">{actionHint}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-4">
-                {item.status === 'pending' && (
-                  <Button onClick={() => handleVerifyRequest(item.id, selectedLetter.type)} disabled={isProcessing} className="w-full justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
-                    <CheckCircle className="h-4 w-4" /> Setuju
-                  </Button>
-                )}
-                
-                {canSendEmail && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleSendEmail(isObservation ? 'observation' : isCounseling ? 'counseling' : isSuRek ? 'su-rek' : 'active-student', item.id)}
-                    disabled={isProcessing || isSendingEmail}
-                    className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                  >
-                    {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                    Kirim Email
-                  </Button>
-                )}
-                
-                <Button variant="outline" onClick={handlePrint} disabled={!canSendEmail || isProcessing} className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
-                  <Printer className="h-4 w-4" /> Cetak Ulang
-                </Button>
-
-                <Button variant="outline" onClick={handleDownloadPdf} disabled={!canSendEmail || isProcessing} className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
-                  <Download className="h-4 w-4" /> Download PDF
-                </Button>
-                
-                {(isObservation || isCounseling || isSuRek) && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setEditTarget(isSuRek ? { ...suRekItem, type: 'su-rek' } : isCounseling ? { ...counselingItem, type: 'counseling' } : observationItem)}
-                    disabled={isProcessing}
-                    className="w-full justify-center gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
-                  >
-                    <Pencil className="h-4 w-4" /> Edit Data Surat
-                  </Button>
-                )}
-                
-                <Button
-                  variant="outline"
-                  onClick={() => openDeleteSingle(item.id, selectedLetter.type, item.name)}
-                  disabled={isProcessing}
-                  className="w-full justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                >
-                  <Trash2 className="h-4 w-4" /> Hapus Arsip Ini
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
-              <CardHeader className="border-b border-slate-100 dark:border-gray-700">
-                <CardTitle className="flex items-center gap-2 text-base text-slate-800 dark:text-white">
-                  <QrCode className="h-4 w-4 text-sky-600" /> Validasi Publik
-                </CardTitle>
-                <CardDescription className="dark:text-gray-400">
-                  QR pada surat membuka halaman detail validasi tanpa login.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-4">
-                {validationUrl ? (
-                  <>
-                    <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <ValidationQrCode value={validationUrl} size={128} />
-                    </div>
-                    <p className="break-all rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-gray-800 dark:text-gray-400">
-                      {validationUrl}
-                    </p>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-center dark:border-gray-700 dark:hover:bg-gray-800"
-                      onClick={() => window.open(validationUrl, '_blank', 'noopener,noreferrer')}
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" /> Buka Halaman Validasi
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-slate-600 dark:text-gray-400">
-                      Link validasi belum tersedia untuk arsip ini.
-                    </p>
-                    <Button
-                      onClick={handleCreateValidationToken}
-                      disabled={isProcessing || item.status === 'pending'}
-                      className="w-full justify-center"
-                    >
-                      <QrCode className="mr-2 h-4 w-4" /> Buat Link Validasi
-                    </Button>
-                    {item.status === 'pending' && (
-                      <p className="text-xs text-slate-500 dark:text-gray-400">
-                        Surat harus diverifikasi terlebih dahulu sebelum memiliki QR validasi.
-                      </p>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-
-            <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
-              <CardHeader className="border-b border-slate-100 dark:border-gray-700">
-                <CardTitle className="text-base text-slate-800 dark:text-white">Ringkasan Data</CardTitle>
-                <CardDescription className="dark:text-gray-400">Data pemohon, arsip, dan nomor surat.</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <DetailRow label="Nama" value={item.name} />
-                <DetailRow label="NIM" value={item.nim} />
-                <DetailRow label="Email" value={item.email || '-'} />
-                <DetailRow label="Tanggal Arsip" value={formatArchiveDate(item.createdAt)} />
-                <DetailRow label="Nomor Surat" value={item.letterNumber || 'Belum dibuat'} />
-                {isObservation ? (
-                  <>
-                    <DetailRow label="Tujuan" value={observationItem?.recipientName || '-'} />
-                    <DetailRow label="Instansi" value={observationItem?.company || '-'} />
-                    <DetailRow label="Mahasiswa di Surat" value={`${observationItem?.students?.length || 0} orang`} />
-                  </>
-                ) : isCounseling ? (
-                  <>
-                    <DetailRow label="Hal" value={counselingItem?.subject || '-'} />
-                    <DetailRow label="Yang Terhormat" value={(counselingItem?.recipientName || '-').replace(/\n/g, ' / ')} />
-                    <DetailRow label="Unit Rujukan" value={counselingItem?.referralUnit || '-'} />
-                    <DetailRow label="Program Studi" value={counselingItem?.studyProgramName || '-'} />
-                  </>
-                ) : (
-                  <>
-                    <DetailRow label="Program Studi" value={activeItem?.studyProgramName || '-'} />
-                    <DetailRow label="Fakultas" value={activeItem?.faculty || '-'} />
-                    <DetailRow label="Semester" value={formatSemesterLabel((activeItem as any)?.semester || currentSemesterCode)} />
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-200 dark:border-gray-700 shadow-sm">
-              <CardContent className="pt-4">
-                <div className="rounded-2xl bg-slate-50 dark:bg-gray-800/50 p-4">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-white">Catatan Operasional</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
-                    Arsip ini menyimpan data sumber surat. Saat aksi cetak atau kirim dijalankan, sistem akan membuat output
-                    terbaru berdasarkan template, background, nama penanggung jawab, dan QR validasi yang aktif.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <ArchiveDetailView
+          selection={{
+            category: 'TU',
+            type: selectedLetter.type,
+            item: selectedLetter.item
+          }}
+          onBack={() => setSelectedLetter(null)}
+          onVerify={(id, type) => handleVerifyRequest(id, type as any)}
+          onReject={(id, type, name) => handleOpenReject(id, type as any, name)}
+          onSendEmail={(type, id) => handleSendEmail(type === 'active' ? 'active-student' : type as any, id)}
+          onDownloadPdf={handleDownloadPdf}
+          onPrint={handlePrint}
+          onEdit={(item) => setEditTarget(item)}
+          onDelete={(id, type, label) => openDeleteSingle(id, type as any, label)}
+          onCreateValidationToken={handleCreateValidationToken}
+          letterBackgrounds={letterBackgrounds}
+          letterLayouts={letterLayouts}
+          deanName={deanName}
+          currentSemesterCode={currentSemesterCode}
+          isProcessing={isProcessing}
+          isSendingEmail={isSendingEmail}
+        />
         {emailUx}
       </div>
     );
@@ -1850,6 +1591,43 @@ export function LetterArchivePanel({ refreshKey = 0 }: LetterArchivePanelProps) 
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 <Pencil className="w-4 h-4 mr-2" /> Simpan Perubahan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tolak Pengajuan Surat</h3>
+              <button onClick={() => setRejectTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Apakah Anda yakin ingin menolak pengajuan surat dari <strong>{rejectTarget.name}</strong>?
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                Alasan Penolakan:
+              </label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Contoh: Data KST/profil tidak sesuai atau berkas lampiran belum lengkap."
+                className="w-full dark:bg-gray-900 dark:border-gray-700 text-sm"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={isProcessing}>
+                Batal
+              </Button>
+              <Button onClick={handleExecuteReject} disabled={isProcessing} className="bg-red-600 hover:bg-red-700 text-white">
+                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Tolak Pengajuan
               </Button>
             </div>
           </div>

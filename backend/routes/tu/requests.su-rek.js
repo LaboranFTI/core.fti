@@ -535,4 +535,73 @@ router.get('/su-rek/summary', verifyRole(['Admin', 'Admin TU', 'User TU']), asyn
   }
 });
 
+router.put('/tu/requests/su-rek/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const { rejection_reason } = req.body;
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+
+    const selectResult = await client.query(`SELECT * FROM su_rek_requests WHERE id = $1 FOR UPDATE`, [id]);
+    if (selectResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Surat rekomendasi tidak ditemukan.' });
+    }
+
+    const currentData = selectResult.rows[0];
+    if (currentData.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Hanya pengajuan berstatus pending yang dapat ditolak.' });
+    }
+
+    const reason = rejection_reason || 'Tidak ada alasan yang diberikan.';
+
+    const updateResult = await client.query(
+      `UPDATE su_rek_requests
+       SET status = 'rejected',
+           rejection_reason = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [reason, id]
+    );
+
+    await client.query('COMMIT');
+
+    if (isValidEmailAddress(currentData.email)) {
+      try {
+        const emailHtml = buildProfessionalEmail({
+          title: 'Penolakan Pengajuan Surat Rekomendasi Afirmasi',
+          contentHtml: `
+            <h2>Halo, ${escapeXml(currentData.name)} (${escapeXml(currentData.nim)})</h2>
+            <p>Mohon maaf, pengajuan <b>Surat Rekomendasi Afirmasi</b> Anda ditolak dengan alasan:</p>
+            <div style="padding: 16px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; margin-top: 16px;">
+              ${escapeXml(reason)}
+            </div>
+            <p style="margin-top: 16px;">Silakan ajukan ulang surat Anda setelah memperbarui data tersebut.</p>
+          `
+        });
+        await sendMail({
+          to: currentData.email,
+          subject: '[TU FTI UKSW] Notifikasi Penolakan Surat Rekomendasi Afirmasi',
+          html: emailHtml,
+          attachments: getStandardEmailAttachments()
+        });
+      } catch (mailErr) {
+        console.error('Failed to send su-rek rejection email:', mailErr);
+      }
+    }
+
+    res.json({ success: true, data: mapSuRekRow(updateResult.rows[0]) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Reject su-rek request error:', err);
+    res.status(500).json({ error: 'Gagal menolak pengajuan.' });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;

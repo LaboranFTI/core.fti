@@ -316,11 +316,31 @@ export function ObservationForm({ readOnly = false, feedback = null, onReturnToM
 
 
 
+  const validateObservationFormData = (formData: any) => {
+    if (!formData.companyName?.trim()) {
+      return 'Nama instansi / perusahaan tujuan wajib diisi.';
+    }
+    if (!formData.companyAddress?.trim()) {
+      return 'Alamat instansi / perusahaan tujuan wajib diisi.';
+    }
+    if (Array.isArray(formData.students) && formData.students.length > 0) {
+      const invalidStudent = formData.students.find((s: any) => !s.name?.trim() || !s.nim?.trim());
+      if (invalidStudent) {
+        return 'Nama dan NIM seluruh mahasiswa kelompok wajib diisi.';
+      }
+    }
+    return null;
+  };
+
   const handleDownloadPdf = async () => {
     setIsDownloadingPdf(true);
     setFormFeedback(null);
     try {
       const formData = getValues();
+      const validationErr = validateObservationFormData(formData);
+      if (validationErr) {
+        throw new Error(validationErr);
+      }
       if (accessLetterState?.accessCode) {
         const saveRes = await api('/api/tu/public/observation-letter/access', {
           method: 'PATCH',
@@ -428,6 +448,10 @@ export function ObservationForm({ readOnly = false, feedback = null, onReturnToM
     setFormFeedback(null);
     try {
       const formData = getValues();
+      const validationErr = validateObservationFormData(formData);
+      if (validationErr) {
+        throw new Error(validationErr);
+      }
       const res = await api('/api/tu/observation-letter/generate-qr-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

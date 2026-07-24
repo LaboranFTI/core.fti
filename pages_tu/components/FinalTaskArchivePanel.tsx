@@ -22,6 +22,7 @@ import { ResearchRequest, TULetterBackgrounds, TULetterLayouts } from '../types'
 import { LetterPreview } from './LetterPreview';
 import { ValidationQrCode } from './ValidationQrCode';
 import { api } from '../../services/api';
+import { tuApi } from '../services/tuApi';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
@@ -34,6 +35,7 @@ import { Tabs, TabsContent } from '../../components/ui/tabs';
 import { EmailActionOverlay } from './EmailActionOverlay';
 import { EmailSuccessDialog } from './EmailSuccessDialog';
 import { TUMetricCard, TUNotice, TUSectionCard } from './TUPageComponents';
+import { ArchiveDetailView } from './archive/ArchiveDetailView';
 
 type FinalTaskLetterType = 'research' | 'interview' | 'permission';
 
@@ -530,6 +532,26 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
   const currentItem = selectedLetter?.item;
   const currentType = selectedLetter?.type;
 
+  const handleCreateValidationToken = async () => {
+    if (!selectedLetter) return;
+    setIsProcessing(true);
+    setFeedback(null);
+    try {
+      const res = await tuApi.ensureValidationToken(selectedLetter.type, selectedLetter.item.id);
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Gagal membuat link validasi surat.');
+      }
+      setSelectedLetter((prev) => (prev ? { ...prev, item: { ...prev.item, validationToken: json.validationToken } } : null));
+      await fetchArchiveData({ showError: false });
+      setFeedback({ type: 'success', message: 'Link validasi publik berhasil dibuat.' });
+    } catch (error) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Gagal membuat link validasi surat.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const tabConfig = [
     { value: 'research', label: `Penelitian (${researchRequests.length})`, icon: FileText },
     { value: 'interview', label: `Wawancara (${interviewRequests.length})`, icon: MessageSquare },
@@ -604,134 +626,26 @@ export function FinalTaskArchivePanel({ refreshKey = 0 }: FinalTaskArchivePanelP
 
       {/* Main Content */}
       {selectedLetter ? (
-        /* Detail View */
-        <TUSectionCard>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedLetter(null)}
-                className="gap-1 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                <ArrowLeft className="h-4 w-4" /> Kembali
-              </Button>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-800 dark:text-white">
-                  {currentItem?.name}
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500 dark:text-gray-400">
-                  {currentType ? finalTaskTypeLabels[currentType].title : 'Surat Tugas Akhir'} - {currentItem?.nim}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Details */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                {currentItem?.status && getStatusBadge(currentItem.status)}
-                {currentItem?.letterNumber && (
-                  <Badge variant="outline" className="text-xs dark:border-gray-600 dark:text-gray-300">
-                    {currentItem.letterNumber}
-                  </Badge>
-                )}
-              </div>
-              <DetailRow label="Nama" value={currentItem?.name || '-'} />
-              <DetailRow label="NIM" value={currentItem?.nim || '-'} />
-              <DetailRow label="Email" value={currentItem?.email || '-'} />
-              {currentItem?.letterKind === 'permission' && (
-                <DetailRow label="Keperluan" value={currentItem?.permissionPurpose || '-'} />
-              )}
-              <DetailRow label="Judul" value={currentItem?.researchTitle || '-'} />
-              <DetailRow label="Tujuan" value={currentItem?.destinationPlace || '-'} />
-              <DetailRow label="Penerima" value={currentItem?.recipientName || '-'} />
-              <DetailRow label="Tanggal Pengajuan" value={formatArchiveDate(currentItem?.createdAt)} />
-              {currentItem?.letterGeneratedAt && (
-                <DetailRow label="Tanggal Surat" value={formatArchiveDate(currentItem.letterGeneratedAt)} />
-              )}
-              {currentItem?.status === 'rejected' && currentItem?.rejectionReason && (
-                <DetailRow label="Alasan Penolakan" value={currentItem.rejectionReason} />
-              )}
-
-              {/* QR Code */}
-              {currentItem?.validationToken && (
-                <div className="pt-2">
-                  <ValidationQrCode
-                    value={getValidationUrl(currentItem.validationToken)}
-                  />
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex flex-col gap-2 pt-2">
-                {currentItem?.status === 'pending' && (
-                  <>
-                    <Button
-                      variant="default"
-                      className="w-full justify-center gap-2 bg-blue-600 hover:bg-blue-700"
-                      onClick={() => handleVerify(currentType!, currentItem!)}
-                      disabled={isProcessing}
-                    >
-                      <CheckCircle className="h-4 w-4" /> Setuju
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
-                      onClick={() => handleOpenRejectDialog(currentType!, currentItem!)}
-                      disabled={isProcessing}
-                    >
-                      <XCircle className="h-4 w-4" /> Tolak
-                    </Button>
-                  </>
-                )}
-                
-
-                {currentItem?.status !== 'pending' && (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                    onClick={() => handleDownload(currentType!, currentItem!)}
-                    disabled={isProcessing}
-                  >
-                    <Download className="h-4 w-4" /> Download PDF
-                  </Button>
-                )}
-
-                {currentItem?.status === 'verified' && (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-center gap-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                    onClick={() => handleSendEmail(currentType!, currentItem!)}
-                    disabled={isProcessing || !currentItem?.email}
-                  >
-                    {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                    Kirim Email
-                  </Button>
-                )}
-                
-                <Button
-                  variant="outline"
-                  onClick={() => openDeleteSingle(currentItem!.id, currentType!, currentItem!.name)}
-                  disabled={isProcessing}
-                  className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Hapus Arsip Ini
-                </Button>
-              </div>
-            </div>
-
-            {/* Right: Preview */}
-            <div className="rounded-lg border border-slate-200 dark:border-gray-700 overflow-hidden min-h-[400px]">
-              <LetterPreview
-                type={currentType}
-                data={{ ...currentItem, deanName }}
-                backgroundImageBase64={letterBackgrounds.document?.imageBase64}
-                layout={letterLayouts.activeStudent}
-              />
-            </div>
-          </CardContent>
-        </TUSectionCard>
+        <ArchiveDetailView
+          selection={{
+            category: 'TA',
+            type: selectedLetter.type,
+            item: selectedLetter.item
+          }}
+          onBack={() => setSelectedLetter(null)}
+          onVerify={(id, type) => handleVerify(type as any, currentItem!)}
+          onReject={(id, type, name) => handleOpenRejectDialog(type as any, currentItem!)}
+          onSendEmail={(type, id) => handleSendEmail(type as any, currentItem!)}
+          onDownloadPdf={() => handleDownload(selectedLetter.type, selectedLetter.item)}
+          onPrint={() => window.print()}
+          onDelete={(id, type, label) => openDeleteSingle(id, type as any, label)}
+          onCreateValidationToken={handleCreateValidationToken}
+          letterBackgrounds={letterBackgrounds}
+          letterLayouts={letterLayouts}
+          deanName={deanName}
+          isProcessing={isProcessing}
+          isSendingEmail={isSendingEmail}
+        />
       ) : (
         /* List View */
         <TUSectionCard>

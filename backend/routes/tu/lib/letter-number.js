@@ -145,13 +145,26 @@ const {
   defaultLetterLayoutMm: DEFAULT_LETTER_LAYOUT_MM
 });
 
-// Helper: Generate PDF Buffer menggunakan Puppeteer
+let puppeteerBrowserInstance = null;
+
+const getPuppeteerBrowser = async () => {
+  if (!puppeteerBrowserInstance || !puppeteerBrowserInstance.isConnected()) {
+    puppeteerBrowserInstance = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+  }
+  return puppeteerBrowserInstance;
+};
+
+// Helper: Generate PDF Buffer menggunakan Puppeteer (Singleton instance)
 const generatePdfBuffer = async (htmlContent) => {
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  let page = null;
   try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 }); // Set viewport exactly to A4
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    const browser = await getPuppeteerBrowser();
+    page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
+    await page.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
     const pdfBuffer = await page.pdf({
       format: 'A4',
       preferCSSPageSize: true,
@@ -159,8 +172,13 @@ const generatePdfBuffer = async (htmlContent) => {
       margin: { top: '0', right: '0', bottom: '0', left: '0' }
     });
     return pdfBuffer;
+  } catch (err) {
+    console.error('[Puppeteer] Error generating PDF buffer:', err);
+    throw err;
   } finally {
-    await browser.close();
+    if (page) {
+      await page.close().catch(() => {});
+    }
   }
 };
 

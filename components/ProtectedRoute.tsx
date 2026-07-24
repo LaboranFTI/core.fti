@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!hasAccess) {
     // Jika tidak diizinkan, render halaman Access Denied
-    return <AccessDenied onNavigate={onNavigate} />;
+    return <AccessDenied currentRole={currentRole} onNavigate={onNavigate} />;
   }
 
   // Jika diizinkan, render halaman yang diminta

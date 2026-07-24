@@ -21,26 +21,15 @@ import {
   normalizeObservationStudents,
   upsertObservationRequest,
   ensureObservationAccessCode,
-  normalizeObservationAccessCode
+  normalizeObservationAccessCode,
+  escapeXml
 } from './core.js';
 
 import { sendMail, buildProfessionalEmail, getStandardEmailAttachments } from '../../utils/mailer.js';
 
 const router = express.Router();
 
-const escapeXml = (unsafe) => {
-  return String(unsafe || '')
-    .replace(/[<>&'"]/g, (c) => {
-      switch (c) {
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '&': return '&amp;';
-        case '\'': return '&apos;';
-        case '"': return '&quot;';
-        default: return c;
-      }
-    });
-};
+
 
 router.post('/observation-requests', verifyRole(TU_SUBMIT_ROLES), async (req, res) => {
   const {
@@ -544,6 +533,76 @@ router.post('/tu/observation-letter/send-email', verifyRole(TU_SUBMIT_ROLES), as
     await client.query('ROLLBACK').catch(() => { });
     console.error('[Mailer] Observation send-email error:', err);
     res.status(500).json({ error: 'Gagal mengirim email surat observasi. Pastikan konfigurasi EMAIL di .env sudah benar.' });
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/tu/requests/observation/:id/reject', verifyRole(TU_ADMIN_ROLES), async (req, res) => {
+  const { id } = req.params;
+  const { rejection_reason } = req.body;
+  const client = await pool.connect();
+
+  try {
+    await ensureTuInfrastructure();
+    await client.query('BEGIN');
+
+    const selectResult = await client.query(`SELECT * FROM observation_requests WHERE id = $1 FOR UPDATE`, [id]);
+    if (selectResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Surat observasi tidak ditemukan.' });
+    }
+
+    const currentData = selectResult.rows[0];
+    if (currentData.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Hanya pengajuan berstatus pending yang dapat ditolak.' });
+    }
+
+    const reason = rejection_reason || 'Tidak ada alasan yang diberikan.';
+
+    const updateResult = await client.query(
+      `UPDATE observation_requests
+       SET status = 'rejected',
+           rejection_reason = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [reason, id]
+    );
+
+    await client.query('COMMIT');
+
+    const targetEmail = currentData.applicant_email || currentData.email;
+    if (isValidEmailAddress(targetEmail)) {
+      try {
+        const emailHtml = buildProfessionalEmail({
+          title: 'Penolakan Pengajuan Surat Ijin Observasi',
+          contentHtml: `
+            <h2>Halo, ${escapeXml(currentData.applicant_name || currentData.name || 'Mahasiswa')}</h2>
+            <p>Mohon maaf, pengajuan <b>Surat Ijin Observasi</b> Anda ditolak dengan alasan:</p>
+            <div style="padding: 16px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; margin-top: 16px;">
+              ${escapeXml(reason)}
+            </div>
+            <p style="margin-top: 16px;">Silakan ajukan ulang surat Anda setelah memperbarui data tersebut.</p>
+          `
+        });
+        await sendMail({
+          to: targetEmail,
+          subject: '[TU FTI UKSW] Notifikasi Penolakan Surat Ijin Observasi',
+          html: emailHtml,
+          attachments: getStandardEmailAttachments()
+        });
+      } catch (mailErr) {
+        console.error('Failed to send observation rejection email:', mailErr);
+      }
+    }
+
+    res.json({ success: true, data: mapObservationRow(updateResult.rows[0]) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Reject observation request error:', err);
+    res.status(500).json({ error: 'Gagal menolak pengajuan.' });
   } finally {
     client.release();
   }

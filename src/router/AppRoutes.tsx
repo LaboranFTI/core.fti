@@ -85,7 +85,7 @@ const broadAppRoles = [
   Role.ADMIN_TU,
 ];
 const adminOperationalRoles = [Role.ADMIN, Role.LABORAN, supervisorRole];
-const profileRoles = [...broadAppRoles, Role.USER_TU];
+const profileRoles = broadAppRoles;
 
 const AppRoutes: React.FC<AppRoutesProps> = ({
   isAuthenticated,

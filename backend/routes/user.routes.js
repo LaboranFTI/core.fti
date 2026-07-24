@@ -10,7 +10,7 @@ const CREATEABLE_STATUSES = ['Aktif', 'Non-Aktif'];
 const EDITABLE_STATUSES = ['Aktif', 'Non-Aktif', 'Reset'];
 const TOGGLEABLE_STATUSES = ['Aktif', 'Non-Aktif'];
 const RESET_TOKEN_TTL_HOURS = 24;
-const PROFILE_ACCESS_ROLES = ['Admin', 'Laboran', 'Mahasiswa', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU', 'User TU'];
+const PROFILE_ACCESS_ROLES = ['Admin', 'Laboran', 'Mahasiswa', 'Lembaga Kemahasiswaan', 'Dosen', 'Supervisor', 'Admin TU'];
 
 const hashResetToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const generateResetToken = () => crypto.randomBytes(8).toString('hex').toUpperCase();

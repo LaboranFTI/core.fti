@@ -75,6 +75,7 @@ const AppShell: React.FC<AppShellProps> = ({
   return (
     <div className={`min-h-dvh ${isDarkMode ? 'dark' : ''} bg-gray-50 font-sans transition-colors duration-200 dark:bg-slate-900 print:bg-white`}>
       <TopBar
+        currentRole={currentRole}
         onToggleSidebar={onToggleSidebar}
         showSidebarToggle={hasSidebarNavigation}
         isVisible={isMobileTopBarVisible}

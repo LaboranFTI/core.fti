@@ -1,12 +1,23 @@
 import React from 'react';
 import { ArrowLeft, LockKey, ShieldWarning } from '@phosphor-icons/react';
 import { Button } from './ui/button';
+import { Role } from '../types';
+import { getDefaultRouteForRole } from '../src/app/roles';
 
 interface AccessDeniedProps {
+  currentRole?: Role | string;
   onNavigate: (page: string) => void;
 }
 
-const AccessDenied: React.FC<AccessDeniedProps> = ({ onNavigate }) => {
+const AccessDenied: React.FC<AccessDeniedProps> = ({ currentRole, onNavigate }) => {
+  const defaultRoute = currentRole ? getDefaultRouteForRole(currentRole).replace('/', '') : 'dashboard';
+
+  const getButtonLabel = (route: string) => {
+    if (route === 'layanan-tu') return 'Kembali ke Layanan Surat';
+    if (route === 'ruangan') return 'Kembali ke Daftar Ruangan';
+    return 'Kembali ke Dashboard';
+  };
+
   return (
     <div className="flex min-h-[80vh] items-center justify-center p-6 animate-fade-in-up">
       <div className="relative w-full max-w-lg overflow-hidden rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -24,9 +35,9 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({ onNavigate }) => {
           Permission required
         </div>
         <div className="mt-7">
-          <Button onClick={() => onNavigate('dashboard')} variant="primary" size="lg">
+          <Button onClick={() => onNavigate(defaultRoute)} variant="primary" size="lg">
             <ArrowLeft className="mr-2 h-4 w-4" weight="bold" />
-            Kembali ke Dashboard
+            {getButtonLabel(defaultRoute)}
           </Button>
         </div>
       </div>

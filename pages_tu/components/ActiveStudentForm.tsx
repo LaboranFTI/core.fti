@@ -144,18 +144,18 @@ export function ActiveStudentForm({ onReturnToMenu }: ActiveStudentFormProps) {
       return;
     }
 
-    const programs = studyPrograms.length > 0 ? studyPrograms : await fetchStudyPrograms();
-    const derivedStudyProgram = findStudyProgramByNim(nimValue, programs);
-    if (!derivedStudyProgram) {
-      setVerifyError('Kode program studi dari NIM belum dikenali. Hubungi admin TU untuk memperbarui pemetaan prodi.');
-      return;
-    }
-
     setIsVerifying(true);
     setVerifyError('');
     setFormFeedback(null);
 
     try {
+      const programs = studyPrograms.length > 0 ? studyPrograms : await fetchStudyPrograms();
+      const derivedStudyProgram = findStudyProgramByNim(nimValue, programs);
+      if (!derivedStudyProgram) {
+        setIsVerifying(false);
+        setVerifyError('Kode program studi dari NIM belum dikenali. Hubungi admin TU untuk memperbarui pemetaan prodi.');
+        return;
+      }
       const res = await api(`/api/siasat/kst/${nimValue}`);
 
       if (!res.ok) throw new Error('Gagal menghubungi server');

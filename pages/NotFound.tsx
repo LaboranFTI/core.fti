@@ -30,11 +30,11 @@ const NotFound: React.FC = () => {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/')}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-950 dark:hover:bg-slate-200"
               >
                 <House size={18} weight="bold" />
-                Ke Dashboard
+                Ke Halaman Utama
               </button>
               <button
                 type="button"

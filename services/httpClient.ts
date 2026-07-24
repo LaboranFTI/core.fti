@@ -93,14 +93,26 @@ const getErrorSnippet = async (response: Response, maxChars = 4000) => {
   }
 };
 
+const isAbortError = (error: unknown): boolean => {
+  if (!error) return false;
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  if (error instanceof Error) {
+    return (
+      error.name === 'AbortError' ||
+      error.message.toLowerCase().includes('aborted') ||
+      error.message.toLowerCase().includes('abort')
+    );
+  }
+  return false;
+};
+
 const isNetworkOrTimeoutError = (error: unknown) => {
   if (!(error instanceof Error)) return false;
+  if (isAbortError(error)) return false;
 
   const msg = error.message?.toLowerCase?.() ?? '';
   return (
     msg.includes('timeout') ||
-    msg.includes('aborted') ||
-    msg.includes('abort') ||
     msg.includes('network') ||
     msg.includes('failed to fetch')
   );
@@ -187,6 +199,14 @@ export const api = async (endpoint: string, options: ApiRequest = {}) => {
       return response;
     } catch (error) {
       lastError = error;
+
+      // If caller's external signal was aborted or operation was aborted, do not retry and rethrow AbortError directly
+      if (config.signal?.aborted || isAbortError(error)) {
+        if (error instanceof DOMException || (error instanceof Error && error.name === 'AbortError')) {
+          throw error;
+        }
+        throw new DOMException(error instanceof Error ? error.message : 'The operation was aborted.', 'AbortError');
+      }
 
       const retryable =
         shouldRetry && (isNetworkOrTimeoutError(error) || (error instanceof Error && error.message.toLowerCase().includes('502')));

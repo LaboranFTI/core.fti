@@ -234,7 +234,6 @@ export const navigationGroups: NavigationGroup[] = [
           Role.LEMBAGA_KEMAHASISWAAN,
           Role.DOSEN,
           Role.SUPERVISOR,
-          Role.USER_TU,
           Role.ADMIN_TU,
         ],
       },
