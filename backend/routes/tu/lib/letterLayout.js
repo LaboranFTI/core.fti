@@ -36,7 +36,7 @@ export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         .signature-lines,
         .carbon-copy-block {
             font-family: "Times New Roman", Times, serif;
-            font-size: 12pt;
+            font-size: 11pt;
             line-height: 1.5;
         }
 
@@ -44,7 +44,7 @@ export const OFFICIAL_LETTER_TYPOGRAPHY_CSS = `
         .content td,
         .content th,
         .content li {
-            font-size: 12pt;
+            font-size: 11pt;
             line-height: 1.5;
             orphans: 3;
             widows: 3;

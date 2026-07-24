@@ -6,7 +6,7 @@ import {
   UploadSimple as Upload,
   Trash as Trash2
 } from '@phosphor-icons/react';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LetterLayout, TULetterBackgrounds, TULetterLayouts } from '../types';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -87,6 +87,11 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
   const [tempLetterBackgrounds, setTempLetterBackgrounds] = useState<TULetterBackgrounds>(createEmptyLetterBackgrounds);
   const [tempLetterLayouts, setTempLetterLayouts] = useState<TULetterLayouts>(createEmptyLetterLayouts);
   const [settingsFeedback, setSettingsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Debounced preview state: only update preview after user stops typing for 600ms
+  const [debouncedPreviewLayout, setDebouncedPreviewLayout] = useState<LetterLayout | null>(null);
+  const [debouncedPreviewBg, setDebouncedPreviewBg] = useState<string>('');
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchTuSettings = async () => {
     setIsLoadingSettings(true);
@@ -186,21 +191,29 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
     reader.readAsDataURL(file);
   };
 
-  const handleLetterLayoutChange = (
+  const handleLetterLayoutChange = useCallback((
     letterKey: LetterLayoutKey,
     field: keyof LetterLayout,
     value: string
   ) => {
     const sanitized = value === '' ? '' : value.replace(',', '.');
-    setTempLetterLayouts((prev: TULetterLayouts) => ({
-      ...prev,
-      [letterKey]: {
-        ...getDefaultLetterLayout(letterKey),
-        ...(prev[letterKey] || {}),
-        [field]: sanitized === '' ? 0 : Number(sanitized)
-      }
-    }));
-  };
+    setTempLetterLayouts((prev: TULetterLayouts) => {
+      const next = {
+        ...prev,
+        [letterKey]: {
+          ...getDefaultLetterLayout(letterKey),
+          ...(prev[letterKey] || {}),
+          [field]: sanitized === '' ? 0 : Number(sanitized)
+        }
+      };
+      // Debounce: schedule preview refresh 600ms after user stops typing
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      debounceTimer.current = setTimeout(() => {
+        setDebouncedPreviewLayout(next[letterKey]);
+      }, 600);
+      return next;
+    });
+  }, []);
 
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
@@ -276,6 +289,23 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
       : selectedLayoutConfigKey === 'suRek'
         ? 'su-rek'
         : selectedLayoutConfigKey;
+
+  // The layout actually shown in preview: debounced while user is typing margins,
+  // but sync immediately when switching letter type or on initial load
+  const previewLayout = debouncedPreviewLayout ?? selectedLayoutConfig;
+  const previewBg = debouncedPreviewBg || tempLetterBackgrounds.document.imageBase64 || '';
+
+  // When switching letter type, immediately sync debounced state so preview updates at once
+  useEffect(() => {
+    setDebouncedPreviewLayout(selectedLayoutConfig);
+    setDebouncedPreviewBg(tempLetterBackgrounds.document.imageBase64 || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLayoutConfigKey]);
+
+  // When background image changes, sync immediately
+  useEffect(() => {
+    setDebouncedPreviewBg(tempLetterBackgrounds.document.imageBase64 || '');
+  }, [tempLetterBackgrounds.document.imageBase64]);
 
   return (
     <div className="flex flex-col gap-6 print:hidden">
@@ -922,16 +952,15 @@ export function AdminPanel({ onSettingsSaved }: AdminPanelProps) {
                       <span className="text-xs px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-400">Skala Lembar A4</span>
                     </div>
 
-                    <div className="w-full overflow-auto bg-slate-200/50 dark:bg-gray-900/50 rounded-xl p-4 flex justify-center items-start border border-slate-100 dark:border-slate-800 min-h-[450px]">
-                      <div 
-                        className="scale-[0.5] sm:scale-[0.6] md:scale-[0.7] lg:scale-[0.65] xl:scale-[0.75] origin-top my-4"
-                        key={`${selectedLayoutConfigKey}-${selectedLayoutConfig.marginTopMm}-${selectedLayoutConfig.marginRightMm}-${selectedLayoutConfig.marginBottomMm}-${selectedLayoutConfig.marginLeftMm}-${tempLetterBackgrounds.document.imageBase64 ? 'has-bg' : 'no-bg'}`}
-                      >
+                    {/* Aspect-ratio-based A4 preview container – no scale() trick */}
+                    <div className="w-full bg-slate-200/50 dark:bg-gray-900/50 rounded-xl p-3 sm:p-4 flex justify-center items-start border border-slate-100 dark:border-slate-800">
+                      {/* A4 proportional wrapper: max width capped so it fits the panel */}
+                      <div className="w-full max-w-[520px]">
                         <LetterPreview
                           type={selectedPreviewType}
                           data={selectedPreviewData}
-                          backgroundImageBase64={tempLetterBackgrounds.document.imageBase64}
-                          layout={selectedLayoutConfig}
+                          backgroundImageBase64={previewBg}
+                          layout={previewLayout}
                           letterNumber={selectedPreviewData.letterNumber}
                           validationToken={selectedPreviewData.validationToken}
                           validationUrl={selectedPreviewData.validationUrl}

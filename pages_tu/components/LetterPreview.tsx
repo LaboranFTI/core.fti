@@ -104,7 +104,11 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
   ]);
 
   return (
-    <div ref={containerRef} className="w-full flex justify-center max-w-full relative h-[600px] md:h-[800px] bg-slate-100 rounded border border-slate-200">
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded border border-slate-200 bg-slate-100"
+      style={{ aspectRatio: '1 / 1.414' /* A4 proportion: 210 x 297mm */ }}
+    >
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
           <div className="flex flex-col items-center gap-2">
@@ -120,7 +124,7 @@ export const LetterPreview = React.forwardRef<HTMLDivElement, LetterPreviewProps
         <iframe
           ref={ref as any}
           src={pdfUrl + '#toolbar=0&navpanes=0&scrollbar=0'}
-          className="w-full h-full border-0 rounded shadow-lg"
+          className="absolute inset-0 w-full h-full border-0 rounded shadow-lg"
           title="Pratinjau Surat PDF"
         />
       )}

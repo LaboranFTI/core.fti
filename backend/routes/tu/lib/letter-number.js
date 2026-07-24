@@ -167,7 +167,6 @@ const generatePdfBuffer = async (htmlContent) => {
     await page.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
     const pdfBuffer = await page.pdf({
       format: 'A4',
-      preferCSSPageSize: true,
       printBackground: true,
       margin: { top: '0', right: '0', bottom: '0', left: '0' }
     });
